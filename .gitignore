@@ -26,3 +26,8 @@ ports.json
 .DS_Store
 Thumbs.db
 coverage/
+.pytest_cache/
+.pnpm-store/
+.dev-tools/
+*.tsbuildinfo
+backend/data/*.sqlite3
