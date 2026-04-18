@@ -1,8 +1,12 @@
 project: sha
-generated_at: 2026-04-18 14:15 UTC
+generated_at: 2026-04-18 20:15 UTC
 identity:
   display_name: Security Hardening Automation
   short_name: SHA
+environment:
+  python_version: ==3.13.*
+  venv_path: backend/.venv
+  package_manager: npm
 services:
   backend_port: 8010
   frontend_port: 3010
@@ -17,13 +21,28 @@ network:
   hostname: summitflow-prod
 explorer:
   scan_status: completed
-  last_completed_scan: '2026-04-18T14:12:04.041218+00:00'
-  last_scan_type: full
+  last_completed_scan: '2026-04-18T18:14:59.210313+00:00'
+  last_scan_type: file
   entry_counts:
     architecture: 1
-    file: 6
-  symbol_count: 0
+    dependency: 7
+    file: 96
+    page: 6
+  symbol_count: 223
   stale_metadata_count: 0
+pages:
+- / (home)
+- /approvals (approvals)
+- /controls (controls)
+- /endpoints/:endpointId (endpoints/:endpointId)
+- /fleet (fleet)
+- /installers (installers)
 folders:
-  (root): 5 files
+  (root): 11 files
   .st: 1 files
+  agent: 3 files
+  backend: 35 files - api, tests
+  control-packs: 8 files
+  docs: 7 files
+  frontend: 30 files - api, components, tests
+  schemas: 1 files
