@@ -1,0 +1,29 @@
+project: sha
+generated_at: 2026-04-18 14:15 UTC
+identity:
+  display_name: Security Hardening Automation
+  short_name: SHA
+services:
+  backend_port: 8010
+  frontend_port: 3010
+  infrastructure:
+    postgres: 5432
+    redis: 6379
+urls:
+  frontend: http://localhost:3010
+  api: http://localhost:8010/api
+network:
+  host_ip: 192.168.8.244
+  hostname: summitflow-prod
+explorer:
+  scan_status: completed
+  last_completed_scan: '2026-04-18T14:12:04.041218+00:00'
+  last_scan_type: full
+  entry_counts:
+    architecture: 1
+    file: 6
+  symbol_count: 0
+  stale_metadata_count: 0
+folders:
+  (root): 5 files
+  .st: 1 files
