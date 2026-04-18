@@ -15,6 +15,10 @@ bin/
 *.test
 coverage.out
 
+# Generated workspace state
+.st/
+ports.json
+
 # Env and local state
 .env
 .env.*
