@@ -133,44 +133,116 @@ Important rules:
 - duplicate normalized `(platform, name)` returns HTTP 409
 - no item GET/PATCH/DELETE routes exist in this slice
 
-## Approval grant contract
+## Approval request contract
 
 Current backend approval routes:
+- `GET /api/approval-requests`
+- `POST /api/approval-requests`
+- `POST /api/approval-requests/{approval_request_id}/decisions`
 - `GET /api/approval-grants`
 - `POST /api/approval-grants`
 
 Allowed actions enum:
 - `collect_security_context`
+- `collect_remediation_evidence`
 - `inspect_control`
 - `apply_control`
 - `rollback_control`
 - `request_elevated_troubleshooting`
 
-Create request fields:
-- `endpoint_ids` — required array, each trimmed, nonexistent IDs rejected before duplicate checks
-- `allowed_actions` — required array from the enum above
-- `requested_by` — required, trimmed
-- `approved_by` — required, trimmed
-- `reason` — required, trimmed
-- `expires_at` — required timestamp, normalized to UTC `Z`
+Troubleshooting scopes enum:
+- `service_status`
+- `security_logs`
+- `firewall_state`
+- `identity_state`
+- `process_inventory`
+- `network_bindings`
 
-Returned object fields:
+Approval request create fields:
+- `endpoint_ids` — required array, each trimmed, nonexistent IDs rejected before duplicate checks
+- `request_kind` — enum: `hardening_change | elevated_troubleshooting`
+- `requested_actions` — required array from the allowed-actions enum above
+- `control_ids` — explicit array, required non-empty only for `hardening_change`
+- `troubleshooting_scopes` — explicit array, required non-empty only for `elevated_troubleshooting`
+- `requested_ttl_minutes` — required integer from 15 through 240
+- `requested_by` — required, trimmed
+- `reason` — required, trimmed
+- `risk` — enum: `low | medium | high | critical`
+
+Approval request response fields:
+- `approval_request_id` — format `apr_<32 lowercase hex>`
+- `endpoint_ids`
+- `request_kind`
+- `requested_actions`
+- `control_ids`
+- `troubleshooting_scopes`
+- `requested_ttl_minutes`
+- `requested_by`
+- `reason`
+- `risk`
+- `status` — enum: `pending | approved | denied | expired | revoked`
+- `decision_by` — null while pending
+- `decision_comment` — null while pending
+- `decision_at` — null while pending
+- `approval_grant_id` — null unless the request has been approved
+- `created_at`
+- `updated_at`
+- `audit_events[]` — each event contains `approval_event_id`, `event_type`, `actor`, `comment`, `created_at`
+
+Request-kind rules:
+- `hardening_change` may only use `apply_control` / `rollback_control`
+- `hardening_change` requires non-empty `control_ids`
+- `hardening_change` must use empty `troubleshooting_scopes`
+- `elevated_troubleshooting` must include `request_elevated_troubleshooting`
+- `elevated_troubleshooting` may only use troubleshooting-safe actions (`request_elevated_troubleshooting`, `inspect_control`, `collect_security_context`, `collect_remediation_evidence`)
+- `elevated_troubleshooting` requires non-empty `troubleshooting_scopes`
+- `elevated_troubleshooting` must use empty `control_ids`
+
+Decision request fields:
+- `decision` — enum: `approve | deny | revoke`
+- `decided_by` — required, trimmed
+- `decision_comment` — required, trimmed
+- `expires_at` — required only for `approve`, forbidden for `deny` and `revoke`
+
+Decision rules:
+- create returns HTTP 201 with the full approval-request object
+- decision POST returns HTTP 200 with the full post-transition approval-request object
+- pending requests can only be approved or denied
+- approved requests can only be revoked later
+- denied/expired/revoked requests are terminal and repeated decision POSTs return HTTP 409
+- unknown `approval_request_id` returns HTTP 404 with `{"detail":"approval request not found"}`
+- approve requires `expires_at > decision_time` and `expires_at <= decision_time + requested_ttl_minutes`
+- approve-path TTL violations return HTTP 422 with `{"detail":"expires_at must be within requested_ttl_minutes of decision time"}`
+- pending requests do not expire on their own; request status `expired` is only reached later through linked approved-grant expiry
+
+Approval grant fields:
 - `approval_grant_id` — format `grant_<32 lowercase hex>`
+- `approval_request_id` — nullable; null for manual emergency grants
 - `endpoint_ids`
 - `allowed_actions`
+- `control_ids`
+- `troubleshooting_scopes`
 - `requested_by`
 - `approved_by`
 - `reason`
 - `expires_at`
-- `status` — current enum: `approved | expired | revoked`; create returns `approved`
+- `status` — enum: `approved | expired | revoked`
 - `created_at`
 - `updated_at`
 
+Manual emergency grant rules:
+- direct `POST /api/approval-grants` is an operator-only emergency path
+- it must still follow the same bounded hardening-vs-troubleshooting rules as request-approved grants
+- mixed hardening + troubleshooting payloads are rejected
+- manual grants do not synthesize approval-request audit events
+
 Important rules:
 - list responses use `{ "items": [...] }`
-- duplicate trimmed `endpoint_ids` returns HTTP 422
-- duplicate `allowed_actions` returns HTTP 422
+- duplicate trimmed `endpoint_ids` return HTTP 422 after unknown-endpoint validation passes
+- duplicate requested/allowed actions return HTTP 422
+- all timestamps serialize as UTC `Z` strings
 - no wildcard action scopes in this slice
+- no arbitrary shell access is represented anywhere in this contract
 
 ## Mutation contract
 
