@@ -1,0 +1,215 @@
+{
+  "_meta": {
+    "schema_version": "1.0.0",
+    "created_at": "2026-04-18T16:10:00Z",
+    "updated_at": "2026-04-18T16:12:00Z",
+    "source": "manual"
+  },
+  "title": "Normalize SHA hardening source packs into a curated starter catalog",
+  "description": "Why now: SHA has a working control-plane foundation, but it still lacks trustworthy hardening intelligence. This task creates the first curated source-pack catalog so SHA can reason over starter metadata from Microsoft, CIS, NIST, DISA, and CISA/NSA without relying on live scraping or unstable external files. The slice intentionally stops at curated starter packs plus a deterministic catalog manifest; legacy CSV import and larger corpus ingestion are deferred.",
+  "task_type": "feature",
+  "priority": 1,
+  "labels": [
+    "sha",
+    "controls",
+    "catalog",
+    "normalization",
+    "compliance"
+  ],
+  "complexity": "STANDARD",
+  "autonomous": true,
+  "objective": "Stand up the first reproducible SHA control catalog so future agent, posture, and remediation work can consume a stable curated starter dataset instead of ad hoc source references.",
+  "done_when": [
+    "The repo contains a checked-in `control-packs/` workspace with curated starter pack files and a generated catalog manifest.",
+    "Typed Python contract models exist for starter packs, normalized controls, provenance, mappings, and catalog summaries.",
+    "A deterministic builder exists that validates curated starter pack JSON files and generates `control-packs/catalog.json` with no network or external file dependency.",
+    "Starter normalized packs exist for Microsoft, CIS, NIST, DISA, and CISA/NSA, and each pack exposes the same pinned normalized fields.",
+    "Focused tests verify schema validity, pinned starter inventory, deterministic catalog generation, uniqueness constraints, and byte-stable generated catalog output."
+  ],
+  "spirit_anti": "Do not add live scraping, scheduled sync jobs, legacy CSV import, remediation execution, or UI/API work in this task. Keep the slice deterministic, curated, file-backed, and execution-ready.",
+  "constraints": [
+    "Keep this slice fully local and reproducible: no HTTP fetches, no browser automation, and no dependence on files outside the repo at build or test time.",
+    "Use Python 3.13.12 with the existing SHA backend toolchain (`uv`, pytest) and keep the implementation under `backend/` plus repo-root `control-packs/` data files.",
+    "Typed source-pack contract models in this slice use Pydantic 2 under `backend/app/source_packs/contracts.py`; do not introduce a second validation/modeling stack.",
+    "Do not require Go, Node, or a running backend/frontend service for this task's core verification path.",
+    "The normalized source-pack filesystem root is fixed to `control-packs/`, with curated pack inputs under `control-packs/packs/` and generated `control-packs/catalog.json` at the root.",
+    "Source-of-truth rule: curated starter pack JSON files under `control-packs/packs/` are authoritative checked-in inputs that the builder validates in place and never rewrites. The builder generates only `control-packs/catalog.json`.",
+    "Curated starter pack JSON files are validation-only inputs: they must already be trimmed, sorted, deduplicated, and committed in final form. The builder may reject malformed curated inputs but must not auto-normalize and rewrite them.",
+    "Curated pack `controls` arrays must already be sorted by `control_id`; unsorted `controls` arrays are validation errors and must fail before any catalog write.",
+    "Validation precedence is fixed for curated starter files: canonical ordering and exact field presence are validated semantically, and unsorted `platforms`, `profiles`, or mapping arrays must fail validation rather than being normalized in memory.",
+    "The builder must fail hard on missing fields, extra fields, bad enum values, unsorted control arrays, duplicate IDs, whitespace-only required strings, and any malformed curated JSON input. Partial output files are not allowed on failure.",
+    "Curated pack filenames are fixed and exhaustive in this slice: `microsoft.windows-security-baseline-starter.json`, `cis.windows-server-l1-starter.json`, `nist.csf-2.0-starter.json`, `disa.windows-server-stig-starter.json`, and `cisa_nsa.linux-ssh-starter.json`. Unexpected extra JSON files under `control-packs/packs/` must fail validation; non-JSON files are ignored.",
+    "Missing any one of the five expected curated starter JSON files is a validation error and must fail before any catalog write.",
+    "Repo-root discovery is fixed: the builder must resolve the SHA repo root relative to `backend/scripts/build_source_catalog.py`, so invoking from repo root or from `backend/` produces identical input resolution and identical bytes.",
+    "The builder command is fixed to `uv run --directory backend python scripts/build_source_catalog.py` from the repo root or `uv run python scripts/build_source_catalog.py` from `backend/`.",
+    "Out-of-repo files referenced under `context.references` are non-normative background only and must never be read during implementation or verification for this curated starter slice.",
+    "Source family enum is fixed to `microsoft`, `cis`, `nist`, `disa`, and `cisa_nsa` in this slice.",
+    "Curated pack canonical metadata is fixed in this slice: Microsoft uses `pack_id=pack.microsoft.windows-security-baseline-starter`, `source_name=Microsoft Windows Security Baseline Starter`, `source_version=starter-2026.04`, `source_url=https://learn.microsoft.com/windows/security/operating-system-security/device-management/windows-security-configuration-framework/windows-security-baselines`; CIS uses `pack_id=pack.cis.windows-server-l1-starter`, `source_name=CIS Windows Server Level 1 Starter`, `source_version=starter-2026.04`, `source_url=https://www.cisecurity.org/cis-benchmarks`; NIST uses `pack_id=pack.nist.csf-2.0-starter`, `source_name=NIST CSF 2.0 Starter`, `source_version=2.0`, `source_url=https://www.nist.gov/cyberframework`; DISA uses `pack_id=pack.disa.windows-server-stig-starter`, `source_name=DISA Windows Server STIG Starter`, `source_version=starter-2026.04`, `source_url=https://public.cyber.mil/stigs/`; CISA/NSA uses `pack_id=pack.cisa_nsa.linux-ssh-starter`, `source_name=CISA NSA Linux SSH Starter`, `source_version=starter-2026.04`, `source_url=https://www.cisa.gov/resources-tools/resources/guidance-securing-remote-access-software-and-services`.",
+    "Each normalized pack object must contain exactly these top-level fields: `pack_id`, `source_family`, `source_name`, `source_version`, `generated_at`, `source_url`, `platforms`, `profiles`, `summary`, and `controls`. All ten fields are required in curated starter JSON, and `generated_at` is pinned to `2026-04-18T00:00:00Z` in every curated pack and in the generated catalog.",
+    "Each normalized control object must contain exactly these fields: `control_id`, `title`, `platform`, `profiles`, `severity`, `disruption`, `rollback_complexity`, `auto_remediation_candidate`, `reboot_required`, `guidance_summary`, `detection_summary`, `remediation_summary`, `rollback_summary`, `provenance`, and `mappings`. Every field is required in curated starter JSON, including explicit `mappings` arrays and boolean fields.",
+    "Free-text content is deterministic in this slice, not editorial. Each pack `summary` must be exactly `Curated starter pack for <source_name>.`. Each control `guidance_summary` must be exactly `Starter guidance for <title>.`; `detection_summary` exactly `Check state for <title>.`; `remediation_summary` exactly `Apply desired state for <title>.`; `rollback_summary` exactly `Rollback desired state for <title>.`; `provenance.notes` exactly `Starter control selected for <source_name>.`.",
+    "Severity enum is fixed to `low`, `medium`, `high`, and `critical`; disruption enum is fixed to `transparent`, `minimal`, `moderate`, `significant`, and `disruptive`; rollback complexity enum is fixed to `low`, `medium`, and `high`.",
+    "`provenance` is fixed to an object with required fields `source_locator` and `notes`; `mappings` is fixed to required arrays `cis_control_ids`, `nist_csf_ids`, `sp80053_ids`, and `legacy_sha_ids`; mapping-array values are trimmed, duplicates are rejected, and surviving values are written in ascending lexical order.",
+    "Canonical array order is fixed for this slice: `platforms` use `windows`, `linux`; `profiles` use `domain_controller`, `endpoint`, `server`. Arrays must be unique and emitted in that semantic order, not generic lexical order.",
+    "Duplicate mapping-array values are checked after trim, so values that differ only by surrounding whitespace are still duplicates and must fail.",
+    "Curated pack-level `platforms` and `profiles` are not editorial: the builder must validate that each pack's arrays equal the canonical union of its contained controls exactly.",
+    "Curated starter control-id prefixes are fixed per pack: Microsoft `control.microsoft-windows-security-baseline-starter.*`; CIS `control.cis-windows-server-l1-starter.*`; NIST `control.nist-csf-2-0-starter.*`; DISA `control.disa-windows-server-stig-starter.*`; CISA/NSA `control.cisa-nsa-linux-ssh-starter.*`.",
+    "Slug grammar is fixed for curated controls: lowercase ASCII letters, digits, and hyphens only; runs of non-alphanumeric characters collapse to one hyphen; leading and trailing hyphens are stripped.",
+    "Curated starter inventory is fixed in this slice. Microsoft controls: `control.microsoft-windows-security-baseline-starter.password-history`, `control.microsoft-windows-security-baseline-starter.password-min-length`, `control.microsoft-windows-security-baseline-starter.account-lockout-threshold`. CIS controls: `control.cis-windows-server-l1-starter.smb-signing-server-required`, `control.cis-windows-server-l1-starter.disable-smbv1`, `control.cis-windows-server-l1-starter.disable-guest-account`. NIST controls: `control.nist-csf-2-0-starter.asset-config-baseline`, `control.nist-csf-2-0-starter.audit-log-retention`, `control.nist-csf-2-0-starter.remote-access-review`. DISA controls: `control.disa-windows-server-stig-starter.windows-firewall-enabled`, `control.disa-windows-server-stig-starter.rdp-network-level-authentication`, `control.disa-windows-server-stig-starter.smartscreen-reputation-check`. CISA/NSA controls: `control.cisa-nsa-linux-ssh-starter.disable-root-login`, `control.cisa-nsa-linux-ssh-starter.disable-password-authentication`, `control.cisa-nsa-linux-ssh-starter.allowlisted-users`.",
+    "Canonical curated control titles are fixed in this slice. Microsoft: `Enforce password history`, `Enforce minimum password length`, `Enforce account lockout threshold`. CIS: `Require SMB signing on servers`, `Disable SMBv1`, `Disable guest account`. NIST: `Maintain baseline configuration inventory`, `Retain security audit logs`, `Review remote access privileges`. DISA: `Enable Windows Firewall`, `Require Network Level Authentication for RDP`, `Enable SmartScreen reputation checks`. CISA/NSA: `Disable SSH root login`, `Disable SSH password authentication`, `Restrict SSH access to allowlisted users`.",
+    "Curated starter controls are fixed to these platforms and profiles: Microsoft all `windows` with `[endpoint,server]`; CIS all `windows` with `[server]`; NIST uses `asset-config-baseline -> windows [domain_controller,endpoint,server]`, `audit-log-retention -> linux [server]`, `remote-access-review -> windows [domain_controller,server]`; DISA all `windows` with `[server]`; CISA/NSA all `linux` with `[server]`.",
+    "Curated starter controls are fixed to these severity/disruption/rollback bands and booleans: Microsoft `password-history medium/minimal/low/true/false`, `password-min-length high/moderate/medium/true/false`, `account-lockout-threshold high/minimal/low/true/false`; CIS `smb-signing-server-required high/minimal/low/true/false`, `disable-smbv1 high/significant/medium/true/true`, `disable-guest-account medium/minimal/low/true/false`; NIST `asset-config-baseline high/minimal/medium/false/false`, `audit-log-retention medium/minimal/low/false/false`, `remote-access-review high/minimal/low/false/false`; DISA `windows-firewall-enabled high/significant/medium/true/false`, `rdp-network-level-authentication high/minimal/low/true/false`, `smartscreen-reputation-check medium/minimal/low/true/false`; CISA/NSA `disable-root-login critical/significant/medium/true/false`, `disable-password-authentication critical/significant/high/true/false`, `allowlisted-users high/moderate/medium/true/false`.",
+    "Curated starter controls use pinned mapping arrays: Microsoft `password-history -> cis_control_ids [4.1], legacy_sha_ids [SHA001]`; `password-min-length -> cis_control_ids [4.1], legacy_sha_ids [SHA004]`; `account-lockout-threshold -> cis_control_ids [4.1], legacy_sha_ids [SHA009]`. CIS `smb-signing-server-required -> cis_control_ids [4.1], legacy_sha_ids [SHA027]`; `disable-smbv1 -> cis_control_ids [4.1], legacy_sha_ids []`; `disable-guest-account -> cis_control_ids [4.1], legacy_sha_ids [SHA013]`. NIST `asset-config-baseline -> nist_csf_ids [PR.IP-01], sp80053_ids [CM-02], legacy_sha_ids []`; `audit-log-retention -> nist_csf_ids [DE.AE-03], sp80053_ids [AU-11], legacy_sha_ids []`; `remote-access-review -> nist_csf_ids [PR.AA-01], sp80053_ids [AC-17], legacy_sha_ids []`. DISA and CISA/NSA controls use empty mapping arrays except where explicitly listed above.",
+    "Curated starter controls use pinned provenance locators only: Microsoft `Account Policies / Password history`, `Account Policies / Minimum password length`, `Account Policies / Account lockout threshold`; CIS `Network / SMB signing`, `Network / SMBv1`, `Accounts / Guest account`; NIST `PR.IP-01`, `DE.AE-03`, `PR.AA-01`; DISA `WN22-SO-000025`, `WN22-SO-000315`, `WN11-CC-000390`; CISA/NSA `SSH root login`, `SSH password authentication`, `SSH allowlists`. Summary strings must stay concise and semantically aligned to the pinned title and locator.",
+    "Global duplicate handling is explicit: duplicate `pack_id` values, duplicate `control_id` values across all curated packs, duplicate values inside `profiles` arrays, duplicate values inside mapping arrays, or curated control IDs that violate the pinned inventory must fail validation.",
+    "Duplicate `control_id` values are validation errors whether they occur inside one curated pack or across multiple curated packs.",
+    "Generated-file JSON formatting is fixed for byte-stable outputs: UTF-8, two-space indentation, object keys written in declared field order, one trailing newline, and no extra whitespace variability. Byte-stable formatting requirements apply only to the generated catalog file; curated starter pack files are validated semantically and never rewritten.",
+    "Generated catalog failure semantics are fixed: if `control-packs/catalog.json` already exists and validation fails, the file must remain byte-identical to its pre-run contents; if it does not yet exist and validation fails, it must not be created.",
+    "The generated catalog summary file is fixed to top-level fields `generated_at`, `pack_count`, `control_count`, and `packs`, where each `packs[]` object contains exactly `pack_id`, `source_family`, `source_name`, `source_version`, and `control_count` with no extra fields.",
+    "Empty `controls` arrays are invalid for curated starter packs and must fail validation before any pack-level union checks run.",
+    "The builder must emit `control-packs/catalog.json` with `packs[]` ordered in ascending `pack_id` order exactly.",
+    "Extra fields are forbidden in generated catalog summary objects and in nested `provenance` and `mappings` objects inside curated control definitions.",
+    "Pinned pack control counts for closeout are: Microsoft starter `3`, CIS starter `3`, NIST starter `3`, DISA starter `3`, and CISA/NSA starter `3`, for a total catalog `control_count` of `15` and `pack_count` of `5`.",
+    "`README.md` and `control-packs/README.md` must explain that this slice is curated, file-backed, local-only, and intentionally avoids live source fetching and legacy CSV import.",
+    "`dt --check` is non-blocking for task correctness in this slice: if the command is unavailable, missing, or broken, closeout still passes once the builder command and focused pytest command succeed, but the environment regression must be reported."
+  ],
+  "testing_strategy": [
+    "Add focused backend tests for contract validation, deterministic catalog generation, duplicate-ID rejection, malformed curated JSON rejection, inventory validation, and semantic array ordering.",
+    "Verify the generated `control-packs/catalog.json` contains the pinned pack count, pinned total control count, deterministic ordering, and byte-stable output across repeated runs.",
+    "Run `uv run --directory backend pytest tests/test_source_pack_contracts.py tests/test_source_pack_builder.py -q`, rerun the builder command twice, and then run `dt --check` from the repo root as a secondary managed-workspace gate when available."
+  ],
+  "context": {
+    "files_to_modify": [
+      "README.md",
+      ".gitignore"
+    ],
+    "files_to_create": [
+      "control-packs/README.md",
+      "control-packs/packs/microsoft.windows-security-baseline-starter.json",
+      "control-packs/packs/cis.windows-server-l1-starter.json",
+      "control-packs/packs/nist.csf-2.0-starter.json",
+      "control-packs/packs/disa.windows-server-stig-starter.json",
+      "control-packs/packs/cisa_nsa.linux-ssh-starter.json",
+      "control-packs/catalog.json",
+      "backend/app/source_packs/__init__.py",
+      "backend/app/source_packs/contracts.py",
+      "backend/app/source_packs/catalog.py",
+      "backend/scripts/build_source_catalog.py",
+      "backend/tests/test_source_pack_contracts.py",
+      "backend/tests/test_source_pack_builder.py"
+    ],
+    "risks": [
+      "If the normalized contract is vague, later agent and remediation tasks will encode incompatible assumptions about control metadata.",
+      "If catalog ordering is nondeterministic, later task automation and review diffs will be noisy and hard to trust.",
+      "If curated starter packs drift from pinned inventory or metadata, later SHAna workflows will reason over unstable control IDs.",
+      "If this slice tries to do full corpus ingestion now, autonomous execution will stall in source-specific cleanup work instead of shipping a trustworthy starter catalog."
+    ],
+    "references": [
+      {
+        "title": "SHA roadmap bootstrap",
+        "url": "file:///srv/workspaces/projects/sha/docs/plans/2026-04-18-sha-roadmap.md"
+      },
+      {
+        "title": "SHA v1 architecture",
+        "url": "file:///srv/workspaces/projects/sha/docs/architecture/sha-v1.md"
+      },
+      {
+        "title": "Deferred legacy reference",
+        "url": "file:///home/kasadis/references/old_work/sha/config/SecurityControls.csv"
+      }
+    ]
+  },
+  "subtasks": [
+    {
+      "id": "1.1",
+      "phase": "design",
+      "subtask_type": "backend",
+      "description": "Freeze the curated starter-pack contract, source-of-truth rule, fixed input set, filesystem layout, and catalog output before generating data files.",
+      "steps": [
+        {
+          "description": "Create typed Python contract models for packs, controls, provenance, mappings, and catalog summaries.",
+          "spec": {
+            "detail": "The typed contract layer lives under `backend/app/source_packs/contracts.py`, and all curated JSON plus the generated catalog in this task must conform to those exact fields and enums."
+          }
+        },
+        {
+          "description": "Lock the repo-local layout and source-of-truth rule to authoritative curated starter pack inputs plus a generated catalog output.",
+          "spec": {
+            "detail": "Do not introduce database persistence, API routes, or legacy CSV import in this slice; the authoritative artifacts are curated checked-in JSON starter packs plus the generated `control-packs/catalog.json`."
+          }
+        }
+      ]
+    },
+    {
+      "id": "2.1",
+      "phase": "backend",
+      "subtask_type": "backend",
+      "description": "Build the local starter-pack validator and deterministic catalog builder.",
+      "depends_on": [
+        "1.1"
+      ],
+      "steps": [
+        {
+          "description": "Implement the catalog helpers under `backend/app/source_packs/` and `backend/scripts/build_source_catalog.py`.",
+          "spec": {
+            "detail": "The builder must validate the five curated starter pack JSON files in place, reject malformed inputs, freeze the pinned UTC timestamp `2026-04-18T00:00:00Z`, and write only `control-packs/catalog.json` in stable order."
+          }
+        },
+        {
+          "description": "Validate pinned inventory, canonical metadata, and union rules while generating the catalog summary.",
+          "spec": {
+            "detail": "The builder must prove each pack uses the pinned canonical metadata, that per-pack `platforms` and `profiles` match the canonical union of contained controls, and that the generated catalog summary reflects the exact five-pack, fifteen-control starter inventory."
+          }
+        }
+      ]
+    },
+    {
+      "id": "2.2",
+      "phase": "data",
+      "subtask_type": "config",
+      "description": "Check in the curated starter source packs and the generated normalized catalog summary.",
+      "depends_on": [
+        "1.1",
+        "2.1"
+      ],
+      "steps": [
+        {
+          "description": "Add curated starter JSON pack files for Microsoft, CIS, NIST, DISA, and CISA/NSA source families.",
+          "spec": {
+            "detail": "Each curated starter pack must contain exactly three controls with the pinned IDs, titles, metadata, mappings, and provenance described in the task constraints. Curated controls must already be sorted by `control_id` in the checked-in JSON."
+          }
+        },
+        {
+          "description": "Generate and commit the top-level catalog summary from the curated starter packs.",
+          "spec": {
+            "detail": "`control-packs/catalog.json` must be generated by the builder, committed, and reproducible from repo-local curated inputs only."
+          }
+        }
+      ]
+    },
+    {
+      "id": "3.1",
+      "phase": "verification",
+      "subtask_type": "test",
+      "description": "Lock the curated starter-catalog slice with focused tests, docs, and deterministic verification commands.",
+      "depends_on": [
+        "2.1",
+        "2.2"
+      ],
+      "steps": [
+        {
+          "description": "Add focused tests for contract validation, catalog determinism, malformed input rejection, and pinned starter inventory.",
+          "spec": {
+            "detail": "Tests must prove the catalog contains exactly five packs and fifteen controls, that pack ordering is ascending by `pack_id`, that each curated pack contains exactly the pinned three-control inventory, that array ordering is canonical, that malformed or duplicate curated content fails fast, and that repeated builder runs produce byte-identical `control-packs/catalog.json` output. Tests must also assert the deterministic free-text formulas, exact `packs[]` ascending `pack_id` order, atomic unchanged-catalog behavior on failure, and nested extra-field rejection in `provenance` and `mappings`. Tests must also cover missing expected curated files, extra JSON file rejection, unsorted `controls` arrays, duplicate IDs inside a single pack, duplicate mapping values after trim, and failure when pack-level `platforms` or `profiles` do not equal the canonical union of contained controls."
+          }
+        },
+        {
+          "description": "Update repo docs and run the pinned verification commands.",
+          "spec": {
+            "detail": "`README.md` and `control-packs/README.md` must explain the curated local-only source-pack workflow and note that legacy CSV import is deferred. Closeout requires the builder command run twice plus the focused pytest command. Run `dt --check` from the repo root when available, but if it is missing or broken because of concurrent SummitFlow tooling refactors, report that environment regression separately and do not treat it as a source-pack task failure."
+          }
+        }
+      ]
+    }
+  ]
+}
