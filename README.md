@@ -38,6 +38,20 @@ Non-goals for v1:
 - Baseline sources: Microsoft SCT/LGPO baselines, CIS Benchmarks, NIST CSF 2.0 / SP 800-53 / SP 800-128 mappings, DISA STIG, NSA/CISA hardening guidance, and selected distro/vendor guidance
 - Safety: bounded read scope by default, hardening-only write scope by policy, temporary elevated troubleshooting grants only with human approval
 
+## Local development
+
+Backend:
+- `cd backend`
+- `uv sync`
+- `uv run uvicorn app.main:app --reload --port 8010`
+
+Frontend:
+- `cd frontend`
+- `pnpm install`
+- `pnpm dev --port 3010`
+
+The frontend uses local fixtures in this slice and does not require a running backend to build. `/api/endpoints` list/detail routes are intentionally absent in this first slice; the current backend API surface is limited to `POST /api/endpoints/enroll`, `POST /api/posture-snapshots`, `GET/POST /api/installer-profiles`, and `GET/POST /api/approval-grants`.
+
 ## Repo map
 
 - `docs/architecture/sha-v1.md` — v1 architecture, safety model, and control-source strategy
