@@ -1,0 +1,244 @@
+{
+  "_meta": {
+    "schema_version": "1.0.0",
+    "created_at": "2026-04-18T13:47:00Z",
+    "updated_at": "2026-04-18T13:47:00Z",
+    "source": "manual"
+  },
+  "title": "Build SHA control-plane foundation, enrollment contracts, and dashboard shell",
+  "description": "Why now: SHA needs one credible product slice that Jenny and specialist agents can execute autonomously without wandering. This task creates the monorepo foundation for the control plane, the first typed contracts for endpoint enrollment, posture uploads, installer profiles, and approval grants, and the dashboard shell operators will use to manage SHA agents and future hardening workflows.",
+  "task_type": "feature",
+  "priority": 1,
+  "labels": [
+    "sha",
+    "platform",
+    "bootstrap",
+    "dashboard",
+    "agent"
+  ],
+  "complexity": "STANDARD",
+  "autonomous": true,
+  "done_when": [
+    "The repo has a runnable backend skeleton and frontend shell wired to SHA-specific routes and branding.",
+    "Typed backend contract models exist for endpoint enrollment, posture snapshot upload, installer profiles, and approval grants.",
+    "The initial persistence model exists for endpoints, posture snapshots, installer profiles, and approval grants; posture results link back to endpoints via stable endpoint IDs and control_key strings.",
+    "Minimal API surface exists for enrollment, posture uploads, installer-profile create/list shells, and approval-grant create/list shells with typed request/response models.",
+    "Dashboard shell includes navigation and placeholder screens for fleet, endpoint detail, controls, approvals, and installer package generation, and focused verification covers contract validity plus route/nav presence."
+  ],
+  "objective": "Stand up the first real SHA product slice so future autonomous work can build against a stable backend/frontend/agent contract instead of more planning-only artifacts.",
+  "spirit_anti": "Do not build real remediation logic, arbitrary remote execution, or full compliance ingestion in this task. Do not add macOS support, live scraping, or broad admin shells. Keep the slice structural and execution-ready.",
+  "constraints": [
+    "Keep SHAna scoped to hardening-management surfaces; do not introduce broad endpoint shell capability.",
+    "Use FastAPI + Pydantic 2 + SQLAlchemy 2 on Python 3.13.12, with SQLite as the only required persistence engine for this first slice and no Alembic requirement yet.",
+    "`uv` 0.10.10 is already available on the host and is the required Python package/bootstrap tool for this slice.",
+    "Use Next.js App Router on Node 24.14.1 with pnpm 10.32.1, with TypeScript enabled, and use Vitest plus Testing Library for frontend verification. `package.json` must map `build` to `next build` and `test` to a non-watch Vitest entrypoint.",
+    "Frontend must compile and build successfully without the backend running; all first-slice data comes from local typed fixtures only.",
+    "Frontend may define local TypeScript view-model types in `frontend/lib/api.ts`, but those types must be limited to the exact fields pinned in this plan.",
+    "Backend Pydantic models in `backend/app/schemas/contracts.py` are the only source of truth for the contract layer in this slice.",
+    "Do not require a compiled Go toolchain in this task because `go` is not installed on the host yet; represent the agent boundary with contracts and docs only.",
+    "Backend boot contract: `uv run uvicorn app.main:app --reload --port 8010` from `backend/`; frontend boot contract: `pnpm dev --port 3010` from `frontend/`.",
+    "Enrollment semantics: server issues the stable endpoint_id; repeated enrollment keyed by agent fingerprint returns 200 and updates the same endpoint record rather than creating duplicates.",
+    "Endpoint `status` enum is fixed to `pending`, `active`, and `stale` in this slice.",
+    "Endpoint `platform` enum is fixed to `windows` and `linux` in this slice.",
+    "Health endpoint response is fixed to `{\"status\":\"ok\",\"service\":\"sha-backend\",\"version\":\"0.1.0\"}`.",
+    "All API timestamp fields (`last_seen_at`, `created_at`, `updated_at`, `observed_at`, `expires_at`) serialize as ISO8601 UTC strings.",
+    "Posture upload semantics: one snapshot request contains many control results and must include endpoint_id, observed_at, platform_profile, and `results[]` items with `control_key`, status, and evidence summary fields. Duplicate `control_key` values inside one snapshot are invalid using case-insensitive comparison, while duplicate keys across different snapshots are allowed.",
+    "Installer profile minimum fields are `id`, `name`, `platform`, `channel`, `control_plane_url`, `policy_mode`, optional tenant/site metadata, and `created_at`/`updated_at`; `id` is server-generated on create, profile `name` must be unique per `platform`, GET list returns full profile records in `{\"items\": [...]}` envelopes, duplicate `(platform,name)` creates fail with 409, and `control_plane_url` must be an absolute http/https URL.",
+    "Approval grants must use explicit arrays for `endpoint_ids` and `allowed_actions`; no wildcard scopes in this first slice. Allowed actions are fixed to `collect_security_context`, `inspect_control`, `apply_control`, `rollback_control`, and `request_elevated_troubleshooting`. `approval_grant_id` is server-generated, `expires_at` is required, GET list returns full grant records in `{\"items\": [...]}` envelopes, timestamps serialize as ISO8601 UTC strings, and POST rejects nonexistent endpoint IDs with 422.",
+    "Placeholder API responses should use concrete JSON objects or `{\"items\": [...]}` list envelopes. In this slice only collection routes are required; item GET/PATCH/DELETE routes are explicitly out of scope.",
+    "External old-work references under `/home/kasadis/references/old_work/` are optional inspiration only and cannot be required for normal-path implementation.",
+    "Task is not execution-ready until task_shape critique passes on the imported task."
+  ],
+  "testing_strategy": [
+    "Add focused backend tests for health, contract models, SQLite persistence round-trips, collection envelope shapes, unknown-endpoint handling, and enrollment idempotency.",
+    "Add focused frontend Vitest coverage for dashboard nav, required route shells, and successful `next build` under the pinned Node/pnpm runtime.",
+    "Run `uv run --directory backend pytest tests -q`, `pnpm test --run`, `pnpm build`, and then `dt --check` if repo tooling exists; otherwise report the exact dt blocker separately."
+  ],
+  "context": {
+    "files_to_modify": [
+      ".gitignore",
+      "README.md"
+    ],
+    "files_to_create": [
+      "backend/pyproject.toml",
+      "backend/app/__init__.py",
+      "backend/app/main.py",
+      "backend/app/config.py",
+      "backend/app/db.py",
+      "backend/app/models.py",
+      "backend/app/schemas/contracts.py",
+      "backend/app/api/endpoints/health.py",
+      "backend/app/api/endpoints/endpoints.py",
+      "backend/app/api/endpoints/posture.py",
+      "backend/app/api/endpoints/installers.py",
+      "backend/app/api/endpoints/approvals.py",
+      "backend/data/.gitkeep",
+      "backend/tests/test_health.py",
+      "backend/tests/test_contracts.py",
+      "backend/tests/test_persistence_roundtrip.py",
+      "frontend/package.json",
+      "frontend/tsconfig.json",
+      "frontend/next.config.mjs",
+      "frontend/vitest.config.ts",
+      "frontend/app/layout.tsx",
+      "frontend/app/page.tsx",
+      "frontend/app/fleet/page.tsx",
+      "frontend/app/endpoints/[endpointId]/page.tsx",
+      "frontend/app/controls/page.tsx",
+      "frontend/app/approvals/page.tsx",
+      "frontend/app/installers/page.tsx",
+      "frontend/lib/api.ts",
+      "frontend/components/nav-shell.tsx",
+      "frontend/tests/nav-shell.test.tsx",
+      "agent/docs/agent-contract.md"
+    ],
+    "risks": [
+      "If the monorepo scaffold grows too broad, autonomous execution will stall in setup churn instead of shipping the first slice.",
+      "Approval and endpoint contract shapes will influence later agent execution boundaries, so keep them strict and typed.",
+      "Go toolchain is not currently available on the host, so the first slice must avoid compile-time dependence on a real agent binary.",
+      "Frontend overreach is a risk; placeholder shells are enough for this task."
+    ],
+    "references": [
+      {
+        "title": "SHA v1 architecture",
+        "url": "file:///srv/workspaces/projects/sha/docs/architecture/sha-v1.md"
+      },
+      {
+        "title": "Legacy SHA README",
+        "url": "file:///home/kasadis/references/old_work/sha/README.md"
+      },
+      {
+        "title": "Legacy SHA control catalog sample",
+        "url": "file:///home/kasadis/references/old_work/sha/config/SecurityControls.csv"
+      }
+    ]
+  },
+  "subtasks": [
+    {
+      "id": "1.1",
+      "phase": "research",
+      "subtask_type": "exploration",
+      "description": "Confirm the exact SHA repo skeleton, runtime stack, and contract boundaries before generating code.",
+      "steps": [
+        {
+          "description": "Review the architecture doc and lock the v1 stack to FastAPI + Next.js App Router + SQLite-backed backend contracts + static frontend shells.",
+          "spec": {
+            "detail": "Avoid re-opening macOS support, arbitrary shell access, alternate backend stacks, or real compiled-agent work in this task."
+          }
+        },
+        {
+          "description": "Translate the architecture into concrete repo paths, exact route names, contract shapes, and verification commands before generating code.",
+          "spec": {
+            "detail": "Keep the first slice runnable and small enough for autonomous specialists to verify quickly; backend and schema details outrank frontend polish."
+          }
+        }
+      ]
+    },
+    {
+      "id": "2.1",
+      "phase": "backend",
+      "subtask_type": "backend",
+      "description": "Create the backend skeleton, domain models, and initial API contracts.",
+      "depends_on": [
+        "1.1"
+      ],
+      "steps": [
+        {
+          "description": "Create the FastAPI app, configuration, SQLite wiring, and health endpoint.",
+          "spec": {
+            "detail": "The backend must boot cleanly with SHA branding and a health response `{\"status\":\"ok\",\"service\":\"sha-backend\",\"version\":\"0.1.0\"}` on port 8010. SQLite lives at `backend/data/sha.sqlite3`, and the task is responsible for creating the parent data directory and keeping the DB file ignored from git."
+          }
+        },
+        {
+          "description": "Define the canonical endpoint, posture snapshot, installer profile, and approval grant models before wiring routes.",
+          "spec": {
+            "detail": "Endpoint object fields are `endpoint_id`, `agent_fingerprint`, `hostname`, `platform`, `platform_version`, `agent_version`, `tenant_id?`, `site_id?`, `status`, `last_seen_at`, `created_at`, and `updated_at`, with `status` limited to `pending|active|stale`. Enrollment POST accepts fingerprint/host/platform fields. First enrollment returns 201 with the full endpoint object; same-fingerprint re-enrollment returns 200 and updates `hostname`, `platform`, `platform_version`, `agent_version`, `last_seen_at`, and `updated_at` while preserving `endpoint_id` and `created_at`."
+          }
+        },
+        {
+          "description": "Add posture, installer-profile, and approval-grant contract details to the backend models.",
+          "spec": {
+            "detail": "Posture snapshot POST accepts one `endpoint_id`, one `observed_at`, one `platform_profile`, and `results[]` entries with `control_key`, `status`, `current_value?`, `recommended_value?`, `severity?`, `evidence_summary`, and `reboot_required`. Allowed posture `status` values are `pass`, `fail`, `warn`, `error`, and `not_applicable`. Duplicate `control_key` values inside one snapshot should fail validation with 422, and unknown endpoint IDs should return 404. Installer profiles are collection-only records with `id`, `name`, `platform` enum `windows|linux`, `channel` enum `stable|preview`, `control_plane_url`, `policy_mode` enum `observe|safe_auto|approval_required`, and optional tenant/site metadata. Approval grants are collection-only records with `approval_grant_id`, `endpoint_ids[]` min length 1, `allowed_actions[]` min length 1 from the fixed action enum, `requested_by`, `approved_by`, `reason`, `expires_at` required, `status` enum `pending|approved|expired|revoked`, and timestamps."
+          }
+        },
+        {
+          "description": "Add placeholder API routes for POST /api/endpoints/enroll, POST /api/posture-snapshots, GET/POST /api/installer-profiles, and GET/POST /api/approval-grants.",
+          "spec": {
+            "detail": "Use concrete status codes and bodies: enroll POST returns 201 endpoint object, posture POST returns 202 ack with `snapshot_id` and `accepted_result_count`, installer/approval list GETs return `{\"items\": [...]}`, installer/approval create POSTs return 201 created object, unknown endpoint IDs on posture POST return 404, and FastAPI default 422 is acceptable for validation failures."
+          }
+        }
+      ]
+    },
+    {
+      "id": "2.2",
+      "phase": "frontend",
+      "subtask_type": "frontend",
+      "description": "Create the dashboard shell and initial operator views.",
+      "depends_on": [
+        "1.1"
+      ],
+      "steps": [
+        {
+          "description": "Create the Next.js App Router shell with SHA navigation and branded landing page.",
+          "spec": {
+            "detail": "Use static typed mock data only. `frontend/lib/api.ts` should expose the minimal local view-model types and fixtures required by the page shells, and the dynamic endpoint-detail shell must render the route param in a stable heading or identifier."
+          }
+        },
+        {
+          "description": "Add route shells for `/`, `/fleet`, `/endpoints/[endpointId]`, `/controls`, `/approvals`, and `/installers`.",
+          "spec": {
+            "detail": "Installer UI must make room for Windows/Linux profile selection and future package generation, but can stop at typed placeholder actions in this slice."
+          }
+        }
+      ]
+    },
+    {
+      "id": "2.3",
+      "phase": "agent",
+      "subtask_type": "config",
+      "description": "Create the SHA agent boundary docs and repo-local contract notes.",
+      "depends_on": [
+        "1.1"
+      ],
+      "steps": [
+        {
+          "description": "Document the planned SHA agent contract, capability verbs, and approval-dependent elevated troubleshooting boundary in repo-local docs.",
+          "spec": {
+            "detail": "Do not require a compiled agent binary in this task; capture the contract cleanly so a later Go implementation can follow it."
+          }
+        },
+        {
+          "description": "Record the exact backend contract fields and action enums the future agent must honor.",
+          "spec": {
+            "detail": "Keep this as documentation only in the first slice; shared exported schema artifacts are deferred to a follow-up task once the backend contracts settle."
+          }
+        }
+      ]
+    },
+    {
+      "id": "3.1",
+      "phase": "verification",
+      "subtask_type": "test",
+      "description": "Verify the foundation slice and lock it with focused tests.",
+      "depends_on": [
+        "2.1",
+        "2.2",
+        "2.3"
+      ],
+      "steps": [
+        {
+          "description": "Add focused tests for backend health/contracts, SQLite round-trips, enrollment idempotency, unknown-endpoint handling, collection envelope shapes, and practical frontend route/nav rendering.",
+          "spec": {
+            "detail": "Tests must prove same-fingerprint re-enrollment reuses one endpoint record, health returns the fixed JSON body, posture POST returns 404 for unknown endpoints and 422 for duplicate `control_key` values inside one snapshot, approval grants reject empty `endpoint_ids` or `allowed_actions` arrays, and the dynamic `/endpoints/[endpointId]` route renders a stable shell."
+          }
+        },
+        {
+          "description": "Run `uv run --directory backend pytest tests -q`, `pnpm test --run`, `pnpm build`, and then `dt --check` if repo tooling exists.",
+          "spec": {
+            "detail": "If `dt --check` still is not wired, report that exact blocker separately, but the direct backend/frontend verification commands above remain mandatory for closeout."
+          }
+        }
+      ]
+    }
+  ]
+}
