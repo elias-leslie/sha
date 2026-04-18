@@ -1,0 +1,202 @@
+{
+  "_meta": {
+    "schema_version": "1.0.0",
+    "created_at": "2026-04-18T20:45:00Z",
+    "updated_at": "2026-04-18T20:45:00Z",
+    "source": "manual"
+  },
+  "title": "Add SHA approvals and elevated troubleshooting controls",
+  "description": "Why now: SHA now has a control-plane foundation plus a curated starter control catalog, but it still lacks the governance layer that makes autonomous hardening safe. This task adds the first real human approval workflow for disruptive remediations and temporary elevated troubleshooting, while keeping SHAna bounded to typed hardening-management surfaces rather than a general remote shell. The slice intentionally stops at approval requests, decisions, active grant tracking, audit events, and dashboard UX; it does not execute endpoint actions yet.",
+  "task_type": "feature",
+  "priority": 1,
+  "labels": [
+    "sha",
+    "approvals",
+    "governance",
+    "shana",
+    "troubleshooting"
+  ],
+  "complexity": "STANDARD",
+  "autonomous": true,
+  "objective": "Ship the first bounded approval and temporary-elevation workflow so future SHAna-driven remediation work can request, receive, track, and expire operator-approved access without opening an arbitrary admin shell.",
+  "done_when": [
+    "The backend exposes typed approval-request, approval-decision, and approval-grant collection flows for disruptive hardening and temporary elevated troubleshooting.",
+    "Approval requests persist explicit endpoint scope, action scope, risk, TTL intent, troubleshooting scope, decision state, and audit events with UTC timestamps.",
+    "Approving a request creates a bounded approval grant, denying a request preserves the audit trail without a grant, and expired or revoked grants surface through deterministic list responses.",
+    "The frontend approvals workspace shows pending requests, active grants, audit context, and the safe-boundary rules for SHAna without requiring a running backend at build time.",
+    "Focused backend and frontend tests cover request validation, decision transitions, grant expiry/revocation behavior, bounded troubleshooting scopes, and approvals UI rendering."
+  ],
+  "spirit_anti": "Do not add arbitrary shell execution, live endpoint command runners, websocket agents, scheduled approval cleanup workers, or full SHAna orchestration in this task. Keep the slice typed, local, approval-centric, and safe by construction.",
+  "constraints": [
+    "Use the existing SHA backend stack only: FastAPI + Pydantic 2 + SQLAlchemy 2 on Python 3.13.12 with SQLite persistence and pytest verification under `backend/`.",
+    "Use the existing SHA frontend stack only: Next.js App Router + TypeScript + Vitest/Testing Library under `frontend/`, with local typed fixtures for UI rendering and no live backend dependency during `pnpm build`.",
+    "Keep the privileged endpoint boundary typed. This task may represent broader diagnostic access only as approved troubleshooting scopes; it must not introduce raw shell commands, arbitrary filesystem browsing, or generic remote-exec verbs.",
+    "Approval requests and approval grants are separate concepts in this slice: requests represent human review state, while grants represent approved, time-bounded access or mutation authority.",
+    "The backend must keep the existing collection route `GET /api/approval-grants` and may keep `POST /api/approval-grants` as an explicit manual emergency-grant path, but the new operator approval queue must use dedicated request and decision routes rather than overloading direct grant creation for pending review.",
+    "New backend approval-request routes are fixed to `GET /api/approval-requests`, `POST /api/approval-requests`, and `POST /api/approval-requests/{approval_request_id}/decisions`.",
+    "Approval request IDs are server-generated strings matching `^apr_[0-9a-f]{32}$`; approval audit-event IDs are server-generated strings matching `^ape_[0-9a-f]{32}$`; approval grant IDs continue to match `^grant_[0-9a-f]{32}$`.",
+    "Approval request `request_kind` enum is fixed to `hardening_change` and `elevated_troubleshooting`.",
+    "Approval request `risk` enum is fixed to `low`, `medium`, `high`, and `critical`.",
+    "Approval request `status` enum is fixed to `pending`, `approved`, `denied`, `expired`, and `revoked`.",
+    "Approval decision `decision` enum is fixed to `approve`, `deny`, and `revoke`.",
+    "Approval grant `status` enum remains `approved`, `expired`, and `revoked` in this slice.",
+    "Allowed approval actions in this slice are fixed to `collect_security_context`, `collect_remediation_evidence`, `inspect_control`, `apply_control`, `rollback_control`, and `request_elevated_troubleshooting`.",
+    "Troubleshooting scope enum is fixed to `service_status`, `security_logs`, `firewall_state`, `identity_state`, `process_inventory`, and `network_bindings`.",
+    "Approval request create payload fields are fixed to `{endpoint_ids, request_kind, requested_actions, control_ids, troubleshooting_scopes, requested_ttl_minutes, requested_by, reason, risk}`. All keys must exist in the Pydantic contract, with `control_ids` and `troubleshooting_scopes` represented as explicit arrays that may be empty when the request kind allows it.",
+    "Approval request response objects are fixed to `{approval_request_id, endpoint_ids, request_kind, requested_actions, control_ids, troubleshooting_scopes, requested_ttl_minutes, requested_by, reason, risk, status, decision_by, decision_comment, decision_at, approval_grant_id, created_at, updated_at, audit_events}`. List routes must return `{\"items\": [...]}` envelopes ordered by `created_at` ascending then `approval_request_id` ascending.",
+    "Audit events are nested in approval-request responses in this slice, and each audit event object is fixed to `{approval_event_id, event_type, actor, comment, created_at}` with `event_type` limited to `requested`, `approved`, `denied`, `revoked`, and `expired`.",
+    "Approval request create semantics are strict: nonexistent endpoint IDs are rejected with 422 before duplicate checks; duplicate trimmed endpoint IDs are rejected with 422; duplicate requested actions are rejected with 422; duplicate trimmed control IDs are rejected with 422; duplicate troubleshooting scopes are rejected with 422.",
+    "`hardening_change` requests may only ask for `apply_control` and/or `rollback_control`, must include at least one non-empty `control_id`, and must use an empty `troubleshooting_scopes` array.",
+    "`elevated_troubleshooting` requests must include `request_elevated_troubleshooting` in `requested_actions`, may include only `request_elevated_troubleshooting`, `collect_security_context`, `collect_remediation_evidence`, and `inspect_control`, must include at least one troubleshooting scope, and must use an empty `control_ids` array.",
+    "`requested_ttl_minutes` is required and bounded to integer values from 15 through 240 inclusive in this slice.",
+    "Decision payload fields are fixed to `{decision, decided_by, decision_comment, expires_at}` where `expires_at` is required only for `approve` on pending requests, forbidden for `deny` and `revoke`, and normalized to UTC `Z` strings before persistence/response.",
+    "Pending requests may transition only to `approved` or `denied`; approved requests may transition only to `revoked`; denied, expired, and revoked requests are terminal and must reject later decision posts with 409.",
+    "Approving a request must create exactly one linked approval grant and set `approval_grant_id` on the request. Denying a request must not create a grant. Revoking an approved request must also mark the linked grant revoked.",
+    "Approval grants in this slice are fixed to `{approval_grant_id, approval_request_id, endpoint_ids, allowed_actions, control_ids, troubleshooting_scopes, requested_by, approved_by, reason, expires_at, status, created_at, updated_at}` with list envelopes `{\"items\": [...]}` ordered by `created_at` ascending then `approval_grant_id` ascending.",
+    "Direct manual `POST /api/approval-grants` remains operator-only emergency creation in this slice and must enforce the same bounded action/scope rules as approved requests, with `approval_request_id` serialized as null in direct-manual grants.",
+    "Active approval state must self-expire without a scheduler: list and decision routes must lazily synchronize expired grants and linked requests whenever an approved record has `expires_at <= now`, and expiry must append exactly one `expired` audit event to the linked request.",
+    "String normalization follows the existing SHA rule: required strings are trimmed and stored trimmed; endpoint IDs are trimmed before validation; optional nullable strings remain null when absent. No free-form casing rewrites are allowed except existing normalized identifiers and enums.",
+    "The frontend approvals page must stay fixture-driven for build/test, but its TypeScript models and presentation copy must mirror the exact backend contract names and bounded-scope semantics from this task rather than inventing a looser UI-only vocabulary.",
+    "The approvals UI must clearly distinguish pending requests, active grants, and audit history. It must also visibly state that SHAna is limited to hardening workflows and approved troubleshooting scopes, not arbitrary shell access.",
+    "`README.md` and `agent/docs/agent-contract.md` must be updated to describe the request/grant split, the new approval routes, the bounded troubleshooting scopes, and the fact that temporary elevated troubleshooting is still read-oriented and approval-backed only.",
+    "This slice must not require Agent Hub or SummitFlow runtime integration tests. Verification stays repo-local via backend pytest, frontend Vitest/build, and `dt --check` when available. If `dt --check` is broken because of concurrent SummitFlow workflow refactors, report that separately but do not treat it as a SHA approvals implementation failure once direct test commands pass."
+  ],
+  "testing_strategy": [
+    "Add focused backend tests for approval-request create validation, hardening-vs-troubleshooting scope rules, approve/deny/revoke transitions, UTC normalization, grant creation, lazy expiry synchronization, nested audit-event logging, and manual emergency grant validation.",
+    "Keep or update existing approval-grant persistence tests so grant collection behavior still round-trips across fresh clients under SQLite.",
+    "Add focused frontend Vitest coverage for the approvals page so pending request cards, active grant panels, audit history, and SHAna safe-boundary copy all render from typed fixtures.",
+    "Run `uv run --directory backend pytest tests -q`, `pnpm test --run`, `pnpm build`, and then `dt --check` from the repo root when the tooling is healthy enough to run."
+  ],
+  "context": {
+    "files_to_modify": [
+      "README.md",
+      "agent/docs/agent-contract.md",
+      "backend/app/main.py",
+      "backend/app/models.py",
+      "backend/app/schemas/contracts.py",
+      "backend/app/api/endpoints/approvals.py",
+      "backend/app/utils.py",
+      "backend/tests/test_contracts.py",
+      "backend/tests/test_persistence_roundtrip.py",
+      "frontend/app/approvals/page.tsx",
+      "frontend/lib/api.ts"
+    ],
+    "files_to_create": [
+      "backend/tests/test_approval_workflows.py",
+      "frontend/tests/approvals-page.test.tsx",
+      "docs/architecture/shana-approval-boundary.md"
+    ],
+    "risks": [
+      "If the request/grant boundary stays vague, future SHAna automation will either bypass human approval or encode incompatible state transitions.",
+      "If troubleshooting scopes are not explicit and finite, later agent work will drift toward generic remote-admin behavior.",
+      "If expiry synchronization is hand-waved instead of specified, stale approvals may persist indefinitely in the UI and API.",
+      "If the frontend invents a different vocabulary than the backend contract, operators and future agent integrations will reason over the wrong approval model."
+    ],
+    "references": [
+      {
+        "title": "SHA roadmap bootstrap",
+        "url": "file:///srv/workspaces/projects/sha/docs/plans/2026-04-18-sha-roadmap.md"
+      },
+      {
+        "title": "SHA v1 architecture",
+        "url": "file:///srv/workspaces/projects/sha/docs/architecture/sha-v1.md"
+      },
+      {
+        "title": "Current SHA agent contract",
+        "url": "file:///srv/workspaces/projects/sha/agent/docs/agent-contract.md"
+      }
+    ]
+  },
+  "subtasks": [
+    {
+      "id": "1.1",
+      "phase": "design",
+      "subtask_type": "backend",
+      "description": "Freeze the approval-request, decision, grant, and troubleshooting-scope contract before wiring persistence or UI.",
+      "steps": [
+        {
+          "description": "Define the canonical enums, payloads, and response models for approval requests, audit events, decisions, and grants.",
+          "spec": {
+            "detail": "The Pydantic contract layer under `backend/app/schemas/contracts.py` must pin the exact fields, enum values, and nested audit-event shape described in the task constraints so backend routes, docs, and frontend fixtures all share one bounded governance vocabulary."
+          }
+        },
+        {
+          "description": "Lock the rule split between disruptive hardening changes and temporary elevated troubleshooting.",
+          "spec": {
+            "detail": "`hardening_change` requests are control-targeted and mutation-oriented; `elevated_troubleshooting` requests are time-bounded, read-oriented, and scope-limited. This task must encode those differences as validation rules instead of leaving them to operator convention."
+          }
+        }
+      ]
+    },
+    {
+      "id": "2.1",
+      "phase": "backend",
+      "subtask_type": "backend",
+      "description": "Implement approval-request persistence, decision transitions, grant synchronization, and expiry behavior.",
+      "depends_on": [
+        "1.1"
+      ],
+      "steps": [
+        {
+          "description": "Extend the SQLite model layer and approval routes for request creation, decision posts, linked grant creation, and grant listing.",
+          "spec": {
+            "detail": "Persist approval requests, nested audit events, and linked grants using real SQLite tables under the existing app startup flow. Keep all timestamps in UTC `Z`, reject invalid transitions with concrete 409 responses, and preserve deterministic list ordering."
+          }
+        },
+        {
+          "description": "Implement lazy expiry synchronization and bounded manual grant creation.",
+          "spec": {
+            "detail": "Whenever approval-request or approval-grant list/decision routes observe an approved grant whose expiry has passed, the backend must mark the grant expired, mark the linked request expired, and append one `expired` audit event. Manual emergency grants must obey the same action/scope validation rules as request-approved grants and must never create arbitrary-shell access."
+          }
+        }
+      ]
+    },
+    {
+      "id": "2.2",
+      "phase": "frontend",
+      "subtask_type": "frontend",
+      "description": "Replace the placeholder approvals shell with a real operator inbox and active-grants view built from typed fixtures.",
+      "depends_on": [
+        "1.1"
+      ],
+      "steps": [
+        {
+          "description": "Update the approvals fixtures and page models to mirror the new backend request/grant vocabulary.",
+          "spec": {
+            "detail": "`frontend/lib/api.ts` must expose typed fixtures for pending approval requests, active grants, audit events, risk display, and troubleshooting-scope labels using the same field names and bounded enums from the backend contract rather than UI-only aliases."
+          }
+        },
+        {
+          "description": "Render queue, active grants, audit context, and SHAna-safe boundary guidance on `/approvals`.",
+          "spec": {
+            "detail": "The page must let operators see what is awaiting approval, what access is currently active, which requests were denied or revoked in audit context, and why SHAna remains constrained to hardening-only flows plus approved troubleshooting scopes. Buttons may stay non-mutating placeholders in this slice, but the UX must clearly model approve/deny/revoke operator decisions."
+          }
+        }
+      ]
+    },
+    {
+      "id": "3.1",
+      "phase": "verification",
+      "subtask_type": "test",
+      "description": "Lock the approvals slice with focused tests, docs, and closeout verification.",
+      "depends_on": [
+        "2.1",
+        "2.2"
+      ],
+      "steps": [
+        {
+          "description": "Add focused backend and frontend tests for the approval workflow and bounded troubleshooting scopes.",
+          "spec": {
+            "detail": "Backend tests must prove request kind validation, duplicate/nonexistent scope handling, approve/deny/revoke state transitions, linked grant creation, lazy expiry, nested audit events, and direct manual grant rules. Frontend tests must prove the approvals page renders pending requests, active grants, audit context, and the explicit no-arbitrary-shell safety copy from typed fixtures."
+          }
+        },
+        {
+          "description": "Update repo docs and run the pinned verification commands before closeout.",
+          "spec": {
+            "detail": "`README.md`, `agent/docs/agent-contract.md`, and `docs/architecture/shana-approval-boundary.md` must explain the approval-request/grant split, the troubleshooting-scope boundary, and the remaining non-goal of raw remote shell access. Closeout requires `uv run --directory backend pytest tests -q`, `pnpm test --run`, `pnpm build`, and `dt --check` when available."
+          }
+        }
+      ]
+    }
+  ]
+}
