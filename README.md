@@ -61,6 +61,15 @@ The frontend uses local fixtures in this slice and does not require a running ba
 - `frontend/` — operator dashboard and installer package UX
 - `agent/` — cross-platform SHA agent
 - `schemas/` — shared contracts between dashboard, SHA agent, and SHAna
+- `control-packs/` — curated starter source packs and the generated catalog manifest for the SHA hardening slice
+
+## Curated starter source packs
+
+The repo includes a deterministic, file-backed source-pack catalog under `control-packs/`.
+- `control-packs/packs/` contains the authoritative curated starter JSON inputs.
+- `control-packs/catalog.json` is generated from those inputs by `backend/scripts/build_source_catalog.py`.
+- The builder validates curated inputs in place, ignores non-JSON files, and fails on extra JSON or malformed content.
+- No live scraping or legacy CSV import is involved in this slice.
 
 ## Reference inputs
 

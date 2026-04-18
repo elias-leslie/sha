@@ -1,0 +1,108 @@
+{
+  "pack_id": "pack.cis.windows-server-l1-starter",
+  "source_family": "cis",
+  "source_name": "CIS Windows Server Level 1 Starter",
+  "source_version": "starter-2026.04",
+  "generated_at": "2026-04-18T00:00:00Z",
+  "source_url": "https://www.cisecurity.org/cis-benchmarks",
+  "platforms": [
+    "windows"
+  ],
+  "profiles": [
+    "server"
+  ],
+  "summary": "Curated starter pack for CIS Windows Server Level 1 Starter.",
+  "controls": [
+    {
+      "control_id": "control.cis-windows-server-l1-starter.disable-guest-account",
+      "title": "Disable guest account",
+      "platform": "windows",
+      "profiles": [
+        "server"
+      ],
+      "severity": "medium",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Disable guest account.",
+      "detection_summary": "Check state for Disable guest account.",
+      "remediation_summary": "Apply desired state for Disable guest account.",
+      "rollback_summary": "Rollback desired state for Disable guest account.",
+      "provenance": {
+        "source_locator": "Accounts / Guest account",
+        "notes": "Starter control selected for CIS Windows Server Level 1 Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [
+          "4.1"
+        ],
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "legacy_sha_ids": [
+          "SHA013"
+        ]
+      }
+    },
+    {
+      "control_id": "control.cis-windows-server-l1-starter.disable-smbv1",
+      "title": "Disable SMBv1",
+      "platform": "windows",
+      "profiles": [
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "significant",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": true,
+      "reboot_required": true,
+      "guidance_summary": "Starter guidance for Disable SMBv1.",
+      "detection_summary": "Check state for Disable SMBv1.",
+      "remediation_summary": "Apply desired state for Disable SMBv1.",
+      "rollback_summary": "Rollback desired state for Disable SMBv1.",
+      "provenance": {
+        "source_locator": "Network / SMBv1",
+        "notes": "Starter control selected for CIS Windows Server Level 1 Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [
+          "4.1"
+        ],
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "legacy_sha_ids": []
+      }
+    },
+    {
+      "control_id": "control.cis-windows-server-l1-starter.smb-signing-server-required",
+      "title": "Require SMB signing on servers",
+      "platform": "windows",
+      "profiles": [
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Require SMB signing on servers.",
+      "detection_summary": "Check state for Require SMB signing on servers.",
+      "remediation_summary": "Apply desired state for Require SMB signing on servers.",
+      "rollback_summary": "Rollback desired state for Require SMB signing on servers.",
+      "provenance": {
+        "source_locator": "Network / SMB signing",
+        "notes": "Starter control selected for CIS Windows Server Level 1 Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [
+          "4.1"
+        ],
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "legacy_sha_ids": [
+          "SHA027"
+        ]
+      }
+    }
+  ]
+}

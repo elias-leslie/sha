@@ -1,0 +1,42 @@
+{
+  "generated_at": "2026-04-18T00:00:00Z",
+  "pack_count": 5,
+  "control_count": 15,
+  "packs": [
+    {
+      "pack_id": "pack.cis.windows-server-l1-starter",
+      "source_family": "cis",
+      "source_name": "CIS Windows Server Level 1 Starter",
+      "source_version": "starter-2026.04",
+      "control_count": 3
+    },
+    {
+      "pack_id": "pack.cisa_nsa.linux-ssh-starter",
+      "source_family": "cisa_nsa",
+      "source_name": "CISA NSA Linux SSH Starter",
+      "source_version": "starter-2026.04",
+      "control_count": 3
+    },
+    {
+      "pack_id": "pack.disa.windows-server-stig-starter",
+      "source_family": "disa",
+      "source_name": "DISA Windows Server STIG Starter",
+      "source_version": "starter-2026.04",
+      "control_count": 3
+    },
+    {
+      "pack_id": "pack.microsoft.windows-security-baseline-starter",
+      "source_family": "microsoft",
+      "source_name": "Microsoft Windows Security Baseline Starter",
+      "source_version": "starter-2026.04",
+      "control_count": 3
+    },
+    {
+      "pack_id": "pack.nist.csf-2.0-starter",
+      "source_family": "nist",
+      "source_name": "NIST CSF 2.0 Starter",
+      "source_version": "2.0",
+      "control_count": 3
+    }
+  ]
+}
