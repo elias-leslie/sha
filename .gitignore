@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+
+# Go
+bin/
+*.exe
+*.test
+coverage.out
+
+# Env and local state
+.env
+.env.*
+*.local
+.DS_Store
+Thumbs.db
+coverage/

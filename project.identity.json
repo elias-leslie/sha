@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "project": {
+    "id": "sha",
+    "repo_name": "sha",
+    "display_name": "Security Hardening Automation"
+  },
+  "branding": {
+    "short_name": "SHA",
+    "description": "Security hardening automation platform for Windows and Linux endpoints with a central dashboard and managed agents."
+  },
+  "runtime": {
+    "backend_port": 8010,
+    "frontend_port": 3010,
+    "backend_dir": "backend",
+    "frontend_dir": "frontend",
+    "health_endpoint": "/health"
+  },
+  "services": {
+    "backend": "sha-backend.service",
+    "frontend": "sha-frontend.service",
+    "default_workers": [
+      "sha-worker.service"
+    ],
+    "optional_workers": []
+  },
+  "hosts": {
+    "production_frontend": "sha.summitflow.dev",
+    "production_api": "shaapi.summitflow.dev"
+  }
+}
