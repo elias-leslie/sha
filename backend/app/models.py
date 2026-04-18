@@ -97,12 +97,80 @@ class InstallerProfile(Base):
     )
 
 
+class ApprovalRequest(Base):
+    __tablename__ = "approval_requests"
+
+    approval_request_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    endpoint_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    request_kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    requested_actions: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    control_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    troubleshooting_scopes: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    requested_ttl_minutes: Mapped[int] = mapped_column(nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    reason: Mapped[str] = mapped_column(String(4096), nullable=False)
+    risk: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    decision_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    decision_comment: Mapped[str | None] = mapped_column(String(4096), nullable=True)
+    decision_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    approval_grant_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "request_kind IN ('hardening_change', 'elevated_troubleshooting')",
+            name="ck_approval_requests_request_kind",
+        ),
+        CheckConstraint(
+            "risk IN ('low', 'medium', 'high', 'critical')",
+            name="ck_approval_requests_risk",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'denied', 'expired', 'revoked')",
+            name="ck_approval_requests_status",
+        ),
+    )
+
+
+class ApprovalRequestEvent(Base):
+    __tablename__ = "approval_request_events"
+
+    approval_event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    approval_request_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("approval_requests.approval_request_id", ondelete="CASCADE"), nullable=False
+    )
+    event_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    actor: Mapped[str] = mapped_column(String(255), nullable=False)
+    comment: Mapped[str] = mapped_column(String(4096), nullable=False)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "approval_request_id",
+            "event_type",
+            name="uq_approval_request_events_request_event_type",
+        ),
+        CheckConstraint(
+            "event_type IN ('requested', 'approved', 'denied', 'revoked', 'expired')",
+            name="ck_approval_request_events_event_type",
+        ),
+    )
+
+
 class ApprovalGrant(Base):
     __tablename__ = "approval_grants"
 
     approval_grant_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    approval_request_id: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("approval_requests.approval_request_id", ondelete="SET NULL"),
+        nullable=True,
+    )
     endpoint_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     allowed_actions: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    control_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    troubleshooting_scopes: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     requested_by: Mapped[str] = mapped_column(String(255), nullable=False)
     approved_by: Mapped[str] = mapped_column(String(255), nullable=False)
     reason: Mapped[str] = mapped_column(String(4096), nullable=False)
@@ -112,6 +180,7 @@ class ApprovalGrant(Base):
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
     __table_args__ = (
+        UniqueConstraint("approval_request_id", name="uq_approval_grants_request_id"),
         CheckConstraint(
             "status IN ('approved', 'expired', 'revoked')",
             name="ck_approval_grants_status",

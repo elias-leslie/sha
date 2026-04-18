@@ -117,7 +117,7 @@ Any raw or broad diagnostic execution should require a temporary approval grant 
 3. Approval required
    - medium/high user impact, service restarts, remote access changes, auth changes, firewall lock-down, privilege changes, disruptive Linux daemon hardening
 4. Temporary elevated troubleshooting
-   - broader diagnostic reads or shell-like access only after human approval, time-boxed and fully logged
+   - broader diagnostic reads through bounded troubleshooting scopes only after human approval, time-boxed and fully logged
 
 ## Prioritization / ROI model
 

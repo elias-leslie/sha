@@ -155,11 +155,13 @@ def test_collection_routes_use_persisted_rows_across_fresh_clients(db_path, make
         "/api/approval-grants",
         json={
             "endpoint_ids": [f" {endpoint_id} "],
-            "allowed_actions": ["inspect_control"],
+            "allowed_actions": ["apply_control"],
+            "control_ids": [" control.rdp-network-level-authentication "],
+            "troubleshooting_scopes": [],
             "requested_by": "  shana  ",
             "approved_by": "  secops  ",
             "reason": "  Investigate control drift  ",
-            "expires_at": "2026-04-18T16:00:00+02:00",
+            "expires_at": "2026-04-19T16:00:00+02:00",
         },
     ).json()
 
@@ -172,12 +174,16 @@ def test_collection_routes_use_persisted_rows_across_fresh_clients(db_path, make
     assert installers.json() == {"items": [created_installer]}
     assert approvals.json() == {"items": [created_grant]}
     assert created_installer["name"] == "Windows Stable"
+    assert created_grant["approval_request_id"] is None
     assert created_grant["endpoint_ids"] == [endpoint_id]
+    assert created_grant["allowed_actions"] == ["apply_control"]
+    assert created_grant["control_ids"] == ["control.rdp-network-level-authentication"]
+    assert created_grant["troubleshooting_scopes"] == []
     assert created_grant["requested_by"] == "shana"
     assert created_grant["approved_by"] == "secops"
     assert created_grant["reason"] == "Investigate control drift"
     assert created_grant["status"] == "approved"
-    assert created_grant["expires_at"] == "2026-04-18T14:00:00Z"
+    assert created_grant["expires_at"] == "2026-04-19T14:00:00Z"
 
 
 def test_collection_routes_return_empty_items_envelopes(db_path, make_client):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any, Callable
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -15,22 +16,39 @@ INSTALLER_CHANNELS = {"stable", "preview"}
 INSTALLER_POLICY_MODES = {"observe", "safe_auto", "approval_required"}
 APPROVAL_ACTIONS = {
     "collect_security_context",
+    "collect_remediation_evidence",
     "inspect_control",
     "apply_control",
     "rollback_control",
     "request_elevated_troubleshooting",
 }
 APPROVAL_STATUSES = {"approved", "expired", "revoked"}
+APPROVAL_REQUEST_KINDS = {"hardening_change", "elevated_troubleshooting"}
+APPROVAL_REQUEST_STATUSES = {"pending", "approved", "denied", "expired", "revoked"}
+APPROVAL_DECISIONS = {"approve", "deny", "revoke"}
+APPROVAL_RISKS = {"low", "medium", "high", "critical"}
+TROUBLESHOOTING_SCOPES = {
+    "service_status",
+    "security_logs",
+    "firewall_state",
+    "identity_state",
+    "process_inventory",
+    "network_bindings",
+}
 
 
 def utc_now() -> datetime:
     return datetime.now(UTC).replace(microsecond=0)
 
 
-def to_utc_z(value: datetime) -> str:
+def coerce_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
-    return value.astimezone(UTC).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return value.astimezone(UTC).replace(microsecond=0)
+
+
+def to_utc_z(value: datetime) -> str:
+    return coerce_utc(value).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def generate_prefixed_id(prefix: str) -> str:
@@ -90,6 +108,26 @@ def normalize_approval_action(value: str) -> str:
     return _normalize_choice(value, "allowed_action", APPROVAL_ACTIONS)
 
 
+def normalize_approval_request_kind(value: str) -> str:
+    return _normalize_choice(value, "request_kind", APPROVAL_REQUEST_KINDS)
+
+
+def normalize_approval_request_status(value: str) -> str:
+    return _normalize_choice(value, "status", APPROVAL_REQUEST_STATUSES)
+
+
+def normalize_approval_decision(value: str) -> str:
+    return _normalize_choice(value, "decision", APPROVAL_DECISIONS)
+
+
+def normalize_approval_risk(value: str) -> str:
+    return _normalize_choice(value, "risk", APPROVAL_RISKS)
+
+
+def normalize_troubleshooting_scope(value: str) -> str:
+    return _normalize_choice(value, "troubleshooting_scope", TROUBLESHOOTING_SCOPES)
+
+
 def validate_http_url(value: str) -> str:
     trimmed = _trim_required(value, "control_plane_url")
     parsed = urlparse(trimmed)
@@ -121,7 +159,7 @@ def normalize_list_strings(values: list[str], field_name: str) -> list[str]:
     return normalized
 
 
-def has_duplicates(values: list[str], *, key: callable[[str], Any] | None = None) -> bool:
+def has_duplicates(values: list[str], *, key: Callable[[str], Any] | None = None) -> bool:
     seen: set[Any] = set()
     key_fn = key or (lambda item: item)
     for value in values:

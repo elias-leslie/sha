@@ -50,11 +50,17 @@ Frontend:
 - `pnpm install`
 - `pnpm dev --port 3010`
 
-The frontend uses local fixtures in this slice and does not require a running backend to build. `/api/endpoints` list/detail routes are intentionally absent in this first slice; the current backend API surface is limited to `POST /api/endpoints/enroll`, `POST /api/posture-snapshots`, `GET/POST /api/installer-profiles`, and `GET/POST /api/approval-grants`.
+The frontend uses local fixtures in this slice and does not require a running backend to build. `/api/endpoints` list/detail routes are intentionally absent in this first slice; the current backend API surface is limited to `POST /api/endpoints/enroll`, `POST /api/posture-snapshots`, `GET/POST /api/installer-profiles`, `GET/POST /api/approval-grants`, `GET/POST /api/approval-requests`, and `POST /api/approval-requests/{approval_request_id}/decisions`.
+
+Approvals are now split into:
+- approval requests for human review state
+- approval grants for approved, time-bounded authority
+- bounded temporary troubleshooting scopes instead of arbitrary shell access
 
 ## Repo map
 
 - `docs/architecture/sha-v1.md` — v1 architecture, safety model, and control-source strategy
+- `docs/architecture/shana-approval-boundary.md` — approval-request/grant split and SHAna safety boundary
 - `docs/plans/2026-04-18-sha-roadmap.md` — delivery roadmap and implementation assumptions
 - `docs/tasks/sha-control-plane-foundation.plan.json` — first execution-ready SummitFlow build task
 - `backend/` — control-plane API and orchestration services

@@ -2,6 +2,7 @@ import NavShell from "../components/nav-shell";
 import {
   approvalStatusDisplay,
   approvalStatusTone,
+  describeApprovalRequest,
   endpointStateDisplay,
   endpointStateTone,
   getApprovalRequests,
@@ -41,7 +42,7 @@ function RouteCard({ href, title, description }: { href: string; title: string; 
 export default function HomePage() {
   const summary = getFleetSummary();
   const endpoints = getFleetEndpoints();
-  const approvals = getApprovalRequests();
+  const approvals = getApprovalRequests().filter((request) => request.status === "pending");
   const installerProfiles = getInstallerProfiles();
 
   return (
@@ -110,16 +111,16 @@ export default function HomePage() {
           </div>
           <div className="list">
             {approvals.map((request) => (
-              <div className="list-item" key={request.id}>
+              <div className="list-item" key={request.approval_request_id}>
                 <div className="list-item__body">
                   <div className="list-item__title">
-                    <span>{request.target}</span>
+                    <span>{describeApprovalRequest(request)}</span>
                     <span className={`pill pill--${approvalStatusTone(request.status)}`}>
                       {approvalStatusDisplay(request.status)}
                     </span>
                   </div>
                   <p className="muted">
-                    Requested by {request.requestedBy} · Risk {request.risk}
+                    Requested by {request.requested_by} · Risk {request.risk}
                   </p>
                 </div>
                 <div className="muted">{request.reason}</div>

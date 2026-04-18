@@ -38,16 +38,52 @@ class InstallerPolicyMode(str, Enum):
 
 class ApprovalAction(str, Enum):
     collect_security_context = "collect_security_context"
+    collect_remediation_evidence = "collect_remediation_evidence"
     inspect_control = "inspect_control"
     apply_control = "apply_control"
     rollback_control = "rollback_control"
     request_elevated_troubleshooting = "request_elevated_troubleshooting"
 
 
+class ApprovalRequestKind(str, Enum):
+    hardening_change = "hardening_change"
+    elevated_troubleshooting = "elevated_troubleshooting"
+
+
+class ApprovalRisk(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+    critical = "critical"
+
+
+class TroubleshootingScope(str, Enum):
+    service_status = "service_status"
+    security_logs = "security_logs"
+    firewall_state = "firewall_state"
+    identity_state = "identity_state"
+    process_inventory = "process_inventory"
+    network_bindings = "network_bindings"
+
+
 class ApprovalGrantStatus(str, Enum):
     approved = "approved"
     expired = "expired"
     revoked = "revoked"
+
+
+class ApprovalRequestStatus(str, Enum):
+    pending = "pending"
+    approved = "approved"
+    denied = "denied"
+    expired = "expired"
+    revoked = "revoked"
+
+
+class ApprovalDecision(str, Enum):
+    approve = "approve"
+    deny = "deny"
+    revoke = "revoke"
 
 
 class EndpointEnrollRequest(BaseModel):
@@ -143,11 +179,75 @@ class InstallerProfileListResponse(BaseModel):
     items: list[InstallerProfileResponse]
 
 
+class ApprovalAuditEventResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    approval_event_id: str
+    event_type: str
+    actor: str
+    comment: str
+    created_at: str
+
+
+class ApprovalRequestCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    endpoint_ids: list[str] = Field(min_length=1)
+    request_kind: ApprovalRequestKind
+    requested_actions: list[ApprovalAction] = Field(min_length=1)
+    control_ids: list[str] = Field(default_factory=list)
+    troubleshooting_scopes: list[TroubleshootingScope] = Field(default_factory=list)
+    requested_ttl_minutes: int
+    requested_by: str
+    reason: str
+    risk: ApprovalRisk
+
+
+class ApprovalDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    decision: ApprovalDecision
+    decided_by: str
+    decision_comment: str
+    expires_at: datetime | None = None
+
+
+class ApprovalRequestResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    approval_request_id: str
+    endpoint_ids: list[str]
+    request_kind: ApprovalRequestKind
+    requested_actions: list[ApprovalAction]
+    control_ids: list[str]
+    troubleshooting_scopes: list[TroubleshootingScope]
+    requested_ttl_minutes: int
+    requested_by: str
+    reason: str
+    risk: ApprovalRisk
+    status: ApprovalRequestStatus
+    decision_by: str | None = None
+    decision_comment: str | None = None
+    decision_at: str | None = None
+    approval_grant_id: str | None = None
+    created_at: str
+    updated_at: str
+    audit_events: list[ApprovalAuditEventResponse]
+
+
+class ApprovalRequestListResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    items: list[ApprovalRequestResponse]
+
+
 class ApprovalGrantCreateRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     endpoint_ids: list[str] = Field(min_length=1)
     allowed_actions: list[ApprovalAction] = Field(min_length=1)
+    control_ids: list[str] = Field(default_factory=list)
+    troubleshooting_scopes: list[TroubleshootingScope] = Field(default_factory=list)
     requested_by: str
     approved_by: str
     reason: str
@@ -158,8 +258,11 @@ class ApprovalGrantResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     approval_grant_id: str
+    approval_request_id: str | None = None
     endpoint_ids: list[str]
     allowed_actions: list[ApprovalAction]
+    control_ids: list[str]
+    troubleshooting_scopes: list[TroubleshootingScope]
     requested_by: str
     approved_by: str
     reason: str
