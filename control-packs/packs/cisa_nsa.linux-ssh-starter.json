@@ -1,0 +1,98 @@
+{
+  "pack_id": "pack.cisa_nsa.linux-ssh-starter",
+  "source_family": "cisa_nsa",
+  "source_name": "CISA NSA Linux SSH Starter",
+  "source_version": "starter-2026.04",
+  "generated_at": "2026-04-18T00:00:00Z",
+  "source_url": "https://www.cisa.gov/resources-tools/resources/guidance-securing-remote-access-software-and-services",
+  "platforms": [
+    "linux"
+  ],
+  "profiles": [
+    "server"
+  ],
+  "summary": "Curated starter pack for CISA NSA Linux SSH Starter.",
+  "controls": [
+    {
+      "control_id": "control.cisa-nsa-linux-ssh-starter.allowlisted-users",
+      "title": "Restrict SSH access to allowlisted users",
+      "platform": "linux",
+      "profiles": [
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "moderate",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Restrict SSH access to allowlisted users.",
+      "detection_summary": "Check state for Restrict SSH access to allowlisted users.",
+      "remediation_summary": "Apply desired state for Restrict SSH access to allowlisted users.",
+      "rollback_summary": "Rollback desired state for Restrict SSH access to allowlisted users.",
+      "provenance": {
+        "source_locator": "SSH allowlists",
+        "notes": "Starter control selected for CISA NSA Linux SSH Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [],
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "legacy_sha_ids": []
+      }
+    },
+    {
+      "control_id": "control.cisa-nsa-linux-ssh-starter.disable-password-authentication",
+      "title": "Disable SSH password authentication",
+      "platform": "linux",
+      "profiles": [
+        "server"
+      ],
+      "severity": "critical",
+      "disruption": "significant",
+      "rollback_complexity": "high",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Disable SSH password authentication.",
+      "detection_summary": "Check state for Disable SSH password authentication.",
+      "remediation_summary": "Apply desired state for Disable SSH password authentication.",
+      "rollback_summary": "Rollback desired state for Disable SSH password authentication.",
+      "provenance": {
+        "source_locator": "SSH password authentication",
+        "notes": "Starter control selected for CISA NSA Linux SSH Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [],
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "legacy_sha_ids": []
+      }
+    },
+    {
+      "control_id": "control.cisa-nsa-linux-ssh-starter.disable-root-login",
+      "title": "Disable SSH root login",
+      "platform": "linux",
+      "profiles": [
+        "server"
+      ],
+      "severity": "critical",
+      "disruption": "significant",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Disable SSH root login.",
+      "detection_summary": "Check state for Disable SSH root login.",
+      "remediation_summary": "Apply desired state for Disable SSH root login.",
+      "rollback_summary": "Rollback desired state for Disable SSH root login.",
+      "provenance": {
+        "source_locator": "SSH root login",
+        "notes": "Starter control selected for CISA NSA Linux SSH Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [],
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "legacy_sha_ids": []
+      }
+    }
+  ]
+}

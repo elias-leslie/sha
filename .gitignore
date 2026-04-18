@@ -31,3 +31,5 @@ coverage/
 .dev-tools/
 *.tsbuildinfo
 backend/data/*.sqlite3
+control-packs/*.tmp
+control-packs/packs/*.tmp

@@ -1,0 +1,116 @@
+{
+  "pack_id": "pack.nist.csf-2.0-starter",
+  "source_family": "nist",
+  "source_name": "NIST CSF 2.0 Starter",
+  "source_version": "2.0",
+  "generated_at": "2026-04-18T00:00:00Z",
+  "source_url": "https://www.nist.gov/cyberframework",
+  "platforms": [
+    "windows",
+    "linux"
+  ],
+  "profiles": [
+    "domain_controller",
+    "endpoint",
+    "server"
+  ],
+  "summary": "Curated starter pack for NIST CSF 2.0 Starter.",
+  "controls": [
+    {
+      "control_id": "control.nist-csf-2-0-starter.asset-config-baseline",
+      "title": "Maintain baseline configuration inventory",
+      "platform": "windows",
+      "profiles": [
+        "domain_controller",
+        "endpoint",
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "minimal",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": false,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Maintain baseline configuration inventory.",
+      "detection_summary": "Check state for Maintain baseline configuration inventory.",
+      "remediation_summary": "Apply desired state for Maintain baseline configuration inventory.",
+      "rollback_summary": "Rollback desired state for Maintain baseline configuration inventory.",
+      "provenance": {
+        "source_locator": "PR.IP-01",
+        "notes": "Starter control selected for NIST CSF 2.0 Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [],
+        "nist_csf_ids": [
+          "PR.IP-01"
+        ],
+        "sp80053_ids": [
+          "CM-02"
+        ],
+        "legacy_sha_ids": []
+      }
+    },
+    {
+      "control_id": "control.nist-csf-2-0-starter.audit-log-retention",
+      "title": "Retain security audit logs",
+      "platform": "linux",
+      "profiles": [
+        "server"
+      ],
+      "severity": "medium",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": false,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Retain security audit logs.",
+      "detection_summary": "Check state for Retain security audit logs.",
+      "remediation_summary": "Apply desired state for Retain security audit logs.",
+      "rollback_summary": "Rollback desired state for Retain security audit logs.",
+      "provenance": {
+        "source_locator": "DE.AE-03",
+        "notes": "Starter control selected for NIST CSF 2.0 Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [],
+        "nist_csf_ids": [
+          "DE.AE-03"
+        ],
+        "sp80053_ids": [
+          "AU-11"
+        ],
+        "legacy_sha_ids": []
+      }
+    },
+    {
+      "control_id": "control.nist-csf-2-0-starter.remote-access-review",
+      "title": "Review remote access privileges",
+      "platform": "windows",
+      "profiles": [
+        "domain_controller",
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": false,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Review remote access privileges.",
+      "detection_summary": "Check state for Review remote access privileges.",
+      "remediation_summary": "Apply desired state for Review remote access privileges.",
+      "rollback_summary": "Rollback desired state for Review remote access privileges.",
+      "provenance": {
+        "source_locator": "PR.AA-01",
+        "notes": "Starter control selected for NIST CSF 2.0 Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [],
+        "nist_csf_ids": [
+          "PR.AA-01"
+        ],
+        "sp80053_ids": [
+          "AC-17"
+        ],
+        "legacy_sha_ids": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "pack_id": "pack.disa.windows-server-stig-starter",
+  "source_family": "disa",
+  "source_name": "DISA Windows Server STIG Starter",
+  "source_version": "starter-2026.04",
+  "generated_at": "2026-04-18T00:00:00Z",
+  "source_url": "https://public.cyber.mil/stigs/",
+  "platforms": [
+    "windows"
+  ],
+  "profiles": [
+    "server"
+  ],
+  "summary": "Curated starter pack for DISA Windows Server STIG Starter.",
+  "controls": [
+    {
+      "control_id": "control.disa-windows-server-stig-starter.rdp-network-level-authentication",
+      "title": "Require Network Level Authentication for RDP",
+      "platform": "windows",
+      "profiles": [
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Require Network Level Authentication for RDP.",
+      "detection_summary": "Check state for Require Network Level Authentication for RDP.",
+      "remediation_summary": "Apply desired state for Require Network Level Authentication for RDP.",
+      "rollback_summary": "Rollback desired state for Require Network Level Authentication for RDP.",
+      "provenance": {
+        "source_locator": "WN22-SO-000315",
+        "notes": "Starter control selected for DISA Windows Server STIG Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [],
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "legacy_sha_ids": []
+      }
+    },
+    {
+      "control_id": "control.disa-windows-server-stig-starter.smartscreen-reputation-check",
+      "title": "Enable SmartScreen reputation checks",
+      "platform": "windows",
+      "profiles": [
+        "server"
+      ],
+      "severity": "medium",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Enable SmartScreen reputation checks.",
+      "detection_summary": "Check state for Enable SmartScreen reputation checks.",
+      "remediation_summary": "Apply desired state for Enable SmartScreen reputation checks.",
+      "rollback_summary": "Rollback desired state for Enable SmartScreen reputation checks.",
+      "provenance": {
+        "source_locator": "WN11-CC-000390",
+        "notes": "Starter control selected for DISA Windows Server STIG Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [],
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "legacy_sha_ids": []
+      }
+    },
+    {
+      "control_id": "control.disa-windows-server-stig-starter.windows-firewall-enabled",
+      "title": "Enable Windows Firewall",
+      "platform": "windows",
+      "profiles": [
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "significant",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Enable Windows Firewall.",
+      "detection_summary": "Check state for Enable Windows Firewall.",
+      "remediation_summary": "Apply desired state for Enable Windows Firewall.",
+      "rollback_summary": "Rollback desired state for Enable Windows Firewall.",
+      "provenance": {
+        "source_locator": "WN22-SO-000025",
+        "notes": "Starter control selected for DISA Windows Server STIG Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [],
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "legacy_sha_ids": []
+      }
+    }
+  ]
+}

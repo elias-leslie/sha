@@ -1,0 +1,114 @@
+{
+  "pack_id": "pack.microsoft.windows-security-baseline-starter",
+  "source_family": "microsoft",
+  "source_name": "Microsoft Windows Security Baseline Starter",
+  "source_version": "starter-2026.04",
+  "generated_at": "2026-04-18T00:00:00Z",
+  "source_url": "https://learn.microsoft.com/windows/security/operating-system-security/device-management/windows-security-configuration-framework/windows-security-baselines",
+  "platforms": [
+    "windows"
+  ],
+  "profiles": [
+    "endpoint",
+    "server"
+  ],
+  "summary": "Curated starter pack for Microsoft Windows Security Baseline Starter.",
+  "controls": [
+    {
+      "control_id": "control.microsoft-windows-security-baseline-starter.account-lockout-threshold",
+      "title": "Enforce account lockout threshold",
+      "platform": "windows",
+      "profiles": [
+        "endpoint",
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Enforce account lockout threshold.",
+      "detection_summary": "Check state for Enforce account lockout threshold.",
+      "remediation_summary": "Apply desired state for Enforce account lockout threshold.",
+      "rollback_summary": "Rollback desired state for Enforce account lockout threshold.",
+      "provenance": {
+        "source_locator": "Account Policies / Account lockout threshold",
+        "notes": "Starter control selected for Microsoft Windows Security Baseline Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [
+          "4.1"
+        ],
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "legacy_sha_ids": [
+          "SHA009"
+        ]
+      }
+    },
+    {
+      "control_id": "control.microsoft-windows-security-baseline-starter.password-history",
+      "title": "Enforce password history",
+      "platform": "windows",
+      "profiles": [
+        "endpoint",
+        "server"
+      ],
+      "severity": "medium",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Enforce password history.",
+      "detection_summary": "Check state for Enforce password history.",
+      "remediation_summary": "Apply desired state for Enforce password history.",
+      "rollback_summary": "Rollback desired state for Enforce password history.",
+      "provenance": {
+        "source_locator": "Account Policies / Password history",
+        "notes": "Starter control selected for Microsoft Windows Security Baseline Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [
+          "4.1"
+        ],
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "legacy_sha_ids": [
+          "SHA001"
+        ]
+      }
+    },
+    {
+      "control_id": "control.microsoft-windows-security-baseline-starter.password-min-length",
+      "title": "Enforce minimum password length",
+      "platform": "windows",
+      "profiles": [
+        "endpoint",
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "moderate",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Enforce minimum password length.",
+      "detection_summary": "Check state for Enforce minimum password length.",
+      "remediation_summary": "Apply desired state for Enforce minimum password length.",
+      "rollback_summary": "Rollback desired state for Enforce minimum password length.",
+      "provenance": {
+        "source_locator": "Account Policies / Minimum password length",
+        "notes": "Starter control selected for Microsoft Windows Security Baseline Starter."
+      },
+      "mappings": {
+        "cis_control_ids": [
+          "4.1"
+        ],
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "legacy_sha_ids": [
+          "SHA004"
+        ]
+      }
+    }
+  ]
+}
