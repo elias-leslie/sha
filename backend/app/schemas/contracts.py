@@ -17,6 +17,23 @@ class EndpointPlatform(str, Enum):
     linux = "linux"
 
 
+class ConnectivityStatus(str, Enum):
+    online = "online"
+    degraded = "degraded"
+
+
+class AgentCapability(str, Enum):
+    enroll = "enroll"
+    heartbeat = "heartbeat"
+    collect_posture_snapshot = "collect_posture_snapshot"
+    inspect_control = "inspect_control"
+    apply_control = "apply_control"
+    rollback_control = "rollback_control"
+    collect_security_context = "collect_security_context"
+    collect_remediation_evidence = "collect_remediation_evidence"
+    request_elevated_troubleshooting = "request_elevated_troubleshooting"
+
+
 class PostureStatus(str, Enum):
     pass_ = "pass"
     fail = "fail"
@@ -113,6 +130,97 @@ class EndpointResponse(BaseModel):
     last_seen_at: str
     created_at: str
     updated_at: str
+
+
+class EndpointExecutionHooks(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    captures_rollback_artifacts: bool
+    reports_execution_results: bool
+    supports_dry_run: bool
+
+
+class EndpointHeartbeatRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    agent_version: str
+    platform_version: str | None = None
+    platform_profile: str
+    connectivity_status: ConnectivityStatus
+    declared_capabilities: list[str] = Field(min_length=1)
+    execution_hooks: EndpointExecutionHooks
+
+
+class EndpointHeartbeatAck(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    endpoint_id: str
+    status: EndpointStatus
+    connectivity_status: ConnectivityStatus
+    last_seen_at: str
+    last_heartbeat_at: str
+    accepted_capability_count: int
+    pending_action_count: int
+    created_at: str
+    updated_at: str
+
+
+class EndpointLatestPostureSummary(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    snapshot_id: str
+    observed_at: str
+    platform_profile: str
+    pass_count: int
+    fail_count: int
+    warn_count: int
+    error_count: int
+    not_applicable_count: int
+    reboot_required_count: int
+
+
+class EndpointLatestResultResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    control_key: str
+    status: PostureStatus
+    current_value: str | None = None
+    recommended_value: str | None = None
+    severity: str | None = None
+    evidence_summary: str
+    reboot_required: bool
+
+
+class EndpointInventoryItemResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    endpoint_id: str
+    hostname: str
+    platform: EndpointPlatform
+    platform_version: str | None = None
+    agent_version: str
+    tenant_id: str | None = None
+    site_id: str | None = None
+    status: EndpointStatus
+    connectivity_status: ConnectivityStatus | None = None
+    last_seen_at: str
+    last_heartbeat_at: str | None = None
+    created_at: str
+    updated_at: str
+    last_platform_profile: str | None = None
+    declared_capabilities: list[AgentCapability]
+    execution_hooks: EndpointExecutionHooks | None = None
+    latest_posture_summary: EndpointLatestPostureSummary | None = None
+
+
+class EndpointInventoryListResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    items: list[EndpointInventoryItemResponse]
+
+
+class EndpointDetailResponse(EndpointInventoryItemResponse):
+    latest_results: list[EndpointLatestResultResponse]
 
 
 class PostureResultInput(BaseModel):

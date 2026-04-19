@@ -16,17 +16,26 @@ class Endpoint(Base):
     hostname: Mapped[str] = mapped_column(String(255), nullable=False)
     platform: Mapped[str] = mapped_column(String(32), nullable=False)
     platform_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    platform_profile: Mapped[str | None] = mapped_column(String(255), nullable=True)
     agent_version: Mapped[str] = mapped_column(String(64), nullable=False)
     tenant_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     site_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
+    connectivity_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    declared_capabilities_json: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    execution_hooks_json: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_seen_at: Mapped[str] = mapped_column(String(32), nullable=False)
+    last_heartbeat_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32), nullable=False)
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
     __table_args__ = (
         CheckConstraint("status IN ('pending', 'active', 'stale')", name="ck_endpoints_status"),
         CheckConstraint("platform IN ('windows', 'linux')", name="ck_endpoints_platform"),
+        CheckConstraint(
+            "connectivity_status IS NULL OR connectivity_status IN ('online', 'degraded')",
+            name="ck_endpoints_connectivity_status",
+        ),
     )
 
 

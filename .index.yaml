@@ -1,5 +1,5 @@
 project: sha
-generated_at: 2026-04-18 20:15 UTC
+generated_at: 2026-04-19 13:12 UTC
 identity:
   display_name: Security Hardening Automation
   short_name: SHA
@@ -21,14 +21,14 @@ network:
   hostname: summitflow-prod
 explorer:
   scan_status: completed
-  last_completed_scan: '2026-04-18T18:14:59.210313+00:00'
+  last_completed_scan: '2026-04-19T12:15:01.012600+00:00'
   last_scan_type: file
   entry_counts:
     architecture: 1
     dependency: 7
-    file: 96
+    file: 107
     page: 6
-  symbol_count: 223
+  symbol_count: 322
   stale_metadata_count: 0
 pages:
 - / (home)
@@ -38,11 +38,12 @@ pages:
 - /fleet (fleet)
 - /installers (installers)
 folders:
-  (root): 11 files
+  (root): 12 files
   .st: 1 files
   agent: 3 files
-  backend: 35 files - api, tests
+  backend: 37 files - api, tests
   control-packs: 8 files
-  docs: 7 files
-  frontend: 30 files - api, components, tests
+  docs: 9 files
+  frontend: 31 files - api, components, tests
   schemas: 1 files
+  scripts: 5 files - services

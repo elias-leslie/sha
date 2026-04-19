@@ -50,7 +50,25 @@ Frontend:
 - `pnpm install`
 - `pnpm dev --port 3010`
 
-The frontend uses local fixtures in this slice and does not require a running backend to build. `/api/endpoints` list/detail routes are intentionally absent in this first slice; the current backend API surface is limited to `POST /api/endpoints/enroll`, `POST /api/posture-snapshots`, `GET/POST /api/installer-profiles`, `GET/POST /api/approval-grants`, `GET/POST /api/approval-requests`, and `POST /api/approval-requests/{approval_request_id}/decisions`.
+The frontend uses local fixtures in this slice and does not require a running backend to build. The current backend API surface includes `POST /api/endpoints/enroll`, `POST /api/endpoints/{endpoint_id}/heartbeat`, `GET /api/endpoints`, `GET /api/endpoints/{endpoint_id}`, `POST /api/posture-snapshots`, `GET/POST /api/installer-profiles`, `GET /api/installer-profiles/{profile_id}/artifact`, `GET/POST /api/approval-grants`, `GET/POST /api/approval-requests`, and `POST /api/approval-requests/{approval_request_id}/decisions`.
+
+## Bootstrap artifacts
+
+Installer profiles now generate deterministic per-profile bootstrap artifacts for real Linux and Windows hosts.
+
+- Linux profiles download as a shell script that installs `/opt/sha/reporter.py`, `/etc/sha/reporter-config.json`, and a systemd timer/service.
+- Windows profiles download as a PowerShell script that installs `C:\ProgramData\SHA\reporter.ps1`, `C:\ProgramData\SHA\reporter-config.json`, and a recurring `SHA Reporter` scheduled task.
+- The reporter stays inside SHA's bounded posture boundary: it enrolls, heartbeats, and uploads a small read-only posture snapshot. It does not expose arbitrary shell access.
+- Artifact responses include `Content-Disposition` and `X-SHA-Artifact-Sha256` headers so operators can save and verify the exact rendered script.
+
+Example flow:
+
+1. Create an installer profile whose `control_plane_url` is reachable from the target VM/host.
+2. Download the generated artifact from `GET /api/installer-profiles/{profile_id}/artifact`.
+3. Run the artifact with elevated privileges on the target host.
+4. The installed reporter enrolls the host, posts heartbeats, and sends bounded posture snapshots on a 15 minute cadence.
+
+Production deployment follows the current SummitFlow same-origin pattern: `https://sha.summitflow.dev` serves the frontend and proxies `https://sha.summitflow.dev/api/*` plus `/health` to the local backend. SHA does not require a separate public `shaapi.summitflow.dev` hostname.
 
 Approvals are now split into:
 - approval requests for human review state
@@ -73,9 +91,11 @@ Approvals are now split into:
 
 The repo includes a deterministic, file-backed source-pack catalog under `control-packs/`.
 - `control-packs/packs/` contains the authoritative curated starter JSON inputs.
-- `control-packs/catalog.json` is generated from those inputs by `backend/scripts/build_source_catalog.py`.
-- The builder validates curated inputs in place, ignores non-JSON files, and fails on extra JSON or malformed content.
-- No live scraping or legacy CSV import is involved in this slice.
+- `control-packs/legacy/SecurityControls.csv` is the pinned repo-local legacy SHA CSV snapshot. The builder verifies its SHA256 is `9d5fe54d92f045195cef0e8d7ebe2fc11afcd45435febc989b4ac9f4d2bbdf01`.
+- `control-packs/generated/legacy-sha.snapshot.json` is the deterministic generated legacy pack output derived from that CSV snapshot.
+- `control-packs/catalog.json` is generated from the curated inputs plus the generated legacy pack by `backend/scripts/build_source_catalog.py`.
+- The builder validates curated inputs in place, regenerates the legacy snapshot pack from repo-local data only, ignores non-JSON files under `packs/`, and fails on extra JSON or malformed content.
+- No live scraping or out-of-repo file dependency is involved in normal reruns.
 
 ## Reference inputs
 

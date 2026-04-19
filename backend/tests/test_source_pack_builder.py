@@ -7,11 +7,19 @@ from pathlib import Path
 import pytest
 
 from app.source_packs.catalog import build_source_catalog
-from app.source_packs.contracts import SourceCatalog
+from app.source_packs.contracts import SourceCatalog, SourcePack
 
 PINNED_GENERATED_AT = "2026-04-18T00:00:00Z"
 CANONICAL_PLATFORM_ORDER = ("windows", "linux")
 CANONICAL_PROFILE_ORDER = ("domain_controller", "endpoint", "server")
+LEGACY_CSV_SHA256 = "9d5fe54d92f045195cef0e8d7ebe2fc11afcd45435febc989b4ac9f4d2bbdf01"
+LEGACY_SOURCE_FILENAME = "SecurityControls.csv"
+LEGACY_PACK_FILENAME = "legacy-sha.snapshot.json"
+LEGACY_PACK_ID = "pack.legacy-sha.snapshot"
+LEGACY_SOURCE_NAME = "Legacy SHA Snapshot"
+LEGACY_SOURCE_VERSION = f"sha256:{LEGACY_CSV_SHA256}"
+LEGACY_SOURCE_URL = "repo://control-packs/legacy/SecurityControls.csv"
+LEGACY_CONTROL_COUNT = 521
 
 
 def control_spec(
@@ -450,22 +458,41 @@ def pack_payload(spec: dict[str, object]) -> dict[str, object]:
     }
 
 
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def repo_legacy_csv_bytes() -> bytes:
+    return (repo_root() / "control-packs" / "legacy" / LEGACY_SOURCE_FILENAME).read_bytes()
+
+
 def expected_catalog_dict() -> dict[str, object]:
     packs = sorted(PACK_SPECS, key=lambda spec: spec["pack_id"])
+    pack_summaries = [
+        {
+            "pack_id": spec["pack_id"],
+            "source_family": spec["source_family"],
+            "source_name": spec["source_name"],
+            "source_version": spec["source_version"],
+            "control_count": len(spec["controls"]),
+        }
+        for spec in packs
+    ]
+    pack_summaries.append(
+        {
+            "pack_id": LEGACY_PACK_ID,
+            "source_family": "legacy_sha",
+            "source_name": LEGACY_SOURCE_NAME,
+            "source_version": LEGACY_SOURCE_VERSION,
+            "control_count": LEGACY_CONTROL_COUNT,
+        }
+    )
+    pack_summaries = sorted(pack_summaries, key=lambda pack: pack["pack_id"])
     return {
         "generated_at": PINNED_GENERATED_AT,
-        "pack_count": len(packs),
-        "control_count": sum(len(spec["controls"]) for spec in packs),
-        "packs": [
-            {
-                "pack_id": spec["pack_id"],
-                "source_family": spec["source_family"],
-                "source_name": spec["source_name"],
-                "source_version": spec["source_version"],
-                "control_count": len(spec["controls"]),
-            }
-            for spec in packs
-        ],
+        "pack_count": len(pack_summaries),
+        "control_count": sum(len(spec["controls"]) for spec in packs) + LEGACY_CONTROL_COUNT,
+        "packs": pack_summaries,
     }
 
 
@@ -479,6 +506,12 @@ def write_pack_file(root: Path, spec: dict[str, object]) -> None:
     path.write_text(json.dumps(pack_payload(spec), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def write_legacy_snapshot(root: Path, *, content: bytes | None = None) -> None:
+    path = root / "control-packs" / "legacy" / LEGACY_SOURCE_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(repo_legacy_csv_bytes() if content is None else content)
+
+
 def write_workspace(
     root: Path,
     *,
@@ -490,6 +523,7 @@ def write_workspace(
         if spec["filename"] in omitted:
             continue
         write_pack_file(root, spec)
+    write_legacy_snapshot(root)
     if extra_files:
         for relative_path, content in extra_files.items():
             path = root / relative_path
@@ -515,11 +549,13 @@ def test_builder_generates_expected_catalog_and_ignores_non_json_files(tmp_path:
 
     catalog = build_source_catalog(tmp_path)
     catalog_path = tmp_path / "control-packs" / "catalog.json"
+    generated_pack_path = tmp_path / "control-packs" / "generated" / LEGACY_PACK_FILENAME
     expected_text = expected_catalog_text()
 
-    assert catalog.pack_count == 5
-    assert catalog.control_count == 15
+    assert catalog.pack_count == 6
+    assert catalog.control_count == 536
     assert catalog_path.exists()
+    assert generated_pack_path.exists()
     assert catalog_path.read_text(encoding="utf-8") == expected_text
     assert catalog_path.read_bytes() == expected_text.encode("utf-8")
 
@@ -529,14 +565,42 @@ def test_builder_generates_expected_catalog_and_ignores_non_json_files(tmp_path:
         "pack.cis.windows-server-l1-starter",
         "pack.cisa_nsa.linux-ssh-starter",
         "pack.disa.windows-server-stig-starter",
+        LEGACY_PACK_ID,
         "pack.microsoft.windows-security-baseline-starter",
         "pack.nist.csf-2.0-starter",
     ]
 
+    legacy_pack = SourcePack.model_validate_json(generated_pack_path.read_text(encoding="utf-8"))
+    assert legacy_pack.pack_id == LEGACY_PACK_ID
+    assert legacy_pack.source_family.value == "legacy_sha"
+    assert legacy_pack.source_name == LEGACY_SOURCE_NAME
+    assert legacy_pack.source_version == LEGACY_SOURCE_VERSION
+    assert legacy_pack.source_url == LEGACY_SOURCE_URL
+    assert legacy_pack.platforms == ["windows"]
+    assert legacy_pack.profiles == ["domain_controller", "endpoint", "server"]
+    assert len(legacy_pack.controls) == LEGACY_CONTROL_COUNT
+    assert legacy_pack.controls[0].control_id == "control.legacy-sha.snapshot.sha001"
+    assert legacy_pack.controls[0].title == "Length of password history maintained"
+    assert legacy_pack.controls[0].profiles == ["domain_controller", "endpoint", "server"]
+    assert legacy_pack.controls[0].disruption.value == "transparent"
+    assert legacy_pack.controls[0].mappings.cis_control_ids == ["4.1"]
+    assert legacy_pack.controls[0].mappings.legacy_sha_ids == ["SHA001"]
+    assert legacy_pack.controls[0].provenance.source_locator == "SecurityControls.csv#SHA001"
+    assert legacy_pack.controls[6].control_id == "control.legacy-sha.snapshot.sha007"
+    assert legacy_pack.controls[6].disruption.value == "disruptive"
+    assert next(control for control in legacy_pack.controls if control.control_id == "control.legacy-sha.snapshot.sha053").profiles == [
+        "domain_controller"
+    ]
+    assert next(control for control in legacy_pack.controls if control.control_id == "control.legacy-sha.snapshot.sha105").profiles == [
+        "endpoint"
+    ]
+
+    generated_before = generated_pack_path.read_bytes()
     second_catalog = build_source_catalog(tmp_path)
     assert catalog_path.read_bytes() == expected_text.encode("utf-8")
     assert second_catalog.pack_count == catalog.pack_count
     assert second_catalog.control_count == catalog.control_count
+    assert generated_pack_path.read_bytes() == generated_before
 
 
 def test_builder_rejects_missing_expected_file(tmp_path: Path) -> None:
@@ -547,6 +611,26 @@ def test_builder_rejects_missing_expected_file(tmp_path: Path) -> None:
         build_source_catalog(tmp_path)
 
     assert not catalog_path.exists()
+
+
+def test_builder_rejects_hash_drifted_legacy_snapshot_and_preserves_existing_outputs(tmp_path: Path) -> None:
+    write_workspace(tmp_path)
+    build_source_catalog(tmp_path)
+
+    catalog_path = tmp_path / "control-packs" / "catalog.json"
+    generated_pack_path = tmp_path / "control-packs" / "generated" / LEGACY_PACK_FILENAME
+    legacy_csv_path = tmp_path / "control-packs" / "legacy" / LEGACY_SOURCE_FILENAME
+    catalog_before = catalog_path.read_bytes()
+    generated_before = generated_pack_path.read_bytes()
+    legacy_bytes = bytearray(legacy_csv_path.read_bytes())
+    legacy_bytes[0] = (legacy_bytes[0] + 1) % 255
+    legacy_csv_path.write_bytes(bytes(legacy_bytes))
+
+    with pytest.raises(ValueError):
+        build_source_catalog(tmp_path)
+
+    assert catalog_path.read_bytes() == catalog_before
+    assert generated_pack_path.read_bytes() == generated_before
 
 
 def test_builder_rejects_extra_json_files(tmp_path: Path) -> None:

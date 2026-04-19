@@ -16,6 +16,7 @@ class SourceFamily(str, Enum):
     nist = "nist"
     disa = "disa"
     cisa_nsa = "cisa_nsa"
+    legacy_sha = "legacy_sha"
 
 
 class SourcePlatform(str, Enum):

@@ -228,6 +228,40 @@ def test_source_pack_contract_enforces_sorted_controls_union_and_pinned_timestam
         SourcePack.model_validate(bad)
 
 
+def test_source_pack_contract_accepts_legacy_sha_family() -> None:
+    payload = pack_payload(
+        source_family="legacy_sha",
+        source_name="Legacy SHA Snapshot",
+        controls=[
+            control_payload(source_name="Legacy SHA Snapshot"),
+            control_payload(
+                control_id="control.example.beta",
+                title="Example control beta",
+                platform="linux",
+                profiles=("domain_controller", "server"),
+                severity="high",
+                disruption="moderate",
+                rollback_complexity="medium",
+                auto_remediation_candidate=False,
+                reboot_required=True,
+                source_locator="Example locator beta",
+                source_name="Legacy SHA Snapshot",
+                mappings={
+                    "cis_control_ids": [],
+                    "nist_csf_ids": ["PR.AA-01"],
+                    "sp80053_ids": ["AC-17"],
+                    "legacy_sha_ids": [],
+                },
+            ),
+        ],
+    )
+
+    model = SourcePack.model_validate(payload)
+
+    assert model.source_family.value == "legacy_sha"
+    assert model.summary == "Curated starter pack for Legacy SHA Snapshot."
+
+
 def test_source_catalog_contract_enforces_order_counts_and_nested_field_shape() -> None:
     payload = catalog_payload()
     model = SourceCatalog.model_validate(payload)

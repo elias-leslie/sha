@@ -1,0 +1,25 @@
+[Unit]
+Description=SHA Frontend (Next.js)
+After=network.target sha-backend.service
+Wants=sha-backend.service
+
+[Service]
+Type=simple
+WorkingDirectory=__PROJECT_ROOT__/frontend
+Environment="HOME=%h"
+EnvironmentFile=-%h/.env.local
+Environment="NODE_ENV=production"
+Environment="PORT=3010"
+Environment="HOSTNAME=0.0.0.0"
+Environment="API_URL=http://localhost:8010"
+ExecStart=/bin/bash -lc "pnpm exec next start --hostname 0.0.0.0 --port 3010"
+TimeoutStopSec=10
+KillMode=mixed
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sha-frontend
+
+[Install]
+WantedBy=default.target

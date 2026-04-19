@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import hashlib
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 
 from app.db import DatabaseStore, get_store
+from app.installer_artifacts import render_installer_artifact
 from app.models import InstallerProfile
 from app.schemas.contracts import (
     InstallerProfileCreateRequest,
@@ -49,6 +52,30 @@ def list_installer_profiles(
             select(InstallerProfile).order_by(InstallerProfile.created_at.asc(), InstallerProfile.id.asc())
         ).all()
     return {"items": [_installer_profile_payload(profile) for profile in profiles]}
+
+
+@router.get("/{profile_id}/artifact")
+def get_installer_artifact(
+    profile_id: str,
+    store: DatabaseStore = Depends(get_store),
+) -> Response:
+    normalized_profile_id = normalize_required_string(profile_id, "profile_id")
+
+    with store.session() as session:
+        profile = session.get(InstallerProfile, normalized_profile_id)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="installer profile not found")
+
+    filename, media_type, content = render_installer_artifact(profile)
+    sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-SHA-Artifact-Sha256": sha256,
+        },
+    )
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=InstallerProfileResponse)

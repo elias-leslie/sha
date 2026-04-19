@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -425,6 +427,40 @@ CURATED_PACK_SPECS = [
 ]
 CURATED_PACK_SPECS_BY_FILENAME = {spec["filename"]: spec for spec in CURATED_PACK_SPECS}
 CURATED_PACK_FILES = tuple(spec["filename"] for spec in CURATED_PACK_SPECS)
+CURATED_PACK_SPECS_BY_PACK_ID = {str(spec["pack_id"]): spec for spec in CURATED_PACK_SPECS}
+
+LEGACY_CSV_FILENAME = "SecurityControls.csv"
+LEGACY_PACK_FILENAME = "legacy-sha.snapshot.json"
+LEGACY_PACK_ID = "pack.legacy-sha.snapshot"
+LEGACY_CONTROL_ID_PREFIX = "control.legacy-sha.snapshot"
+LEGACY_SOURCE_NAME = "Legacy SHA Snapshot"
+LEGACY_CSV_SHA256 = "9d5fe54d92f045195cef0e8d7ebe2fc11afcd45435febc989b4ac9f4d2bbdf01"
+LEGACY_SOURCE_VERSION = f"sha256:{LEGACY_CSV_SHA256}"
+LEGACY_SOURCE_URL = "repo://control-packs/legacy/SecurityControls.csv"
+LEGACY_CSV_HEADERS = (
+    "ID",
+    "CISControlID",
+    "Category",
+    "Name",
+    "Method",
+    "MethodArgument",
+    "RegistryPath",
+    "RegistryItem",
+    "Namespace",
+    "Property",
+    "ClassName",
+    "DefaultValue",
+    "RecommendedValue",
+    "Operator",
+    "Severity",
+    "ControlProfile",
+    "AutoRemediate",
+    "RequiresReboot",
+    "SystemImpact",
+    "UserImpact",
+    "RollbackComplexity",
+    "BusinessJustification",
+)
 
 
 def ordered_subset(values: Sequence[str], order: Sequence[str]) -> list[str]:
@@ -473,6 +509,119 @@ def catalog_payload(packs: Sequence[SourcePack]) -> dict[str, object]:
     }
 
 
+def _trimmed_cell(row: dict[str, str], field_name: str) -> str:
+    return row.get(field_name, "").strip()
+
+
+def _legacy_profiles(profile_name: str) -> list[str]:
+    mapping = {
+        "All": ["domain_controller", "endpoint", "server"],
+        "DomainController": ["domain_controller"],
+        "Endpoint": ["endpoint"],
+        "Server": ["server"],
+    }
+    try:
+        return mapping[profile_name]
+    except KeyError as exc:
+        raise ValueError(f"legacy CSV contains unsupported ControlProfile value: {profile_name}") from exc
+
+
+def _legacy_severity(severity_name: str) -> str:
+    mapping = {
+        "Low": "low",
+        "Medium": "medium",
+        "High": "high",
+    }
+    try:
+        return mapping[severity_name]
+    except KeyError as exc:
+        raise ValueError(f"legacy CSV contains unsupported Severity value: {severity_name}") from exc
+
+
+def _legacy_disruption(system_impact: str, user_impact: str) -> str:
+    impact = max(int(system_impact), int(user_impact))
+    if impact <= 1:
+        return "transparent"
+    if impact <= 2:
+        return "minimal"
+    if impact <= 3:
+        return "moderate"
+    if impact <= 5:
+        return "significant"
+    return "disruptive"
+
+
+def _legacy_rollback_complexity(raw_value: str) -> str:
+    mapping = {
+        "1": "low",
+        "2": "low",
+        "3": "medium",
+        "4": "high",
+    }
+    try:
+        return mapping[raw_value]
+    except KeyError as exc:
+        raise ValueError(f"legacy CSV contains unsupported RollbackComplexity value: {raw_value}") from exc
+
+
+def _legacy_boolean(raw_value: str, *, field_name: str) -> bool:
+    mapping = {"Yes": True, "No": False}
+    try:
+        return mapping[raw_value]
+    except KeyError as exc:
+        raise ValueError(f"legacy CSV contains unsupported {field_name} value: {raw_value}") from exc
+
+
+def _legacy_control_payload(row: dict[str, str]) -> dict[str, object]:
+    legacy_id = _trimmed_cell(row, "ID")
+    title = _trimmed_cell(row, "Name")
+    cis_control_id = _trimmed_cell(row, "CISControlID")
+    return {
+        "control_id": f"{LEGACY_CONTROL_ID_PREFIX}.{legacy_id.lower()}",
+        "title": title,
+        "platform": "windows",
+        "profiles": _legacy_profiles(_trimmed_cell(row, "ControlProfile")),
+        "severity": _legacy_severity(_trimmed_cell(row, "Severity")),
+        "disruption": _legacy_disruption(_trimmed_cell(row, "SystemImpact"), _trimmed_cell(row, "UserImpact")),
+        "rollback_complexity": _legacy_rollback_complexity(_trimmed_cell(row, "RollbackComplexity")),
+        "auto_remediation_candidate": _legacy_boolean(_trimmed_cell(row, "AutoRemediate"), field_name="AutoRemediate"),
+        "reboot_required": _legacy_boolean(_trimmed_cell(row, "RequiresReboot"), field_name="RequiresReboot"),
+        "guidance_summary": f"Starter guidance for {title}.",
+        "detection_summary": f"Check state for {title}.",
+        "remediation_summary": f"Apply desired state for {title}.",
+        "rollback_summary": f"Rollback desired state for {title}.",
+        "provenance": {
+            "source_locator": f"{LEGACY_CSV_FILENAME}#{legacy_id}",
+            "notes": f"Starter control selected for {LEGACY_SOURCE_NAME}.",
+        },
+        "mappings": {
+            "cis_control_ids": [cis_control_id] if cis_control_id else [],
+            "nist_csf_ids": [],
+            "sp80053_ids": [],
+            "legacy_sha_ids": [legacy_id],
+        },
+    }
+
+
+def _legacy_pack_payload(rows: Sequence[dict[str, str]]) -> dict[str, object]:
+    controls = sorted((_legacy_control_payload(row) for row in rows), key=lambda control: str(control["control_id"]))
+    return {
+        "pack_id": LEGACY_PACK_ID,
+        "source_family": "legacy_sha",
+        "source_name": LEGACY_SOURCE_NAME,
+        "source_version": LEGACY_SOURCE_VERSION,
+        "generated_at": PINNED_GENERATED_AT,
+        "source_url": LEGACY_SOURCE_URL,
+        "platforms": ordered_subset([str(control["platform"]) for control in controls], CANONICAL_PLATFORM_ORDER),
+        "profiles": ordered_subset(
+            [profile for control in controls for profile in list(control["profiles"])],
+            CANONICAL_PROFILE_ORDER,
+        ),
+        "summary": f"Curated starter pack for {LEGACY_SOURCE_NAME}.",
+        "controls": controls,
+    }
+
+
 def _repo_root(repo_root: Path | None) -> Path:
     if repo_root is None:
         return Path(__file__).resolve().parents[3]
@@ -481,6 +630,22 @@ def _repo_root(repo_root: Path | None) -> Path:
 
 def _packs_dir(repo_root: Path) -> Path:
     return repo_root / "control-packs" / "packs"
+
+
+def _catalog_path(repo_root: Path) -> Path:
+    return repo_root / "control-packs" / "catalog.json"
+
+
+def _legacy_csv_path(repo_root: Path) -> Path:
+    return repo_root / "control-packs" / "legacy" / LEGACY_CSV_FILENAME
+
+
+def _generated_dir(repo_root: Path) -> Path:
+    return repo_root / "control-packs" / "generated"
+
+
+def _legacy_generated_pack_path(repo_root: Path) -> Path:
+    return _generated_dir(repo_root) / LEGACY_PACK_FILENAME
 
 
 def _load_json(path: Path) -> Any:
@@ -540,12 +705,62 @@ def _load_curated_packs(repo_root: Path) -> list[SourcePack]:
     return packs
 
 
+def _load_legacy_csv_rows(repo_root: Path) -> list[dict[str, str]]:
+    csv_path = _legacy_csv_path(repo_root)
+    if csv_path.is_symlink() or not csv_path.is_file():
+        raise ValueError(f"legacy CSV snapshot must be a regular file: {csv_path}")
+
+    csv_bytes = csv_path.read_bytes()
+    digest = hashlib.sha256(csv_bytes).hexdigest()
+    if digest != LEGACY_CSV_SHA256:
+        raise ValueError(
+            f"legacy CSV snapshot hash mismatch for {csv_path.name}: expected {LEGACY_CSV_SHA256}, got {digest}"
+        )
+
+    text = csv_bytes.decode("utf-8-sig")
+    reader = csv.DictReader(text.splitlines())
+    if tuple(reader.fieldnames or ()) != LEGACY_CSV_HEADERS:
+        raise ValueError(f"legacy CSV snapshot headers do not match the pinned schema: {csv_path.name}")
+
+    rows = [{key: value for key, value in row.items() if key is not None} for row in reader]
+    if not rows:
+        raise ValueError(f"legacy CSV snapshot is empty: {csv_path.name}")
+    return rows
+
+
+def _build_legacy_pack(repo_root: Path) -> SourcePack:
+    rows = _load_legacy_csv_rows(repo_root)
+    try:
+        return SourcePack.model_validate(_legacy_pack_payload(rows))
+    except ValidationError as exc:
+        raise ValueError("generated legacy SHA pack failed validation") from exc
+
+
+def _render_pack_json(pack: SourcePack) -> str:
+    return json.dumps(pack.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n"
+
+
+def _write_legacy_pack(repo_root: Path, pack: SourcePack) -> Path:
+    pack_path = _legacy_generated_pack_path(repo_root)
+    pack_path.parent.mkdir(parents=True, exist_ok=True)
+    rendered = _render_pack_json(pack)
+    tmp_path = pack_path.with_suffix(".json.tmp")
+    try:
+        tmp_path.write_text(rendered, encoding="utf-8")
+        tmp_path.replace(pack_path)
+    except Exception:
+        if tmp_path.exists():
+            tmp_path.unlink()
+        raise
+    return pack_path
+
+
 def _render_catalog_json(catalog: SourceCatalog) -> str:
     return json.dumps(catalog.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n"
 
 
 def _write_catalog(repo_root: Path, catalog: SourceCatalog) -> Path:
-    catalog_path = repo_root / "control-packs" / "catalog.json"
+    catalog_path = _catalog_path(repo_root)
     catalog_path.parent.mkdir(parents=True, exist_ok=True)
     rendered = _render_catalog_json(catalog)
     tmp_path = catalog_path.with_suffix(".json.tmp")
@@ -561,19 +776,62 @@ def _write_catalog(repo_root: Path, catalog: SourceCatalog) -> Path:
 
 def build_source_catalog(repo_root: Path | None = None) -> SourceCatalog:
     resolved_repo_root = _repo_root(repo_root)
-    packs = _load_curated_packs(resolved_repo_root)
-    catalog = SourceCatalog.model_validate(catalog_payload(packs))
+    curated_packs = _load_curated_packs(resolved_repo_root)
+    legacy_pack = _build_legacy_pack(resolved_repo_root)
+    all_packs = [*curated_packs, legacy_pack]
+
+    pack_ids = [pack.pack_id for pack in all_packs]
+    control_ids = [control.control_id for pack in all_packs for control in pack.controls]
+    if len(pack_ids) != len(set(pack_ids)):
+        raise ValueError("duplicate pack_id values are not allowed")
+    if len(control_ids) != len(set(control_ids)):
+        raise ValueError("duplicate control_id values are not allowed")
+
+    catalog = SourceCatalog.model_validate(catalog_payload(all_packs))
+    _write_legacy_pack(resolved_repo_root, legacy_pack)
     _write_catalog(resolved_repo_root, catalog)
     return catalog
+
+
+def load_source_catalog(repo_root: Path | None = None) -> SourceCatalog:
+    resolved_repo_root = _repo_root(repo_root)
+    catalog_path = _catalog_path(resolved_repo_root)
+    if not catalog_path.is_file():
+        raise FileNotFoundError(catalog_path)
+    return SourceCatalog.model_validate(_load_json(catalog_path))
+
+
+def load_source_pack(pack_id: str, repo_root: Path | None = None) -> SourcePack:
+    resolved_repo_root = _repo_root(repo_root)
+    if pack_id == LEGACY_PACK_ID:
+        pack_path = _legacy_generated_pack_path(resolved_repo_root)
+    else:
+        spec = CURATED_PACK_SPECS_BY_PACK_ID.get(pack_id)
+        if spec is None:
+            raise FileNotFoundError(pack_id)
+        pack_path = _packs_dir(resolved_repo_root) / str(spec["filename"])
+
+    if not pack_path.is_file():
+        raise FileNotFoundError(pack_path)
+    return SourcePack.model_validate(_load_json(pack_path))
 
 
 __all__ = [
     "CURATED_PACK_FILES",
     "CURATED_PACK_SPECS",
     "CURATED_PACK_SPECS_BY_FILENAME",
+    "LEGACY_CSV_FILENAME",
+    "LEGACY_CSV_SHA256",
+    "LEGACY_PACK_FILENAME",
+    "LEGACY_PACK_ID",
+    "LEGACY_SOURCE_NAME",
+    "LEGACY_SOURCE_URL",
+    "LEGACY_SOURCE_VERSION",
     "build_source_catalog",
     "catalog_payload",
     "control_spec",
+    "load_source_catalog",
+    "load_source_pack",
     "pack_payload",
     "pack_spec",
 ]

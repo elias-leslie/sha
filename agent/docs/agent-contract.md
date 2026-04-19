@@ -106,6 +106,7 @@ Important rules:
 Current backend installer routes:
 - `GET /api/installer-profiles`
 - `POST /api/installer-profiles`
+- `GET /api/installer-profiles/{profile_id}/artifact`
 
 Create request fields:
 - `name` — required, trimmed, unique per platform after trim + lowercase normalization
@@ -131,7 +132,18 @@ Returned object fields:
 Important rules:
 - list responses use `{ "items": [...] }`
 - duplicate normalized `(platform, name)` returns HTTP 409
-- no item GET/PATCH/DELETE routes exist in this slice
+- `GET /api/installer-profiles/{profile_id}/artifact` returns a deterministic text artifact for that profile
+- Linux profiles return a shell bootstrap that installs `/opt/sha/reporter.py`, `/etc/sha/reporter-config.json`, and a `sha-reporter.service` + `sha-reporter.timer`
+- Windows profiles return a PowerShell bootstrap that installs `C:\ProgramData\SHA\reporter.ps1`, `C:\ProgramData\SHA\reporter-config.json`, and a `SHA Reporter` scheduled task
+- repeated artifact downloads for the same profile are byte-identical until the profile itself changes
+- artifact responses set `Content-Disposition` and `X-SHA-Artifact-Sha256` headers for download and verification
+
+Bootstrap artifact behavior in this slice:
+- the generated reporter computes a stable per-host fingerprint from local machine identity + installer profile ID
+- each run performs `POST /api/endpoints/enroll`, `POST /api/endpoints/{endpoint_id}/heartbeat`, and `POST /api/posture-snapshots`
+- Linux posture checks stay read-only and bounded to firewall service state, SSH password-auth configuration, root-password lock state, and automatic update enablement
+- Windows posture checks stay read-only and bounded to firewall profile state, Defender real-time protection, BitLocker system-drive protection, and Secure Boot state
+- the bootstrap path does not expose arbitrary shell execution, filesystem browsing, or generic remote command hooks
 
 ## Approval request contract
 

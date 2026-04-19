@@ -11,6 +11,18 @@ UTC = timezone.utc
 
 ENDPOINT_STATUSES = {"pending", "active", "stale"}
 ENDPOINT_PLATFORMS = {"windows", "linux"}
+CONNECTIVITY_STATUSES = {"online", "degraded"}
+AGENT_CAPABILITIES = {
+    "enroll",
+    "heartbeat",
+    "collect_posture_snapshot",
+    "inspect_control",
+    "apply_control",
+    "rollback_control",
+    "collect_security_context",
+    "collect_remediation_evidence",
+    "request_elevated_troubleshooting",
+}
 POSTURE_STATUSES = {"pass", "fail", "warn", "error", "not_applicable"}
 INSTALLER_CHANNELS = {"stable", "preview"}
 INSTALLER_POLICY_MODES = {"observe", "safe_auto", "approval_required"}
@@ -86,6 +98,14 @@ def _normalize_choice(value: str, field_name: str, allowed: set[str]) -> str:
 
 def normalize_platform(value: str) -> str:
     return _normalize_choice(value, "platform", ENDPOINT_PLATFORMS)
+
+
+def normalize_connectivity_status(value: str) -> str:
+    return _normalize_choice(value, "connectivity_status", CONNECTIVITY_STATUSES)
+
+
+def normalize_agent_capability(value: str) -> str:
+    return _normalize_choice(value, "declared_capability", AGENT_CAPABILITIES)
 
 
 def normalize_endpoint_status(value: str) -> str:

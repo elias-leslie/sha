@@ -19,13 +19,10 @@
   "services": {
     "backend": "sha-backend.service",
     "frontend": "sha-frontend.service",
-    "default_workers": [
-      "sha-worker.service"
-    ],
+    "default_workers": [],
     "optional_workers": []
   },
   "hosts": {
-    "production_frontend": "sha.summitflow.dev",
-    "production_api": "shaapi.summitflow.dev"
+    "production_frontend": "sha.summitflow.dev"
   }
 }

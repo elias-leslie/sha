@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-04-18T00:00:00Z",
-  "pack_count": 5,
-  "control_count": 15,
+  "pack_count": 6,
+  "control_count": 536,
   "packs": [
     {
       "pack_id": "pack.cis.windows-server-l1-starter",
@@ -23,6 +23,13 @@
       "source_name": "DISA Windows Server STIG Starter",
       "source_version": "starter-2026.04",
       "control_count": 3
+    },
+    {
+      "pack_id": "pack.legacy-sha.snapshot",
+      "source_family": "legacy_sha",
+      "source_name": "Legacy SHA Snapshot",
+      "source_version": "sha256:9d5fe54d92f045195cef0e8d7ebe2fc11afcd45435febc989b4ac9f4d2bbdf01",
+      "control_count": 521
     },
     {
       "pack_id": "pack.microsoft.windows-security-baseline-starter",
