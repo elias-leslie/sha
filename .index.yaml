@@ -1,5 +1,5 @@
 project: sha
-generated_at: 2026-04-19 13:12 UTC
+generated_at: 2026-04-20 15:04 UTC
 identity:
   display_name: Security Hardening Automation
   short_name: SHA
@@ -26,9 +26,9 @@ explorer:
   entry_counts:
     architecture: 1
     dependency: 7
-    file: 107
+    file: 125
     page: 6
-  symbol_count: 322
+  symbol_count: 459
   stale_metadata_count: 0
 pages:
 - / (home)
@@ -41,9 +41,9 @@ folders:
   (root): 12 files
   .st: 1 files
   agent: 3 files
-  backend: 37 files - api, tests
-  control-packs: 8 files
+  backend: 41 files - api, tests
+  control-packs: 12 files
   docs: 9 files
-  frontend: 31 files - api, components, tests
+  frontend: 41 files - api, components, tests
   schemas: 1 files
   scripts: 5 files - services

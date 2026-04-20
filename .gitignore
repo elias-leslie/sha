@@ -33,3 +33,5 @@ coverage/
 backend/data/*.sqlite3
 control-packs/*.tmp
 control-packs/packs/*.tmp
+# Local VM artifacts
+.tmp-winvm/
