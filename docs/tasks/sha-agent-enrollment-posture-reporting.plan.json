@@ -1,0 +1,227 @@
+{
+  "_meta": {
+    "schema_version": "1.0.0",
+    "created_at": "2026-04-21T15:02:00Z",
+    "updated_at": "2026-04-21T15:02:00Z",
+    "source": "manual"
+  },
+  "title": "Implement SHA agent enrollment and posture reporting",
+  "description": "Why now: SHA already has the first control-plane slice, but SummitFlow still needs an execution-ready task package for the agent-facing reporting boundary. This task defines and verifies the first safe agent increment: Windows/Linux enrollment, heartbeat, bounded read-only posture reporting, deterministic installer artifacts, endpoint inventory/detail visibility, and machine-readable shared contracts. It intentionally stops before typed remediation execution and rollback mutation workflows.",
+  "task_type": "feature",
+  "priority": 1,
+  "labels": [
+    "sha",
+    "agent",
+    "enrollment",
+    "heartbeat",
+    "posture"
+  ],
+  "complexity": "STANDARD",
+  "autonomous": true,
+  "done_when": [
+    "`POST /api/endpoints/enroll` accepts `{agent_fingerprint, hostname, platform, platform_version?, agent_version, tenant_id?, site_id?}` and returns the full endpoint object with `endpoint_id`, normalized fingerprint, explicit nullable keys, `status`, `last_seen_at`, `created_at`, and `updated_at`. Same normalized fingerprint re-enrollment preserves the record, omitted optional fields preserve stored values, explicit null clears them, and same-fingerprint cross-platform reuse returns HTTP 409.",
+    "`POST /api/endpoints/{endpoint_id}/heartbeat` accepts `{agent_version, platform_version?, platform_profile, connectivity_status, declared_capabilities[], execution_hooks}` where capability values are trim-normalized, validated against the pinned verb set, de-duplicated by normalized value, and stored in sorted order; `execution_hooks` is required and must include `captures_rollback_artifacts`, `reports_execution_results`, and `supports_dry_run` booleans.",
+    "`POST /api/posture-snapshots` accepts `{endpoint_id, observed_at, platform_profile, results[]}` where each result contains `control_key`, `status`, `current_value?`, `recommended_value?`, `severity?`, `evidence_summary`, and `reboot_required`. `observed_at` normalizes to UTC `Z`, empty results are rejected, unknown endpoints return HTTP 404, and duplicate logical control keys inside one snapshot return HTTP 422.",
+    "`GET /api/endpoints` and `GET /api/endpoints/{endpoint_id}` expose the latest posture snapshot ordered by `observed_at DESC, snapshot_id DESC`; latest results come from that snapshot ordered by `control_key ASC`, and when no snapshot exists the summary is null while detail results are an empty list.",
+    "SHA installer profiles generate deterministic Linux shell and Windows PowerShell artifacts through `GET /api/installer-profiles/{profile_id}/artifact`, and repeated downloads for the same profile are byte-identical with matching `X-SHA-Artifact-Sha256` hashes and stable `Content-Disposition` filenames.",
+    "The bounded reporters embed only profile/config values needed for enroll -> heartbeat -> posture (`profile_id`, `profile_name`, `platform`, `channel`, `control_plane_url`, `policy_mode`, `tenant_id`, `site_id`, `agent_version`, `platform_profile`, `capabilities`, `execution_hooks`) and compute fingerprints as SHA-256 hex over `<platform>|<profile_id>|<machine-identity>`.",
+    "The Next.js operator UI exposes working same-origin surfaces for home, fleet, endpoint detail, and installers, while the existing controls/approvals shell remains buildable without backend fetches at build time.",
+    "`schemas/generated/` contains checked-in exports produced by `model.model_json_schema(ref_template='#/$defs/{model}')` for the public request/response contracts, written with sorted keys and a trailing newline, and `schemas/generated/manifest.json` is fixed to `{schema_version, source_module, files[{filename, model}]}`.",
+    "Verification proves `uv run pytest` in `backend/`, `pnpm test`, `pnpm build`, and `dt --check` from the repo root."
+  ],
+  "objective": "Lock the first SHA agent-facing reporting slice into an execution-ready, SummitFlow-tracked contract so future autonomous work can safely extend it without drifting across backend, frontend, installer, and agent boundaries.",
+  "spirit_anti": "Do not implement arbitrary shell access, broad remote administration, write-capable remediation executors, certificate-heavy mutual-trust infrastructure, or long-lived rollback workflows in this task. Keep the slice read-mostly, bounded, and verifiable.",
+  "constraints": [
+    "This slice covers Windows and Linux only. macOS remains out of scope.",
+    "The host does not require a Go toolchain for this increment; generated reporters and repo-local contracts are the authoritative agent boundary for now.",
+    "Enrollment identity is server-owned. The backend issues `endpoint_id`, server-side uniqueness is the normalized fingerprint string only, and fingerprint normalization is trim + lowercase. The packaged reporters intentionally make that fingerprint equal to SHA-256 hex of `<platform>|<profile_id>|<machine-identity>` so one host may produce distinct endpoint identities per installer profile.",
+    "If the same normalized fingerprint re-enrolls with the same platform, the existing endpoint record is updated in place. If the same normalized fingerprint arrives with a different `platform`, the request returns HTTP 409 and must not mutate the existing record.",
+    "`connectivity_status` is a pinned enum with values `online|degraded`. `platform_profile` is a required trimmed opaque string whose case is preserved after trim; this task does not upgrade it into a server-owned enum.",
+    "Heartbeat scope is bounded to agent version, platform version/profile, connectivity status, declared capability verbs, and execution-hook booleans. In this slice, execution hooks are observational metadata only: `captures_rollback_artifacts`, `reports_execution_results`, and `supports_dry_run`. The heartbeat request requires all three booleans; omitted `platform_version` preserves the prior value, explicit null clears it, and inventory/detail responses return null for execution hooks until the first heartbeat stores them.",
+    "Capability verbs must stay inside the hardening boundary: `enroll`, `heartbeat`, `collect_posture_snapshot`, `inspect_control`, `apply_control`, `rollback_control`, `collect_security_context`, `collect_remediation_evidence`, and `request_elevated_troubleshooting`. Normalization is trim + enum validation, duplicate normalized values are rejected, and the stored/displayed order is stable sorted order.",
+    "Posture result status is limited to `pass`, `fail`, `warn`, `error`, and `not_applicable`. `control_key` duplicate detection is trim + lowercase within one snapshot; stored `control_key` preserves trimmed original casing while `control_key_normalized` holds the lowered comparison key.",
+    "Before the first heartbeat, endpoint inventory/detail responses expose `connectivity_status=null`, `declared_capabilities=[]`, and `execution_hooks=null`. Before the first posture snapshot, `latest_posture_summary=null` and endpoint detail returns `latest_results=[]`.",
+    "Generated reporters remain read-only and bounded. Linux posture checks are limited to firewall service state, SSH password-auth configuration, root-password lock state, and automatic update enablement. Windows posture checks are limited to firewall profile state, Defender real-time protection, BitLocker system-drive protection, and Secure Boot state.",
+    "No arbitrary shell execution, filesystem browsing, or generic remote command hooks may appear anywhere in the installer artifacts, backend contracts, or frontend UX for this task.",
+    "Heartbeat/reporting cadence is the packaged 15 minute timer/task path used by the generated artifacts. Offline buffering, retry/backoff beyond immediate packaged behavior, and reconnect queues are explicitly deferred.",
+    "Installer artifact determinism means exact bytes for repeated downloads of the same profile under the pinned dependency/runtime set, not merely logical equivalence after stripping timestamps or line endings.",
+    "Shared contract exports under `schemas/generated/` must be derived from the backend Pydantic models rather than handwritten duplicates. Approval request/grant schemas remain in the bundle because they are already part of the public same-origin contract surface, but this task does not require new approval behavior beyond keeping exports synchronized.",
+    "`schemas/generated/manifest.json` follows the exporter tuple order and is fixed to `schema_version=1`, `source_module='app.schemas.contracts'`, and `files[]` entries containing only `{filename, model}` in deterministic order.",
+    "Future typed remediation and rollback mutation workflows are a follow-up task; this task may describe those boundaries but must not ship write-capable execution beyond the bounded reporting metadata already present."
+  ],
+  "testing_strategy": [
+    "Keep focused backend tests for enrollment idempotency, optional-field clearing, cross-platform fingerprint conflicts, heartbeat capability normalization and ordering, endpoint inventory/detail latest-posture selection, installer artifact byte-for-byte determinism, approval/reporting contract validation, and persistence round-trips.",
+    "Add a regression test that proves the shared `schemas/generated/` exports exist and stay synchronized with `backend/app/schemas/contracts.py`, including `schemas/generated/manifest.json` shape.",
+    "Run `uv run pytest` from `backend/`, `pnpm test`, `pnpm build`, and `dt --check` from the repo root.",
+    "Keep the Linux VM100/bootstrap evidence in task logs or repo docs as supporting operational proof, but do not make historical runtime evidence the only closeout gate."
+  ],
+  "context": {
+    "files_to_modify": [
+      "README.md",
+      "agent/docs/agent-contract.md",
+      "backend/app/api/endpoints/endpoints.py",
+      "backend/app/api/endpoints/installers.py",
+      "backend/app/installer_artifacts.py",
+      "backend/app/schemas/contracts.py",
+      "backend/tests/test_agent_reporting.py",
+      "backend/tests/test_installer_artifacts.py",
+      "frontend/lib/api.ts",
+      "frontend/components/endpoint-detail-console.tsx",
+      "frontend/components/fleet-console.tsx",
+      "frontend/components/installers-console.tsx",
+      "schemas/README.md"
+    ],
+    "files_to_create": [
+      "backend/app/schemas/schema_exports.py",
+      "backend/scripts/export_contract_schemas.py",
+      "backend/tests/test_contract_schema_exports.py",
+      "docs/tasks/sha-agent-enrollment-posture-reporting.plan.json",
+      "schemas/generated/endpoint-enroll-request.schema.json",
+      "schemas/generated/endpoint-response.schema.json",
+      "schemas/generated/endpoint-heartbeat-request.schema.json",
+      "schemas/generated/endpoint-heartbeat-ack.schema.json",
+      "schemas/generated/endpoint-inventory-list-response.schema.json",
+      "schemas/generated/endpoint-detail-response.schema.json",
+      "schemas/generated/posture-snapshot-create-request.schema.json",
+      "schemas/generated/posture-snapshot-ack.schema.json",
+      "schemas/generated/installer-profile-create-request.schema.json",
+      "schemas/generated/installer-profile-response.schema.json",
+      "schemas/generated/installer-profile-list-response.schema.json",
+      "schemas/generated/approval-request-create-request.schema.json",
+      "schemas/generated/approval-decision-request.schema.json",
+      "schemas/generated/approval-request-response.schema.json",
+      "schemas/generated/approval-request-list-response.schema.json",
+      "schemas/generated/approval-grant-create-request.schema.json",
+      "schemas/generated/approval-grant-response.schema.json",
+      "schemas/generated/approval-grant-list-response.schema.json",
+      "schemas/generated/manifest.json"
+    ],
+    "risks": [
+      "If execution hooks are described too loosely, future work can accidentally reintroduce arbitrary-shell semantics through metadata drift.",
+      "If shared schema exports are not kept in sync with the backend Pydantic models, future agent or SHAna integrations can silently drift from the live API.",
+      "If the task bundle keeps remediation/rollback implementation in scope, critique and closeout will continue to fail because the current slice is intentionally narrower and safer."
+    ],
+    "references": [
+      {
+        "title": "SHA v1 architecture",
+        "url": "file:///srv/workspaces/projects/sha/docs/architecture/sha-v1.md"
+      },
+      {
+        "title": "SHA agent contract",
+        "url": "file:///srv/workspaces/projects/sha/agent/docs/agent-contract.md"
+      },
+      {
+        "title": "SHA roadmap",
+        "url": "file:///srv/workspaces/projects/sha/docs/plans/2026-04-18-sha-roadmap.md"
+      }
+    ]
+  },
+  "subtasks": [
+    {
+      "id": "1.1",
+      "phase": "backend",
+      "subtask_type": "backend",
+      "description": "Freeze the reporting-side enrollment, heartbeat, inventory/detail, and posture contracts before any future agent execution work extends them.",
+      "steps": [
+        {
+          "description": "Keep enrollment idempotent for normalized fingerprints and reject cross-platform reuse with HTTP 409.",
+          "spec": {
+            "detail": "This task owns only the reporting identity boundary: server-generated `endpoint_id`, fingerprint normalization as trim + lowercase, reporter fingerprints equal to SHA-256 hex of `<platform>|<profile_id>|<machine-identity>`, preserved records on same-platform re-enroll, and explicit null-vs-omitted semantics for `platform_version`, `tenant_id`, and `site_id`."
+          }
+        },
+        {
+          "description": "Keep heartbeat payloads typed and bounded to connectivity plus declared capability metadata.",
+          "spec": {
+            "detail": "Do not add free-form command channels. Heartbeats accept `agent_version`, `platform_version?`, `platform_profile`, `connectivity_status`, `declared_capabilities[]`, and required `execution_hooks`. Capability values are normalized against the pinned enum, duplicate normalized values are rejected, stored/displayed order is sorted, and `execution_hooks` must always carry the three named booleans."
+          }
+        },
+        {
+          "description": "Keep posture reporting read-only and normalized across platforms.",
+          "spec": {
+            "detail": "The reporting route accepts typed results with status enum `pass|fail|warn|error|not_applicable`, rejects duplicate logical control keys inside one snapshot with HTTP 422, returns HTTP 404 for unknown endpoints, and surfaces latest summary/results through inventory/detail using snapshot order `observed_at DESC, snapshot_id DESC` plus result order `control_key ASC`."
+          }
+        }
+      ]
+    },
+    {
+      "id": "1.2",
+      "phase": "packaging",
+      "subtask_type": "backend",
+      "description": "Make installer artifacts and bundled reporters the concrete cross-platform agent boundary for this first increment.",
+      "steps": [
+        {
+          "description": "Generate deterministic Linux and Windows installer artifacts per profile.",
+          "spec": {
+            "detail": "Linux artifacts install `/opt/sha/reporter.py`, `/etc/sha/reporter-config.json`, and a systemd timer/service. Windows artifacts install `C:\\ProgramData\\SHA\\reporter.ps1`, `C:\\ProgramData\\SHA\\reporter-config.json`, and a recurring scheduled task. Repeated downloads for the same profile must be exact-byte identical and produce matching `X-SHA-Artifact-Sha256` hashes plus stable filename slugs in `Content-Disposition`."
+          }
+        },
+        {
+          "description": "Constrain the reporter to enrollment, heartbeat, and bounded posture upload only.",
+          "spec": {
+            "detail": "The packaged reporters may inspect the pinned Linux/Windows posture families in this task, but they must not expose arbitrary shell or filesystem access. The embedded config surface is limited to `profile_id`, `profile_name`, `platform`, `channel`, `control_plane_url`, `policy_mode`, `tenant_id`, `site_id`, `agent_version`, `platform_profile`, `capabilities`, and `execution_hooks`."
+          }
+        }
+      ]
+    },
+    {
+      "id": "1.3",
+      "phase": "frontend",
+      "subtask_type": "frontend",
+      "description": "Expose the reporting slice through the same-origin operator workspace.",
+      "steps": [
+        {
+          "description": "Keep fleet, endpoint detail, controls, approvals, and installers pages buildable without backend fetches at build time.",
+          "spec": {
+            "detail": "The frontend must render operator-ready same-origin surfaces, route to live endpoint details when the backend is reachable, and preserve a stable static build path. Home, fleet, endpoint detail, and installers are the reporting-slice surfaces; controls and approvals only need to remain buildable and visually consistent with the same shell."
+          }
+        },
+        {
+          "description": "Show normalized reporting data rather than placeholder-only copy.",
+          "spec": {
+            "detail": "Endpoint detail and fleet views should surface latest posture summaries, connectivity state, declared capabilities, execution-hook null-vs-present behavior, and installer/reporting context from the bounded API models. When no posture snapshot exists yet, the UI must tolerate a null summary and empty detail results without backend-only build dependencies."
+          }
+        }
+      ]
+    },
+    {
+      "id": "1.4",
+      "phase": "contracts",
+      "subtask_type": "config",
+      "description": "Check in machine-readable shared schemas for the reporting boundary.",
+      "steps": [
+        {
+          "description": "Export JSON Schemas from the backend Pydantic models into `schemas/generated/`.",
+          "spec": {
+            "detail": "The exporter must be deterministic, checked into the repo, and cover the public request/response contracts used by the reporting slice so future agent or SHAna work can consume one authoritative bundle. The export format is exactly `model.model_json_schema(ref_template='#/$defs/{model}')` serialized with `json.dumps(indent=2, sort_keys=True)` plus a trailing newline."
+          }
+        },
+        {
+          "description": "Verify the generated schema bundle stays synchronized with the backend contracts.",
+          "spec": {
+            "detail": "Closeout requires a regression test that fails when `schemas/generated/` drifts from `backend/app/schemas/contracts.py`. `schemas/generated/manifest.json` is part of that contract and must contain `schema_version`, `source_module`, and `files[{filename, model}]`."
+          }
+        }
+      ]
+    },
+    {
+      "id": "1.5",
+      "phase": "verification",
+      "subtask_type": "test",
+      "description": "Prove the reporting slice is stable and safe to extend.",
+      "steps": [
+        {
+          "description": "Run backend, frontend, and managed repo checks.",
+          "spec": {
+            "detail": "Mandatory closeout commands are `uv run pytest` in `backend/`, `pnpm test`, `pnpm build`, and `dt --check`."
+          }
+        },
+        {
+          "description": "Keep live evidence of the packaged Linux reporting path.",
+          "spec": {
+            "detail": "The repo/task context should preserve that a generated Linux bootstrap artifact already completed enroll -> heartbeat -> posture reporting against the running SHA control plane, even though broader offline buffering or remediation execution remains out of scope for this task."
+          }
+        }
+      ]
+    }
+  ]
+}
