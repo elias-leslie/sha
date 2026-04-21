@@ -1,0 +1,347 @@
+{
+  "$defs": {
+    "AgentCapability": {
+      "enum": [
+        "enroll",
+        "heartbeat",
+        "collect_posture_snapshot",
+        "inspect_control",
+        "apply_control",
+        "rollback_control",
+        "collect_security_context",
+        "collect_remediation_evidence",
+        "request_elevated_troubleshooting"
+      ],
+      "title": "AgentCapability",
+      "type": "string"
+    },
+    "ConnectivityStatus": {
+      "enum": [
+        "online",
+        "degraded"
+      ],
+      "title": "ConnectivityStatus",
+      "type": "string"
+    },
+    "EndpointExecutionHooks": {
+      "properties": {
+        "captures_rollback_artifacts": {
+          "title": "Captures Rollback Artifacts",
+          "type": "boolean"
+        },
+        "reports_execution_results": {
+          "title": "Reports Execution Results",
+          "type": "boolean"
+        },
+        "supports_dry_run": {
+          "title": "Supports Dry Run",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "captures_rollback_artifacts",
+        "reports_execution_results",
+        "supports_dry_run"
+      ],
+      "title": "EndpointExecutionHooks",
+      "type": "object"
+    },
+    "EndpointLatestPostureSummary": {
+      "properties": {
+        "error_count": {
+          "title": "Error Count",
+          "type": "integer"
+        },
+        "fail_count": {
+          "title": "Fail Count",
+          "type": "integer"
+        },
+        "not_applicable_count": {
+          "title": "Not Applicable Count",
+          "type": "integer"
+        },
+        "observed_at": {
+          "title": "Observed At",
+          "type": "string"
+        },
+        "pass_count": {
+          "title": "Pass Count",
+          "type": "integer"
+        },
+        "platform_profile": {
+          "title": "Platform Profile",
+          "type": "string"
+        },
+        "reboot_required_count": {
+          "title": "Reboot Required Count",
+          "type": "integer"
+        },
+        "snapshot_id": {
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "warn_count": {
+          "title": "Warn Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "observed_at",
+        "platform_profile",
+        "pass_count",
+        "fail_count",
+        "warn_count",
+        "error_count",
+        "not_applicable_count",
+        "reboot_required_count"
+      ],
+      "title": "EndpointLatestPostureSummary",
+      "type": "object"
+    },
+    "EndpointLatestResultResponse": {
+      "properties": {
+        "control_key": {
+          "title": "Control Key",
+          "type": "string"
+        },
+        "current_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current Value"
+        },
+        "evidence_summary": {
+          "title": "Evidence Summary",
+          "type": "string"
+        },
+        "reboot_required": {
+          "title": "Reboot Required",
+          "type": "boolean"
+        },
+        "recommended_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recommended Value"
+        },
+        "severity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Severity"
+        },
+        "status": {
+          "$ref": "#/$defs/PostureStatus"
+        }
+      },
+      "required": [
+        "control_key",
+        "status",
+        "evidence_summary",
+        "reboot_required"
+      ],
+      "title": "EndpointLatestResultResponse",
+      "type": "object"
+    },
+    "EndpointPlatform": {
+      "enum": [
+        "windows",
+        "linux"
+      ],
+      "title": "EndpointPlatform",
+      "type": "string"
+    },
+    "EndpointStatus": {
+      "enum": [
+        "pending",
+        "active",
+        "stale"
+      ],
+      "title": "EndpointStatus",
+      "type": "string"
+    },
+    "PostureStatus": {
+      "enum": [
+        "pass",
+        "fail",
+        "warn",
+        "error",
+        "not_applicable"
+      ],
+      "title": "PostureStatus",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "agent_version": {
+      "title": "Agent Version",
+      "type": "string"
+    },
+    "connectivity_status": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ConnectivityStatus"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "declared_capabilities": {
+      "items": {
+        "$ref": "#/$defs/AgentCapability"
+      },
+      "title": "Declared Capabilities",
+      "type": "array"
+    },
+    "endpoint_id": {
+      "title": "Endpoint Id",
+      "type": "string"
+    },
+    "execution_hooks": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EndpointExecutionHooks"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "hostname": {
+      "title": "Hostname",
+      "type": "string"
+    },
+    "last_heartbeat_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Heartbeat At"
+    },
+    "last_platform_profile": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Platform Profile"
+    },
+    "last_seen_at": {
+      "title": "Last Seen At",
+      "type": "string"
+    },
+    "latest_posture_summary": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EndpointLatestPostureSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "latest_results": {
+      "items": {
+        "$ref": "#/$defs/EndpointLatestResultResponse"
+      },
+      "title": "Latest Results",
+      "type": "array"
+    },
+    "platform": {
+      "$ref": "#/$defs/EndpointPlatform"
+    },
+    "platform_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Platform Version"
+    },
+    "site_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Site Id"
+    },
+    "status": {
+      "$ref": "#/$defs/EndpointStatus"
+    },
+    "tenant_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tenant Id"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "endpoint_id",
+    "hostname",
+    "platform",
+    "agent_version",
+    "status",
+    "last_seen_at",
+    "created_at",
+    "updated_at",
+    "declared_capabilities",
+    "latest_results"
+  ],
+  "title": "EndpointDetailResponse",
+  "type": "object"
+}

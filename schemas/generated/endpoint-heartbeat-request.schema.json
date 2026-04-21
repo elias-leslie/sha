@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "ConnectivityStatus": {
+      "enum": [
+        "online",
+        "degraded"
+      ],
+      "title": "ConnectivityStatus",
+      "type": "string"
+    },
+    "EndpointExecutionHooks": {
+      "properties": {
+        "captures_rollback_artifacts": {
+          "title": "Captures Rollback Artifacts",
+          "type": "boolean"
+        },
+        "reports_execution_results": {
+          "title": "Reports Execution Results",
+          "type": "boolean"
+        },
+        "supports_dry_run": {
+          "title": "Supports Dry Run",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "captures_rollback_artifacts",
+        "reports_execution_results",
+        "supports_dry_run"
+      ],
+      "title": "EndpointExecutionHooks",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "agent_version": {
+      "title": "Agent Version",
+      "type": "string"
+    },
+    "connectivity_status": {
+      "$ref": "#/$defs/ConnectivityStatus"
+    },
+    "declared_capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Declared Capabilities",
+      "type": "array"
+    },
+    "execution_hooks": {
+      "$ref": "#/$defs/EndpointExecutionHooks"
+    },
+    "platform_profile": {
+      "title": "Platform Profile",
+      "type": "string"
+    },
+    "platform_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Platform Version"
+    }
+  },
+  "required": [
+    "agent_version",
+    "platform_profile",
+    "connectivity_status",
+    "declared_capabilities",
+    "execution_hooks"
+  ],
+  "title": "EndpointHeartbeatRequest",
+  "type": "object"
+}

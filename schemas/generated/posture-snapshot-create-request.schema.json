@@ -1,0 +1,109 @@
+{
+  "$defs": {
+    "PostureResultInput": {
+      "properties": {
+        "control_key": {
+          "title": "Control Key",
+          "type": "string"
+        },
+        "current_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current Value"
+        },
+        "evidence_summary": {
+          "title": "Evidence Summary",
+          "type": "string"
+        },
+        "reboot_required": {
+          "title": "Reboot Required",
+          "type": "boolean"
+        },
+        "recommended_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recommended Value"
+        },
+        "severity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Severity"
+        },
+        "status": {
+          "$ref": "#/$defs/PostureStatus"
+        }
+      },
+      "required": [
+        "control_key",
+        "status",
+        "evidence_summary",
+        "reboot_required"
+      ],
+      "title": "PostureResultInput",
+      "type": "object"
+    },
+    "PostureStatus": {
+      "enum": [
+        "pass",
+        "fail",
+        "warn",
+        "error",
+        "not_applicable"
+      ],
+      "title": "PostureStatus",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "endpoint_id": {
+      "title": "Endpoint Id",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "platform_profile": {
+      "title": "Platform Profile",
+      "type": "string"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/PostureResultInput"
+      },
+      "minItems": 1,
+      "title": "Results",
+      "type": "array"
+    }
+  },
+  "required": [
+    "endpoint_id",
+    "observed_at",
+    "platform_profile",
+    "results"
+  ],
+  "title": "PostureSnapshotCreateRequest",
+  "type": "object"
+}

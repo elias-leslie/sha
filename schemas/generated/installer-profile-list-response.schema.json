@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "EndpointPlatform": {
+      "enum": [
+        "windows",
+        "linux"
+      ],
+      "title": "EndpointPlatform",
+      "type": "string"
+    },
+    "InstallerChannel": {
+      "enum": [
+        "stable",
+        "preview"
+      ],
+      "title": "InstallerChannel",
+      "type": "string"
+    },
+    "InstallerPolicyMode": {
+      "enum": [
+        "observe",
+        "safe_auto",
+        "approval_required"
+      ],
+      "title": "InstallerPolicyMode",
+      "type": "string"
+    },
+    "InstallerProfileResponse": {
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/InstallerChannel"
+        },
+        "control_plane_url": {
+          "title": "Control Plane Url",
+          "type": "string"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/EndpointPlatform"
+        },
+        "policy_mode": {
+          "$ref": "#/$defs/InstallerPolicyMode"
+        },
+        "site_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Site Id"
+        },
+        "tenant_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tenant Id"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "platform",
+        "channel",
+        "control_plane_url",
+        "policy_mode",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "InstallerProfileResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/InstallerProfileResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "InstallerProfileListResponse",
+  "type": "object"
+}

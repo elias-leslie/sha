@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "ApprovalAction": {
+      "enum": [
+        "collect_security_context",
+        "collect_remediation_evidence",
+        "inspect_control",
+        "apply_control",
+        "rollback_control",
+        "request_elevated_troubleshooting"
+      ],
+      "title": "ApprovalAction",
+      "type": "string"
+    },
+    "ApprovalGrantStatus": {
+      "enum": [
+        "approved",
+        "expired",
+        "revoked"
+      ],
+      "title": "ApprovalGrantStatus",
+      "type": "string"
+    },
+    "TroubleshootingScope": {
+      "enum": [
+        "service_status",
+        "security_logs",
+        "firewall_state",
+        "identity_state",
+        "process_inventory",
+        "network_bindings"
+      ],
+      "title": "TroubleshootingScope",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "allowed_actions": {
+      "items": {
+        "$ref": "#/$defs/ApprovalAction"
+      },
+      "title": "Allowed Actions",
+      "type": "array"
+    },
+    "approval_grant_id": {
+      "title": "Approval Grant Id",
+      "type": "string"
+    },
+    "approval_request_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approval Request Id"
+    },
+    "approved_by": {
+      "title": "Approved By",
+      "type": "string"
+    },
+    "control_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Control Ids",
+      "type": "array"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "endpoint_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Endpoint Ids",
+      "type": "array"
+    },
+    "expires_at": {
+      "title": "Expires At",
+      "type": "string"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "requested_by": {
+      "title": "Requested By",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ApprovalGrantStatus"
+    },
+    "troubleshooting_scopes": {
+      "items": {
+        "$ref": "#/$defs/TroubleshootingScope"
+      },
+      "title": "Troubleshooting Scopes",
+      "type": "array"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "approval_grant_id",
+    "endpoint_ids",
+    "allowed_actions",
+    "control_ids",
+    "troubleshooting_scopes",
+    "requested_by",
+    "approved_by",
+    "reason",
+    "expires_at",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "ApprovalGrantResponse",
+  "type": "object"
+}

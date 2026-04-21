@@ -1,0 +1,33 @@
+{
+  "properties": {
+    "accepted_result_count": {
+      "title": "Accepted Result Count",
+      "type": "integer"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "endpoint_id": {
+      "title": "Endpoint Id",
+      "type": "string"
+    },
+    "observed_at": {
+      "title": "Observed At",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "title": "Snapshot Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "snapshot_id",
+    "endpoint_id",
+    "observed_at",
+    "accepted_result_count",
+    "created_at"
+  ],
+  "title": "PostureSnapshotAck",
+  "type": "object"
+}

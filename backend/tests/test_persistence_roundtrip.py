@@ -1,6 +1,16 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import sqlite3
+
+from app.api.endpoints import approvals as approvals_module
+
+UTC = timezone.utc
+
+
+def set_approval_now(monkeypatch, value: str) -> None:
+    current = datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
+    monkeypatch.setattr(approvals_module, "utc_now", lambda: current)
 
 
 def enroll_endpoint(client, **overrides):
@@ -135,7 +145,8 @@ def test_posture_snapshot_persists_results_and_ack_count(db_path, make_client):
     ]
 
 
-def test_collection_routes_use_persisted_rows_across_fresh_clients(db_path, make_client):
+def test_collection_routes_use_persisted_rows_across_fresh_clients(db_path, make_client, monkeypatch):
+    set_approval_now(monkeypatch, "2026-04-18T20:00:00Z")
     first_client = make_client(db_path)
     endpoint_id = enroll_endpoint(first_client).json()["endpoint_id"]
 
@@ -151,7 +162,7 @@ def test_collection_routes_use_persisted_rows_across_fresh_clients(db_path, make
             "site_id": "site-a",
         },
     ).json()
-    created_grant = first_client.post(
+    created_grant_response = first_client.post(
         "/api/approval-grants",
         json={
             "endpoint_ids": [f" {endpoint_id} "],
@@ -163,8 +174,12 @@ def test_collection_routes_use_persisted_rows_across_fresh_clients(db_path, make
             "reason": "  Investigate control drift  ",
             "expires_at": "2026-04-19T16:00:00+02:00",
         },
-    ).json()
+    )
 
+    assert created_grant_response.status_code == 201
+    created_grant = created_grant_response.json()
+
+    set_approval_now(monkeypatch, "2026-04-18T20:10:00Z")
     second_client = make_client(db_path)
     installers = second_client.get("/api/installer-profiles")
     approvals = second_client.get("/api/approval-grants")

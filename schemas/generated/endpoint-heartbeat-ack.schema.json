@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "ConnectivityStatus": {
+      "enum": [
+        "online",
+        "degraded"
+      ],
+      "title": "ConnectivityStatus",
+      "type": "string"
+    },
+    "EndpointStatus": {
+      "enum": [
+        "pending",
+        "active",
+        "stale"
+      ],
+      "title": "EndpointStatus",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "accepted_capability_count": {
+      "title": "Accepted Capability Count",
+      "type": "integer"
+    },
+    "connectivity_status": {
+      "$ref": "#/$defs/ConnectivityStatus"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "endpoint_id": {
+      "title": "Endpoint Id",
+      "type": "string"
+    },
+    "last_heartbeat_at": {
+      "title": "Last Heartbeat At",
+      "type": "string"
+    },
+    "last_seen_at": {
+      "title": "Last Seen At",
+      "type": "string"
+    },
+    "pending_action_count": {
+      "title": "Pending Action Count",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/EndpointStatus"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "endpoint_id",
+    "status",
+    "connectivity_status",
+    "last_seen_at",
+    "last_heartbeat_at",
+    "accepted_capability_count",
+    "pending_action_count",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "EndpointHeartbeatAck",
+  "type": "object"
+}

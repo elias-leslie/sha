@@ -1,0 +1,107 @@
+{
+  "$defs": {
+    "ApprovalAction": {
+      "enum": [
+        "collect_security_context",
+        "collect_remediation_evidence",
+        "inspect_control",
+        "apply_control",
+        "rollback_control",
+        "request_elevated_troubleshooting"
+      ],
+      "title": "ApprovalAction",
+      "type": "string"
+    },
+    "ApprovalRequestKind": {
+      "enum": [
+        "hardening_change",
+        "elevated_troubleshooting"
+      ],
+      "title": "ApprovalRequestKind",
+      "type": "string"
+    },
+    "ApprovalRisk": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "ApprovalRisk",
+      "type": "string"
+    },
+    "TroubleshootingScope": {
+      "enum": [
+        "service_status",
+        "security_logs",
+        "firewall_state",
+        "identity_state",
+        "process_inventory",
+        "network_bindings"
+      ],
+      "title": "TroubleshootingScope",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "control_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Control Ids",
+      "type": "array"
+    },
+    "endpoint_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Endpoint Ids",
+      "type": "array"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "request_kind": {
+      "$ref": "#/$defs/ApprovalRequestKind"
+    },
+    "requested_actions": {
+      "items": {
+        "$ref": "#/$defs/ApprovalAction"
+      },
+      "minItems": 1,
+      "title": "Requested Actions",
+      "type": "array"
+    },
+    "requested_by": {
+      "title": "Requested By",
+      "type": "string"
+    },
+    "requested_ttl_minutes": {
+      "title": "Requested Ttl Minutes",
+      "type": "integer"
+    },
+    "risk": {
+      "$ref": "#/$defs/ApprovalRisk"
+    },
+    "troubleshooting_scopes": {
+      "items": {
+        "$ref": "#/$defs/TroubleshootingScope"
+      },
+      "title": "Troubleshooting Scopes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "endpoint_ids",
+    "request_kind",
+    "requested_actions",
+    "requested_ttl_minutes",
+    "requested_by",
+    "reason",
+    "risk"
+  ],
+  "title": "ApprovalRequestCreateRequest",
+  "type": "object"
+}
