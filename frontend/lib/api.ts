@@ -327,8 +327,12 @@ const FIXTURE_ENDPOINT_DETAILS: Record<string, EndpointDetail> = {
     created_at: "2026-04-18T18:20:00Z",
     updated_at: "2026-04-19T12:04:00Z",
     last_platform_profile: "linux_cis_l1",
-    declared_capabilities: ["posture_snapshot", "bounded_remediation", "approval_request"],
-    execution_hooks: { heartbeat: true, posture_snapshot: true, remediation: false },
+    declared_capabilities: ["enroll", "heartbeat", "collect_posture_snapshot", "inspect_control"],
+    execution_hooks: {
+      captures_rollback_artifacts: false,
+      reports_execution_results: false,
+      supports_dry_run: false,
+    },
     latest_posture_summary: {
       snapshot_id: "snap_demo_linux_01",
       observed_at: "2026-04-19T12:02:00Z",
@@ -385,8 +389,12 @@ const FIXTURE_ENDPOINT_DETAILS: Record<string, EndpointDetail> = {
     created_at: "2026-04-18T18:40:00Z",
     updated_at: "2026-04-19T11:56:00Z",
     last_platform_profile: "windows_defender_baseline",
-    declared_capabilities: ["posture_snapshot", "approval_request"],
-    execution_hooks: { heartbeat: true, posture_snapshot: true, remediation: true },
+    declared_capabilities: ["enroll", "heartbeat", "collect_posture_snapshot", "inspect_control"],
+    execution_hooks: {
+      captures_rollback_artifacts: false,
+      reports_execution_results: false,
+      supports_dry_run: false,
+    },
     latest_posture_summary: {
       snapshot_id: "snap_demo_windows_01",
       observed_at: "2026-04-19T11:55:00Z",
@@ -443,8 +451,12 @@ const FIXTURE_ENDPOINT_DETAILS: Record<string, EndpointDetail> = {
     created_at: "2026-04-18T17:55:00Z",
     updated_at: "2026-04-19T11:43:00Z",
     last_platform_profile: "windows_ops_recovery",
-    declared_capabilities: ["posture_snapshot", "approval_request", "bounded_remediation"],
-    execution_hooks: { heartbeat: true, posture_snapshot: true, remediation: false },
+    declared_capabilities: ["enroll", "heartbeat", "collect_posture_snapshot", "inspect_control"],
+    execution_hooks: {
+      captures_rollback_artifacts: false,
+      reports_execution_results: false,
+      supports_dry_run: false,
+    },
     latest_posture_summary: {
       snapshot_id: "snap_demo_windows_02",
       observed_at: "2026-04-19T11:42:00Z",

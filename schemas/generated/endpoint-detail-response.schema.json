@@ -204,8 +204,7 @@
         {
           "type": "null"
         }
-      ],
-      "default": null
+      ]
     },
     "created_at": {
       "title": "Created At",
@@ -230,8 +229,7 @@
         {
           "type": "null"
         }
-      ],
-      "default": null
+      ]
     },
     "hostname": {
       "title": "Hostname",
@@ -246,7 +244,6 @@
           "type": "null"
         }
       ],
-      "default": null,
       "title": "Last Heartbeat At"
     },
     "last_platform_profile": {
@@ -258,7 +255,6 @@
           "type": "null"
         }
       ],
-      "default": null,
       "title": "Last Platform Profile"
     },
     "last_seen_at": {
@@ -273,8 +269,7 @@
         {
           "type": "null"
         }
-      ],
-      "default": null
+      ]
     },
     "latest_results": {
       "items": {
@@ -295,7 +290,6 @@
           "type": "null"
         }
       ],
-      "default": null,
       "title": "Platform Version"
     },
     "site_id": {
@@ -307,7 +301,6 @@
           "type": "null"
         }
       ],
-      "default": null,
       "title": "Site Id"
     },
     "status": {
@@ -322,7 +315,6 @@
           "type": "null"
         }
       ],
-      "default": null,
       "title": "Tenant Id"
     },
     "updated_at": {
@@ -334,12 +326,20 @@
     "endpoint_id",
     "hostname",
     "platform",
+    "platform_version",
     "agent_version",
+    "tenant_id",
+    "site_id",
     "status",
+    "connectivity_status",
     "last_seen_at",
+    "last_heartbeat_at",
     "created_at",
     "updated_at",
+    "last_platform_profile",
     "declared_capabilities",
+    "execution_hooks",
+    "latest_posture_summary",
     "latest_results"
   ],
   "title": "EndpointDetailResponse",

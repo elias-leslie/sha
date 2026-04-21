@@ -53,10 +53,10 @@ Current response payload fields:
 - `agent_fingerprint`
 - `hostname`
 - `platform`
-- `platform_version`
+- `platform_version` — always present; `null` when unknown or cleared
 - `agent_version`
-- `tenant_id`
-- `site_id`
+- `tenant_id` — always present; `null` when unset
+- `site_id` — always present; `null` when unset
 - `status` — successful enroll and re-enroll return `active`
 - `last_seen_at`
 - `created_at`
@@ -67,6 +67,21 @@ Important rules:
 - same-fingerprint re-enroll returns HTTP 200 and preserves `endpoint_id` + `created_at`
 - same fingerprint with a different platform returns HTTP 409
 - all API timestamps serialize as UTC `Z` strings
+
+## Endpoint inventory and detail contract
+
+Current backend routes:
+- `GET /api/endpoints`
+- `GET /api/endpoints/{endpoint_id}`
+
+Shared response rules:
+- inventory items and detail payloads always include `platform_version`, `tenant_id`, `site_id`, `connectivity_status`, `last_heartbeat_at`, `last_platform_profile`, `execution_hooks`, and `latest_posture_summary` even when those values are currently `null`
+- `declared_capabilities` is always present and defaults to `[]` before the first heartbeat
+- before the first heartbeat: `connectivity_status=null`, `last_heartbeat_at=null`, `last_platform_profile=null`, and `execution_hooks=null`
+- before the first posture snapshot: `latest_posture_summary=null`
+- detail responses always include `latest_results`; before the first posture snapshot it is `[]`
+- latest posture summary selection uses `observed_at DESC, snapshot_id DESC`
+- detail `latest_results` ordering is `control_key ASC`
 
 ## Posture snapshot contract
 
@@ -124,8 +139,8 @@ Returned object fields:
 - `channel`
 - `control_plane_url`
 - `policy_mode`
-- `tenant_id`
-- `site_id`
+- `tenant_id` — always present; `null` when unset
+- `site_id` — always present; `null` when unset
 - `created_at`
 - `updated_at`
 

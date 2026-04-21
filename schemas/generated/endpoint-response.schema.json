@@ -55,7 +55,6 @@
           "type": "null"
         }
       ],
-      "default": null,
       "title": "Platform Version"
     },
     "site_id": {
@@ -67,7 +66,6 @@
           "type": "null"
         }
       ],
-      "default": null,
       "title": "Site Id"
     },
     "status": {
@@ -82,7 +80,6 @@
           "type": "null"
         }
       ],
-      "default": null,
       "title": "Tenant Id"
     },
     "updated_at": {
@@ -95,7 +92,10 @@
     "agent_fingerprint",
     "hostname",
     "platform",
+    "platform_version",
     "agent_version",
+    "tenant_id",
+    "site_id",
     "status",
     "last_seen_at",
     "created_at",

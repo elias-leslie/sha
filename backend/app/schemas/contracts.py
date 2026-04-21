@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class EndpointStatus(str, Enum):
@@ -122,10 +122,10 @@ class EndpointResponse(BaseModel):
     agent_fingerprint: str
     hostname: str
     platform: EndpointPlatform
-    platform_version: str | None = None
+    platform_version: str | None
     agent_version: str
-    tenant_id: str | None = None
-    site_id: str | None = None
+    tenant_id: str | None
+    site_id: str | None
     status: EndpointStatus
     last_seen_at: str
     created_at: str
@@ -147,8 +147,15 @@ class EndpointHeartbeatRequest(BaseModel):
     platform_version: str | None = None
     platform_profile: str
     connectivity_status: ConnectivityStatus
-    declared_capabilities: list[str] = Field(min_length=1)
+    declared_capabilities: list[AgentCapability] = Field(min_length=1)
     execution_hooks: EndpointExecutionHooks
+
+    @field_validator("declared_capabilities", mode="before")
+    @classmethod
+    def normalize_declared_capabilities(cls, value: object) -> object:
+        if isinstance(value, list):
+            return [item.strip() if isinstance(item, str) else item for item in value]
+        return value
 
 
 class EndpointHeartbeatAck(BaseModel):
@@ -197,20 +204,20 @@ class EndpointInventoryItemResponse(BaseModel):
     endpoint_id: str
     hostname: str
     platform: EndpointPlatform
-    platform_version: str | None = None
+    platform_version: str | None
     agent_version: str
-    tenant_id: str | None = None
-    site_id: str | None = None
+    tenant_id: str | None
+    site_id: str | None
     status: EndpointStatus
-    connectivity_status: ConnectivityStatus | None = None
+    connectivity_status: ConnectivityStatus | None
     last_seen_at: str
-    last_heartbeat_at: str | None = None
+    last_heartbeat_at: str | None
     created_at: str
     updated_at: str
-    last_platform_profile: str | None = None
+    last_platform_profile: str | None
     declared_capabilities: list[AgentCapability]
-    execution_hooks: EndpointExecutionHooks | None = None
-    latest_posture_summary: EndpointLatestPostureSummary | None = None
+    execution_hooks: EndpointExecutionHooks | None
+    latest_posture_summary: EndpointLatestPostureSummary | None
 
 
 class EndpointInventoryListResponse(BaseModel):
@@ -275,8 +282,8 @@ class InstallerProfileResponse(BaseModel):
     channel: InstallerChannel
     control_plane_url: str
     policy_mode: InstallerPolicyMode
-    tenant_id: str | None = None
-    site_id: str | None = None
+    tenant_id: str | None
+    site_id: str | None
     created_at: str
     updated_at: str
 

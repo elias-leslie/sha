@@ -30,7 +30,7 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
   const [pending, setPending] = useState(false);
   const [artifactPending, setArtifactPending] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(initialProfiles[0]?.id ?? null);
-  const [artifact, setArtifact] = useState<InstallerArtifact | null>(null);
+  const [artifact, setArtifact] = useState<{ profileId: string; artifact: InstallerArtifact } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -52,7 +52,7 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
           return;
         }
         setProfiles(items);
-        setSelectedProfileId((current) => current ?? items[0]?.id ?? null);
+        setSelectedProfileId((current) => (current && items.some((item) => item.id === current) ? current : items[0]?.id ?? null));
         setSource("live");
       })
       .catch(() => {
@@ -69,10 +69,10 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
   async function loadArtifact(profileId: string) {
     setArtifactPending(true);
     setError(null);
+    setSelectedProfileId(profileId);
     try {
       const rendered = await getInstallerArtifact(profileId);
-      setArtifact(rendered);
-      setSelectedProfileId(profileId);
+      setArtifact({ profileId, artifact: rendered });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to fetch installer artifact.");
     } finally {
@@ -99,6 +99,9 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
       setPending(false);
     }
   }
+
+  const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId) ?? null;
+  const selectedArtifact = artifact && selectedProfile && artifact.profileId === selectedProfile.id ? artifact.artifact : null;
 
   return (
     <>
@@ -245,17 +248,17 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
         <Panel>
           <SectionHeader
             eyebrow="Bootstrap artifact"
-            title={selectedProfileId ? `Preview for ${profiles.find((profile) => profile.id === selectedProfileId)?.name ?? selectedProfileId}` : "Select an installer profile"}
+            title={selectedProfile ? `Preview for ${selectedProfile.name}` : "Select an installer profile"}
             description="Preview the generated bootstrap and use the direct download link for VM or host installation."
           />
-          {artifact ? (
+          {selectedArtifact ? (
             <div className="stack-gap">
               <div className="tag-row">
-                <Badge tone="success">{artifact.filename}</Badge>
-                <Badge tone="info">{artifact.mediaType}</Badge>
-                <Badge tone="warning">sha256 {artifact.sha256.slice(0, 12)}</Badge>
+                <Badge tone="success">{selectedArtifact.filename}</Badge>
+                <Badge tone="info">{selectedArtifact.mediaType}</Badge>
+                <Badge tone="warning">sha256 {selectedArtifact.sha256.slice(0, 12)}</Badge>
               </div>
-              <pre className="code-pane">{artifact.content}</pre>
+              <pre className="code-pane">{selectedArtifact.content}</pre>
             </div>
           ) : (
             <EmptyState
@@ -271,15 +274,15 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
             title="Install commands"
             description="Use the generated artifact directly or curl it into a host-specific install flow."
           />
-          {selectedProfileId ? (
+          {selectedProfile ? (
             <div className="stack-gap">
               <div className="mini-card">
                 <strong>Linux</strong>
-                <p>curl -fsSL {installOrigin}{getInstallerArtifactUrl(selectedProfileId)} | sudo bash</p>
+                <p>curl -fsSL {installOrigin}{getInstallerArtifactUrl(selectedProfile.id)} | sudo bash</p>
               </div>
               <div className="mini-card">
                 <strong>Windows</strong>
-                <p>iwr {installOrigin}{getInstallerArtifactUrl(selectedProfileId)} -OutFile sha-agent.ps1; powershell -ExecutionPolicy Bypass -File .\sha-agent.ps1</p>
+                <p>iwr {installOrigin}{getInstallerArtifactUrl(selectedProfile.id)} -OutFile sha-agent.ps1; powershell -ExecutionPolicy Bypass -File .\sha-agent.ps1</p>
               </div>
             </div>
           ) : (

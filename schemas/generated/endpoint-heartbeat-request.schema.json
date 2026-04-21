@@ -1,5 +1,20 @@
 {
   "$defs": {
+    "AgentCapability": {
+      "enum": [
+        "enroll",
+        "heartbeat",
+        "collect_posture_snapshot",
+        "inspect_control",
+        "apply_control",
+        "rollback_control",
+        "collect_security_context",
+        "collect_remediation_evidence",
+        "request_elevated_troubleshooting"
+      ],
+      "title": "AgentCapability",
+      "type": "string"
+    },
     "ConnectivityStatus": {
       "enum": [
         "online",
@@ -42,7 +57,7 @@
     },
     "declared_capabilities": {
       "items": {
-        "type": "string"
+        "$ref": "#/$defs/AgentCapability"
       },
       "minItems": 1,
       "title": "Declared Capabilities",

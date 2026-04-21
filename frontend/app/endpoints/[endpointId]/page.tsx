@@ -1,6 +1,7 @@
 import { use } from "react";
 
 import EndpointDetailConsole from "../../../components/endpoint-detail-console";
+import EndpointShellTitle from "../../../components/endpoint-shell-title";
 import NavShell from "../../../components/nav-shell";
 import { getFixtureEndpoint, getFixtureEndpoints } from "../../../lib/api";
 
@@ -28,12 +29,11 @@ export default function EndpointDetailPage({
 }) {
   const { endpointId } = resolveEndpointParams(params);
   const endpoint = getFixtureEndpoint(endpointId);
-  const title = endpoint ? `Endpoint ${endpoint.hostname}` : `Endpoint ${endpointId}`;
 
   return (
     <NavShell
       currentPath="/fleet"
-      title={title}
+      title={<EndpointShellTitle endpointId={endpointId} initialHostname={endpoint?.hostname} />}
       description="Endpoint drill-down with live heartbeat and posture write surfaces for operator validation and controlled testing."
     >
       <EndpointDetailConsole endpointId={endpointId} initialEndpoint={endpoint} />

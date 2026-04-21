@@ -26,63 +26,106 @@ type EndpointDetailConsoleProps = {
   initialEndpoint?: EndpointDetail;
 };
 
-export default function EndpointDetailConsole({
-  endpointId,
-  initialEndpoint = getFixtureEndpoint(endpointId) ?? {
-    endpoint_id: endpointId,
-    hostname: endpointId,
-    platform: "linux",
-    platform_version: null,
-    agent_version: "unknown",
-    tenant_id: null,
-    site_id: null,
-    status: "pending",
-    connectivity_status: null,
-    last_seen_at: new Date().toISOString(),
-    last_heartbeat_at: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    last_platform_profile: null,
-    declared_capabilities: [],
-    execution_hooks: null,
-    latest_posture_summary: null,
-    latest_results: [],
-  },
-}: EndpointDetailConsoleProps) {
-  const [endpoint, setEndpoint] = useState(initialEndpoint);
-  const [source, setSource] = useState<"fixture" | "live">("fixture");
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [heartbeatPending, setHeartbeatPending] = useState(false);
-  const [snapshotPending, setSnapshotPending] = useState(false);
-  const [heartbeatForm, setHeartbeatForm] = useState({
-    agent_version: initialEndpoint.agent_version,
-    platform_version: initialEndpoint.platform_version ?? "",
-    platform_profile: initialEndpoint.last_platform_profile ?? `${initialEndpoint.platform}_control_plane`,
-    connectivity_status: (initialEndpoint.connectivity_status ?? "online") as "online" | "degraded",
-    declared_capabilities: initialEndpoint.declared_capabilities.join(", "),
-    execution_hooks: Object.entries(initialEndpoint.execution_hooks ?? { heartbeat: true, posture_snapshot: true })
+const EXECUTION_HOOK_NAMES = [
+  "captures_rollback_artifacts",
+  "reports_execution_results",
+  "supports_dry_run",
+] as const;
+
+function buildHeartbeatForm(endpoint: EndpointDetail) {
+  return {
+    agent_version: endpoint.agent_version,
+    platform_version: endpoint.platform_version ?? "",
+    platform_profile: endpoint.last_platform_profile ?? `${endpoint.platform}_control_plane`,
+    connectivity_status: (endpoint.connectivity_status ?? "online") as "online" | "degraded",
+    declared_capabilities: endpoint.declared_capabilities.join(", "),
+    execution_hooks: Object.entries(endpoint.execution_hooks ?? {})
       .filter(([, value]) => value)
       .map(([key]) => key)
       .join(", "),
-  });
-  const [snapshotForm, setSnapshotForm] = useState({
+  };
+}
+
+function buildSnapshotForm(endpoint: EndpointDetail) {
+  return {
     observed_at: formatLocalInputValue(futureIso(-5)),
-    platform_profile: initialEndpoint.last_platform_profile ?? `${initialEndpoint.platform}_control_plane`,
-    control_key: `${initialEndpoint.platform}.manual.control_probe`,
+    platform_profile: endpoint.last_platform_profile ?? `${endpoint.platform}_control_plane`,
+    control_key: `${endpoint.platform}.manual.control_probe`,
     status: "pass" as PostureStatus,
     severity: "medium",
     current_value: "aligned",
     recommended_value: "aligned",
     evidence_summary: "Manual operator snapshot recorded from the control plane.",
     reboot_required: false,
-  });
+  };
+}
+
+export default function EndpointDetailConsole({
+  endpointId,
+  initialEndpoint: providedInitialEndpoint,
+}: EndpointDetailConsoleProps) {
+  const initialEndpoint = useMemo<EndpointDetail>(
+    () =>
+      providedInitialEndpoint ??
+      getFixtureEndpoint(endpointId) ??
+      ({
+        endpoint_id: endpointId,
+        hostname: endpointId,
+        platform: "linux",
+        platform_version: null,
+        agent_version: "unknown",
+        tenant_id: null,
+        site_id: null,
+        status: "pending",
+        connectivity_status: null,
+        last_seen_at: new Date().toISOString(),
+        last_heartbeat_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        last_platform_profile: null,
+        declared_capabilities: [],
+        execution_hooks: null,
+        latest_posture_summary: null,
+        latest_results: [],
+      } satisfies EndpointDetail),
+    [endpointId, providedInitialEndpoint],
+  );
+
+  const [endpoint, setEndpoint] = useState(initialEndpoint);
+  const [source, setSource] = useState<"fixture" | "live">("fixture");
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [heartbeatPending, setHeartbeatPending] = useState(false);
+  const [snapshotPending, setSnapshotPending] = useState(false);
+  const [heartbeatDirty, setHeartbeatDirty] = useState(false);
+  const [snapshotDirty, setSnapshotDirty] = useState(false);
+  const [heartbeatForm, setHeartbeatForm] = useState(() => buildHeartbeatForm(initialEndpoint));
+  const [snapshotForm, setSnapshotForm] = useState(() => buildSnapshotForm(initialEndpoint));
+
+  const updateHeartbeatForm = (updater: (current: typeof heartbeatForm) => typeof heartbeatForm) => {
+    setHeartbeatDirty(true);
+    setHeartbeatForm(updater);
+  };
+
+  const updateSnapshotForm = (updater: (current: typeof snapshotForm) => typeof snapshotForm) => {
+    setSnapshotDirty(true);
+    setSnapshotForm(updater);
+  };
 
   async function refreshEndpoint() {
     const liveEndpoint = await getEndpoint(endpointId);
     setEndpoint(liveEndpoint);
     setSource("live");
   }
+
+  useEffect(() => {
+    setEndpoint(initialEndpoint);
+    setSource("fixture");
+    setHeartbeatDirty(false);
+    setSnapshotDirty(false);
+    setHeartbeatForm(buildHeartbeatForm(initialEndpoint));
+    setSnapshotForm(buildSnapshotForm(initialEndpoint));
+  }, [endpointId, initialEndpoint]);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +147,15 @@ export default function EndpointDetailConsole({
     };
   }, [endpointId]);
 
+  useEffect(() => {
+    if (!heartbeatDirty) {
+      setHeartbeatForm(buildHeartbeatForm(endpoint));
+    }
+    if (!snapshotDirty) {
+      setSnapshotForm(buildSnapshotForm(endpoint));
+    }
+  }, [endpoint, heartbeatDirty, snapshotDirty]);
+
   const executionHooks = useMemo(() => Object.entries(endpoint.execution_hooks ?? {}).filter(([, value]) => value), [endpoint.execution_hooks]);
 
   async function handleHeartbeat(event: FormEvent<HTMLFormElement>) {
@@ -113,11 +165,14 @@ export default function EndpointDetailConsole({
     setError(null);
 
     try {
-      const hooks = heartbeatForm.execution_hooks
+      const enabledHooks = heartbeatForm.execution_hooks
         .split(",")
         .map((value) => value.trim())
-        .filter(Boolean)
-        .reduce<Record<string, boolean>>((result, hook) => ({ ...result, [hook]: true }), {});
+        .filter(Boolean);
+      const hooks = EXECUTION_HOOK_NAMES.reduce<Record<string, boolean>>(
+        (result, hook) => ({ ...result, [hook]: enabledHooks.includes(hook) }),
+        {},
+      );
       await sendEndpointHeartbeat(endpointId, {
         agent_version: heartbeatForm.agent_version,
         platform_version: heartbeatForm.platform_version || null,
@@ -130,6 +185,7 @@ export default function EndpointDetailConsole({
         execution_hooks: hooks,
       });
       await refreshEndpoint();
+      setHeartbeatDirty(false);
       setFeedback("Heartbeat accepted.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to send heartbeat.");
@@ -162,6 +218,7 @@ export default function EndpointDetailConsole({
         ],
       });
       await refreshEndpoint();
+      setSnapshotDirty(false);
       setFeedback("Posture snapshot recorded.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to record posture snapshot.");
@@ -221,7 +278,7 @@ export default function EndpointDetailConsole({
               <input
                 className="field__control"
                 id="heartbeat-agent-version"
-                onChange={(event) => setHeartbeatForm((current) => ({ ...current, agent_version: event.target.value }))}
+                onChange={(event) => updateHeartbeatForm((current) => ({ ...current, agent_version: event.target.value }))}
                 value={heartbeatForm.agent_version}
               />
             </label>
@@ -230,7 +287,7 @@ export default function EndpointDetailConsole({
               <input
                 className="field__control"
                 id="heartbeat-platform-version"
-                onChange={(event) => setHeartbeatForm((current) => ({ ...current, platform_version: event.target.value }))}
+                onChange={(event) => updateHeartbeatForm((current) => ({ ...current, platform_version: event.target.value }))}
                 value={heartbeatForm.platform_version}
               />
             </label>
@@ -239,7 +296,7 @@ export default function EndpointDetailConsole({
               <input
                 className="field__control"
                 id="heartbeat-platform-profile"
-                onChange={(event) => setHeartbeatForm((current) => ({ ...current, platform_profile: event.target.value }))}
+                onChange={(event) => updateHeartbeatForm((current) => ({ ...current, platform_profile: event.target.value }))}
                 value={heartbeatForm.platform_profile}
               />
             </label>
@@ -249,7 +306,7 @@ export default function EndpointDetailConsole({
                 className="field__control"
                 id="heartbeat-connectivity-status"
                 onChange={(event) =>
-                  setHeartbeatForm((current) => ({
+                  updateHeartbeatForm((current) => ({
                     ...current,
                     connectivity_status: event.target.value as "online" | "degraded",
                   }))
@@ -265,7 +322,7 @@ export default function EndpointDetailConsole({
               <input
                 className="field__control"
                 id="heartbeat-declared-capabilities"
-                onChange={(event) => setHeartbeatForm((current) => ({ ...current, declared_capabilities: event.target.value }))}
+                onChange={(event) => updateHeartbeatForm((current) => ({ ...current, declared_capabilities: event.target.value }))}
                 value={heartbeatForm.declared_capabilities}
               />
             </label>
@@ -274,7 +331,7 @@ export default function EndpointDetailConsole({
               <input
                 className="field__control"
                 id="heartbeat-execution-hooks"
-                onChange={(event) => setHeartbeatForm((current) => ({ ...current, execution_hooks: event.target.value }))}
+                onChange={(event) => updateHeartbeatForm((current) => ({ ...current, execution_hooks: event.target.value }))}
                 value={heartbeatForm.execution_hooks}
               />
             </label>
@@ -298,7 +355,7 @@ export default function EndpointDetailConsole({
               <input
                 className="field__control"
                 id="snapshot-observed-at"
-                onChange={(event) => setSnapshotForm((current) => ({ ...current, observed_at: event.target.value }))}
+                onChange={(event) => updateSnapshotForm((current) => ({ ...current, observed_at: event.target.value }))}
                 type="datetime-local"
                 value={snapshotForm.observed_at}
               />
@@ -308,7 +365,7 @@ export default function EndpointDetailConsole({
               <input
                 className="field__control"
                 id="snapshot-platform-profile"
-                onChange={(event) => setSnapshotForm((current) => ({ ...current, platform_profile: event.target.value }))}
+                onChange={(event) => updateSnapshotForm((current) => ({ ...current, platform_profile: event.target.value }))}
                 value={snapshotForm.platform_profile}
               />
             </label>
@@ -317,7 +374,7 @@ export default function EndpointDetailConsole({
               <input
                 className="field__control"
                 id="snapshot-control-key"
-                onChange={(event) => setSnapshotForm((current) => ({ ...current, control_key: event.target.value }))}
+                onChange={(event) => updateSnapshotForm((current) => ({ ...current, control_key: event.target.value }))}
                 value={snapshotForm.control_key}
               />
             </label>
@@ -326,7 +383,7 @@ export default function EndpointDetailConsole({
               <select
                 className="field__control"
                 id="snapshot-status"
-                onChange={(event) => setSnapshotForm((current) => ({ ...current, status: event.target.value as PostureStatus }))}
+                onChange={(event) => updateSnapshotForm((current) => ({ ...current, status: event.target.value as PostureStatus }))}
                 value={snapshotForm.status}
               >
                 <option value="pass">pass</option>
@@ -341,7 +398,7 @@ export default function EndpointDetailConsole({
               <input
                 className="field__control"
                 id="snapshot-severity"
-                onChange={(event) => setSnapshotForm((current) => ({ ...current, severity: event.target.value }))}
+                onChange={(event) => updateSnapshotForm((current) => ({ ...current, severity: event.target.value }))}
                 value={snapshotForm.severity}
               />
             </label>
@@ -350,7 +407,7 @@ export default function EndpointDetailConsole({
               <input
                 className="field__control"
                 id="snapshot-current-value"
-                onChange={(event) => setSnapshotForm((current) => ({ ...current, current_value: event.target.value }))}
+                onChange={(event) => updateSnapshotForm((current) => ({ ...current, current_value: event.target.value }))}
                 value={snapshotForm.current_value}
               />
             </label>
@@ -359,7 +416,7 @@ export default function EndpointDetailConsole({
               <input
                 className="field__control"
                 id="snapshot-recommended-value"
-                onChange={(event) => setSnapshotForm((current) => ({ ...current, recommended_value: event.target.value }))}
+                onChange={(event) => updateSnapshotForm((current) => ({ ...current, recommended_value: event.target.value }))}
                 value={snapshotForm.recommended_value}
               />
             </label>
@@ -368,7 +425,7 @@ export default function EndpointDetailConsole({
               <textarea
                 className="field__control field__control--textarea"
                 id="snapshot-evidence-summary"
-                onChange={(event) => setSnapshotForm((current) => ({ ...current, evidence_summary: event.target.value }))}
+                onChange={(event) => updateSnapshotForm((current) => ({ ...current, evidence_summary: event.target.value }))}
                 value={snapshotForm.evidence_summary}
               />
             </label>
@@ -376,7 +433,7 @@ export default function EndpointDetailConsole({
               <input
                 checked={snapshotForm.reboot_required}
                 id="snapshot-reboot-required"
-                onChange={(event) => setSnapshotForm((current) => ({ ...current, reboot_required: event.target.checked }))}
+                onChange={(event) => updateSnapshotForm((current) => ({ ...current, reboot_required: event.target.checked }))}
                 type="checkbox"
               />
               <span>Reboot required</span>

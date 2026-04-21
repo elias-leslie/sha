@@ -6,6 +6,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from app.schemas.contracts import (
+    AgentCapability,
     ApprovalDecisionRequest,
     ApprovalGrantCreateRequest,
     ApprovalGrantListResponse,
@@ -61,3 +62,72 @@ def test_shared_schema_exports_are_checked_in_and_match_contract_models():
             "run `uv run python backend/scripts/export_contract_schemas.py`"
         )
         assert json.loads(path.read_text()) == model.model_json_schema(ref_template="#/$defs/{model}")
+
+
+def test_endpoint_heartbeat_request_schema_exports_agent_capability_enum():
+    schema = EndpointHeartbeatRequest.model_json_schema(ref_template="#/$defs/{model}")
+    declared_capabilities = schema["properties"]["declared_capabilities"]
+
+    assert declared_capabilities["items"] == {"$ref": "#/$defs/AgentCapability"}
+    assert schema["$defs"]["AgentCapability"]["enum"] == [capability.value for capability in AgentCapability]
+
+
+def test_shared_schema_manifest_matches_contract_models():
+    repo_root = Path(__file__).resolve().parents[2]
+    output_dir = repo_root / "schemas" / "generated"
+    manifest_path = output_dir / "manifest.json"
+
+    assert manifest_path.exists(), (
+        f"missing shared schema manifest {manifest_path.relative_to(repo_root)}; "
+        "run `uv run python backend/scripts/export_contract_schemas.py`"
+    )
+
+    expected_manifest = {
+        "schema_version": 1,
+        "source_module": "app.schemas.contracts",
+        "files": [
+            {"filename": filename, "model": model.__name__}
+            for filename, model in shared_contract_models()
+        ],
+    }
+
+    assert json.loads(manifest_path.read_text()) == expected_manifest
+
+
+def test_endpoint_response_models_require_explicit_nullable_keys():
+    endpoint_response_schema = EndpointResponse.model_json_schema(ref_template="#/$defs/{model}")
+    endpoint_inventory_schema = EndpointInventoryListResponse.model_json_schema(ref_template="#/$defs/{model}")
+    endpoint_detail_schema = EndpointDetailResponse.model_json_schema(ref_template="#/$defs/{model}")
+    installer_profile_schema = InstallerProfileResponse.model_json_schema(ref_template="#/$defs/{model}")
+
+    for required_field in ("platform_version", "tenant_id", "site_id"):
+        assert required_field in endpoint_response_schema["required"]
+
+    inventory_item_required = endpoint_inventory_schema["$defs"]["EndpointInventoryItemResponse"]["required"]
+    for required_field in (
+        "platform_version",
+        "tenant_id",
+        "site_id",
+        "connectivity_status",
+        "last_heartbeat_at",
+        "last_platform_profile",
+        "execution_hooks",
+        "latest_posture_summary",
+    ):
+        assert required_field in inventory_item_required
+
+    for required_field in (
+        "platform_version",
+        "tenant_id",
+        "site_id",
+        "connectivity_status",
+        "last_heartbeat_at",
+        "last_platform_profile",
+        "execution_hooks",
+        "latest_posture_summary",
+        "latest_results",
+    ):
+        assert required_field in endpoint_detail_schema["required"]
+
+    for required_field in ("tenant_id", "site_id"):
+        assert required_field in installer_profile_schema["required"]

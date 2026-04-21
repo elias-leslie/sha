@@ -10,7 +10,7 @@ const NAV_ITEMS = [
 
 type NavShellProps = {
   currentPath?: string;
-  title: string;
+  title: ReactNode;
   description: string;
   children: ReactNode;
   actions?: ReactNode;

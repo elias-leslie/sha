@@ -20,6 +20,8 @@ describe("SHA dashboard shell", () => {
   })
 
   it("renders the redesigned home page and endpoint detail actions", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})))
+
     render(<HomePage />)
     expect(screen.getByRole("heading", { name: /security control plane/i })).toBeInTheDocument()
     expect(screen.getByText(/containment posture/i)).toBeInTheDocument()
