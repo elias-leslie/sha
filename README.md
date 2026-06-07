@@ -4,7 +4,10 @@ SHA is an early-stage Windows/Linux security hardening automation platform. It c
 
 The project goal is practical hardening without casually breaking endpoints: observe posture, rank gaps, require human approval for disruptive actions, and keep all endpoint work constrained to typed hardening capabilities rather than arbitrary remote shell access.
 
+[![CI](https://github.com/elias-leslie/sha/actions/workflows/ci.yml/badge.svg)](https://github.com/elias-leslie/sha/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.13-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000.svg?logo=next.js&logoColor=white)](https://nextjs.org/)
 
 ![SHA security control plane dashboard smoke test](docs/images/security-control-plane-smoke.png)
 
