@@ -1,0 +1,73 @@
+{
+  "$defs": {
+    "EndpointPlatform": {
+      "enum": [
+        "windows",
+        "linux"
+      ],
+      "title": "EndpointPlatform",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "agent_fingerprint": {
+      "title": "Agent Fingerprint",
+      "type": "string"
+    },
+    "agent_version": {
+      "title": "Agent Version",
+      "type": "string"
+    },
+    "hostname": {
+      "title": "Hostname",
+      "type": "string"
+    },
+    "platform": {
+      "$ref": "#/$defs/EndpointPlatform"
+    },
+    "platform_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Platform Version"
+    },
+    "site_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Site Id"
+    },
+    "tenant_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tenant Id"
+    }
+  },
+  "required": [
+    "agent_fingerprint",
+    "hostname",
+    "platform",
+    "agent_version"
+  ],
+  "title": "EndpointEnrollRequest",
+  "type": "object"
+}

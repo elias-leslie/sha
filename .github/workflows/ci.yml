@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Run backend tests
+        working-directory: backend
+        run: uv run pytest
+      - name: Regenerate source catalog and schemas
+        run: |
+          uv run --directory backend python scripts/build_source_catalog.py
+          uv run --directory backend python scripts/export_contract_schemas.py
+          git diff --exit-code control-packs/catalog.json schemas/generated
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Enable pnpm
+        run: |
+          corepack enable pnpm
+          corepack prepare pnpm@10.28.0 --activate
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Run frontend tests
+        working-directory: frontend
+        run: pnpm test
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: pnpm exec tsc --noEmit
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          API_URL: http://127.0.0.1:8010
+        run: pnpm build

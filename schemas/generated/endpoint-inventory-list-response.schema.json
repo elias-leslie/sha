@@ -1,0 +1,281 @@
+{
+  "$defs": {
+    "AgentCapability": {
+      "enum": [
+        "enroll",
+        "heartbeat",
+        "collect_posture_snapshot",
+        "inspect_control",
+        "apply_control",
+        "rollback_control",
+        "collect_security_context",
+        "collect_remediation_evidence",
+        "request_elevated_troubleshooting"
+      ],
+      "title": "AgentCapability",
+      "type": "string"
+    },
+    "ConnectivityStatus": {
+      "enum": [
+        "online",
+        "degraded"
+      ],
+      "title": "ConnectivityStatus",
+      "type": "string"
+    },
+    "EndpointExecutionHooks": {
+      "properties": {
+        "captures_rollback_artifacts": {
+          "title": "Captures Rollback Artifacts",
+          "type": "boolean"
+        },
+        "reports_execution_results": {
+          "title": "Reports Execution Results",
+          "type": "boolean"
+        },
+        "supports_dry_run": {
+          "title": "Supports Dry Run",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "captures_rollback_artifacts",
+        "reports_execution_results",
+        "supports_dry_run"
+      ],
+      "title": "EndpointExecutionHooks",
+      "type": "object"
+    },
+    "EndpointInventoryItemResponse": {
+      "properties": {
+        "agent_version": {
+          "title": "Agent Version",
+          "type": "string"
+        },
+        "connectivity_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConnectivityStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "declared_capabilities": {
+          "items": {
+            "$ref": "#/$defs/AgentCapability"
+          },
+          "title": "Declared Capabilities",
+          "type": "array"
+        },
+        "endpoint_id": {
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "execution_hooks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EndpointExecutionHooks"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hostname": {
+          "title": "Hostname",
+          "type": "string"
+        },
+        "last_heartbeat_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Heartbeat At"
+        },
+        "last_platform_profile": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Platform Profile"
+        },
+        "last_seen_at": {
+          "title": "Last Seen At",
+          "type": "string"
+        },
+        "latest_posture_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EndpointLatestPostureSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "platform": {
+          "$ref": "#/$defs/EndpointPlatform"
+        },
+        "platform_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Platform Version"
+        },
+        "site_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Site Id"
+        },
+        "status": {
+          "$ref": "#/$defs/EndpointStatus"
+        },
+        "tenant_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tenant Id"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "hostname",
+        "platform",
+        "platform_version",
+        "agent_version",
+        "tenant_id",
+        "site_id",
+        "status",
+        "connectivity_status",
+        "last_seen_at",
+        "last_heartbeat_at",
+        "created_at",
+        "updated_at",
+        "last_platform_profile",
+        "declared_capabilities",
+        "execution_hooks",
+        "latest_posture_summary"
+      ],
+      "title": "EndpointInventoryItemResponse",
+      "type": "object"
+    },
+    "EndpointLatestPostureSummary": {
+      "properties": {
+        "error_count": {
+          "title": "Error Count",
+          "type": "integer"
+        },
+        "fail_count": {
+          "title": "Fail Count",
+          "type": "integer"
+        },
+        "not_applicable_count": {
+          "title": "Not Applicable Count",
+          "type": "integer"
+        },
+        "observed_at": {
+          "title": "Observed At",
+          "type": "string"
+        },
+        "pass_count": {
+          "title": "Pass Count",
+          "type": "integer"
+        },
+        "platform_profile": {
+          "title": "Platform Profile",
+          "type": "string"
+        },
+        "reboot_required_count": {
+          "title": "Reboot Required Count",
+          "type": "integer"
+        },
+        "snapshot_id": {
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "warn_count": {
+          "title": "Warn Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "observed_at",
+        "platform_profile",
+        "pass_count",
+        "fail_count",
+        "warn_count",
+        "error_count",
+        "not_applicable_count",
+        "reboot_required_count"
+      ],
+      "title": "EndpointLatestPostureSummary",
+      "type": "object"
+    },
+    "EndpointPlatform": {
+      "enum": [
+        "windows",
+        "linux"
+      ],
+      "title": "EndpointPlatform",
+      "type": "string"
+    },
+    "EndpointStatus": {
+      "enum": [
+        "pending",
+        "active",
+        "stale"
+      ],
+      "title": "EndpointStatus",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/EndpointInventoryItemResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "EndpointInventoryListResponse",
+  "type": "object"
+}

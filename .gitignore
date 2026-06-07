@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+
+# Go
+bin/
+*.exe
+*.test
+coverage.out
+
+# Generated workspace state
+.st/
+ports.json
+
+# Env and local state
+.env
+.env.*
+!.env.example
+*.local
+.DS_Store
+Thumbs.db
+coverage/
+.pytest_cache/
+.pnpm-store/
+.dev-tools/
+*.tsbuildinfo
+backend/data/*.sqlite3
+control-packs/*.tmp
+control-packs/packs/*.tmp
+# Local VM artifacts
+.tmp-winvm/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+htmlcov/

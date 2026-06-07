@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-04-18T00:00:00Z",
+  "pack_count": 3,
+  "control_count": 9,
+  "packs": [
+    {
+      "pack_id": "pack.public.cisa-nsa-communications-hardening-starter",
+      "source_family": "cisa_nsa",
+      "source_name": "CISA NSA Communications Hardening Starter",
+      "source_version": "2025-06",
+      "control_count": 3
+    },
+    {
+      "pack_id": "pack.public.disa-windows-server-2022-v2r5-starter",
+      "source_family": "disa_stig",
+      "source_name": "DISA Microsoft Windows Server 2022 STIG V2R5 Starter",
+      "source_version": "V2R5",
+      "control_count": 3
+    },
+    {
+      "pack_id": "pack.public.nist-800-53-rev5-starter",
+      "source_family": "nist_800_53",
+      "source_name": "NIST SP 800-53 Rev. 5 Starter",
+      "source_version": "5.2.0",
+      "control_count": 3
+    }
+  ]
+}

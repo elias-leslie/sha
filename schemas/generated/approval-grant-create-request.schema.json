@@ -1,0 +1,87 @@
+{
+  "$defs": {
+    "ApprovalAction": {
+      "enum": [
+        "collect_security_context",
+        "collect_remediation_evidence",
+        "inspect_control",
+        "apply_control",
+        "rollback_control",
+        "request_elevated_troubleshooting"
+      ],
+      "title": "ApprovalAction",
+      "type": "string"
+    },
+    "TroubleshootingScope": {
+      "enum": [
+        "service_status",
+        "security_logs",
+        "firewall_state",
+        "identity_state",
+        "process_inventory",
+        "network_bindings"
+      ],
+      "title": "TroubleshootingScope",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "allowed_actions": {
+      "items": {
+        "$ref": "#/$defs/ApprovalAction"
+      },
+      "minItems": 1,
+      "title": "Allowed Actions",
+      "type": "array"
+    },
+    "approved_by": {
+      "title": "Approved By",
+      "type": "string"
+    },
+    "control_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Control Ids",
+      "type": "array"
+    },
+    "endpoint_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Endpoint Ids",
+      "type": "array"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "requested_by": {
+      "title": "Requested By",
+      "type": "string"
+    },
+    "troubleshooting_scopes": {
+      "items": {
+        "$ref": "#/$defs/TroubleshootingScope"
+      },
+      "title": "Troubleshooting Scopes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "endpoint_ids",
+    "allowed_actions",
+    "requested_by",
+    "approved_by",
+    "reason",
+    "expires_at"
+  ],
+  "title": "ApprovalGrantCreateRequest",
+  "type": "object"
+}

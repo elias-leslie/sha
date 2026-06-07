@@ -1,0 +1,226 @@
+{
+  "$defs": {
+    "ApprovalAction": {
+      "enum": [
+        "collect_security_context",
+        "collect_remediation_evidence",
+        "inspect_control",
+        "apply_control",
+        "rollback_control",
+        "request_elevated_troubleshooting"
+      ],
+      "title": "ApprovalAction",
+      "type": "string"
+    },
+    "ApprovalAuditEventResponse": {
+      "properties": {
+        "actor": {
+          "title": "Actor",
+          "type": "string"
+        },
+        "approval_event_id": {
+          "title": "Approval Event Id",
+          "type": "string"
+        },
+        "comment": {
+          "title": "Comment",
+          "type": "string"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "event_type": {
+          "title": "Event Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "approval_event_id",
+        "event_type",
+        "actor",
+        "comment",
+        "created_at"
+      ],
+      "title": "ApprovalAuditEventResponse",
+      "type": "object"
+    },
+    "ApprovalRequestKind": {
+      "enum": [
+        "hardening_change",
+        "elevated_troubleshooting"
+      ],
+      "title": "ApprovalRequestKind",
+      "type": "string"
+    },
+    "ApprovalRequestStatus": {
+      "enum": [
+        "pending",
+        "approved",
+        "denied",
+        "expired",
+        "revoked"
+      ],
+      "title": "ApprovalRequestStatus",
+      "type": "string"
+    },
+    "ApprovalRisk": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "ApprovalRisk",
+      "type": "string"
+    },
+    "TroubleshootingScope": {
+      "enum": [
+        "service_status",
+        "security_logs",
+        "firewall_state",
+        "identity_state",
+        "process_inventory",
+        "network_bindings"
+      ],
+      "title": "TroubleshootingScope",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "approval_grant_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approval Grant Id"
+    },
+    "approval_request_id": {
+      "title": "Approval Request Id",
+      "type": "string"
+    },
+    "audit_events": {
+      "items": {
+        "$ref": "#/$defs/ApprovalAuditEventResponse"
+      },
+      "title": "Audit Events",
+      "type": "array"
+    },
+    "control_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Control Ids",
+      "type": "array"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "decision_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decision At"
+    },
+    "decision_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decision By"
+    },
+    "decision_comment": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decision Comment"
+    },
+    "endpoint_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Endpoint Ids",
+      "type": "array"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "request_kind": {
+      "$ref": "#/$defs/ApprovalRequestKind"
+    },
+    "requested_actions": {
+      "items": {
+        "$ref": "#/$defs/ApprovalAction"
+      },
+      "title": "Requested Actions",
+      "type": "array"
+    },
+    "requested_by": {
+      "title": "Requested By",
+      "type": "string"
+    },
+    "requested_ttl_minutes": {
+      "title": "Requested Ttl Minutes",
+      "type": "integer"
+    },
+    "risk": {
+      "$ref": "#/$defs/ApprovalRisk"
+    },
+    "status": {
+      "$ref": "#/$defs/ApprovalRequestStatus"
+    },
+    "troubleshooting_scopes": {
+      "items": {
+        "$ref": "#/$defs/TroubleshootingScope"
+      },
+      "title": "Troubleshooting Scopes",
+      "type": "array"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "approval_request_id",
+    "endpoint_ids",
+    "request_kind",
+    "requested_actions",
+    "control_ids",
+    "troubleshooting_scopes",
+    "requested_ttl_minutes",
+    "requested_by",
+    "reason",
+    "risk",
+    "status",
+    "created_at",
+    "updated_at",
+    "audit_events"
+  ],
+  "title": "ApprovalRequestResponse",
+  "type": "object"
+}

@@ -1,0 +1,104 @@
+{
+  "pack_id": "pack.public.cisa-nsa-communications-hardening-starter",
+  "source_family": "cisa_nsa",
+  "source_name": "CISA NSA Communications Hardening Starter",
+  "source_version": "2025-06",
+  "generated_at": "2026-04-18T00:00:00Z",
+  "source_url": "https://www.cisa.gov/resources-tools/resources/enhanced-visibility-and-hardening-guidance-communications-infrastructure",
+  "platforms": [
+    "linux"
+  ],
+  "profiles": [
+    "server"
+  ],
+  "summary": "Curated starter pack for CISA NSA Communications Hardening Starter.",
+  "controls": [
+    {
+      "control_id": "control.public.cisa-nsa.accounts.review-least-privilege",
+      "title": "Review accounts for least privilege",
+      "platform": "linux",
+      "profiles": [
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "minimal",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": false,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Review accounts for least privilege.",
+      "detection_summary": "Check state for Review accounts for least privilege.",
+      "remediation_summary": "Apply desired state for Review accounts for least privilege.",
+      "rollback_summary": "Rollback desired state for Review accounts for least privilege.",
+      "provenance": {
+        "source_locator": "Enhanced Visibility and Hardening Guidance / Remove unnecessary accounts and review privileges",
+        "notes": "Starter control selected for CISA NSA Communications Hardening Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "stig_ids": [],
+        "cisa_reference_ids": [
+          "enhanced-visibility-account-review"
+        ]
+      }
+    },
+    {
+      "control_id": "control.public.cisa-nsa.remote-management.trusted-networks",
+      "title": "Limit management access to trusted networks",
+      "platform": "linux",
+      "profiles": [
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "moderate",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Limit management access to trusted networks.",
+      "detection_summary": "Check state for Limit management access to trusted networks.",
+      "remediation_summary": "Apply desired state for Limit management access to trusted networks.",
+      "rollback_summary": "Rollback desired state for Limit management access to trusted networks.",
+      "provenance": {
+        "source_locator": "Enhanced Visibility and Hardening Guidance / Device management from trusted networks",
+        "notes": "Starter control selected for CISA NSA Communications Hardening Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "stig_ids": [],
+        "cisa_reference_ids": [
+          "enhanced-visibility-trusted-management"
+        ]
+      }
+    },
+    {
+      "control_id": "control.public.cisa-nsa.ssh.disable-version-1",
+      "title": "Disable SSH version 1",
+      "platform": "linux",
+      "profiles": [
+        "server"
+      ],
+      "severity": "critical",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Disable SSH version 1.",
+      "detection_summary": "Check state for Disable SSH version 1.",
+      "remediation_summary": "Apply desired state for Disable SSH version 1.",
+      "rollback_summary": "Rollback desired state for Disable SSH version 1.",
+      "provenance": {
+        "source_locator": "Enhanced Visibility and Hardening Guidance / Disable Secure Shell version 1",
+        "notes": "Starter control selected for CISA NSA Communications Hardening Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "stig_ids": [],
+        "cisa_reference_ids": [
+          "enhanced-visibility-disable-ssh-v1"
+        ]
+      }
+    }
+  ]
+}

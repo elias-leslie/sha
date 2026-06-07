@@ -1,0 +1,49 @@
+project: sha
+generated_at: 2026-04-20 15:04 UTC
+identity:
+  display_name: Security Hardening Automation
+  short_name: SHA
+environment:
+  python_version: ==3.13.*
+  venv_path: backend/.venv
+  package_manager: npm
+services:
+  backend_port: 8010
+  frontend_port: 3010
+  infrastructure:
+    postgres: 5432
+    redis: 6379
+urls:
+  frontend: http://localhost:3010
+  api: http://localhost:8010/api
+network:
+  host_ip: 192.0.2.10
+  hostname: sha-demo-host
+explorer:
+  scan_status: completed
+  last_completed_scan: '2026-04-19T12:15:01.012600+00:00'
+  last_scan_type: file
+  entry_counts:
+    architecture: 1
+    dependency: 7
+    file: 125
+    page: 6
+  symbol_count: 459
+  stale_metadata_count: 0
+pages:
+- / (home)
+- /approvals (approvals)
+- /controls (controls)
+- /endpoints/:endpointId (endpoints/:endpointId)
+- /fleet (fleet)
+- /installers (installers)
+folders:
+  (root): 12 files
+  .st: 1 files
+  agent: 3 files
+  backend: 41 files - api, tests
+  control-packs: 12 files
+  docs: 9 files
+  frontend: 41 files - api, components, tests
+  schemas: 1 files
+  scripts: 5 files - services

@@ -1,0 +1,78 @@
+{
+  "files": [
+    {
+      "filename": "endpoint-enroll-request.schema.json",
+      "model": "EndpointEnrollRequest"
+    },
+    {
+      "filename": "endpoint-response.schema.json",
+      "model": "EndpointResponse"
+    },
+    {
+      "filename": "endpoint-heartbeat-request.schema.json",
+      "model": "EndpointHeartbeatRequest"
+    },
+    {
+      "filename": "endpoint-heartbeat-ack.schema.json",
+      "model": "EndpointHeartbeatAck"
+    },
+    {
+      "filename": "endpoint-inventory-list-response.schema.json",
+      "model": "EndpointInventoryListResponse"
+    },
+    {
+      "filename": "endpoint-detail-response.schema.json",
+      "model": "EndpointDetailResponse"
+    },
+    {
+      "filename": "posture-snapshot-create-request.schema.json",
+      "model": "PostureSnapshotCreateRequest"
+    },
+    {
+      "filename": "posture-snapshot-ack.schema.json",
+      "model": "PostureSnapshotAck"
+    },
+    {
+      "filename": "installer-profile-create-request.schema.json",
+      "model": "InstallerProfileCreateRequest"
+    },
+    {
+      "filename": "installer-profile-response.schema.json",
+      "model": "InstallerProfileResponse"
+    },
+    {
+      "filename": "installer-profile-list-response.schema.json",
+      "model": "InstallerProfileListResponse"
+    },
+    {
+      "filename": "approval-request-create-request.schema.json",
+      "model": "ApprovalRequestCreateRequest"
+    },
+    {
+      "filename": "approval-decision-request.schema.json",
+      "model": "ApprovalDecisionRequest"
+    },
+    {
+      "filename": "approval-request-response.schema.json",
+      "model": "ApprovalRequestResponse"
+    },
+    {
+      "filename": "approval-request-list-response.schema.json",
+      "model": "ApprovalRequestListResponse"
+    },
+    {
+      "filename": "approval-grant-create-request.schema.json",
+      "model": "ApprovalGrantCreateRequest"
+    },
+    {
+      "filename": "approval-grant-response.schema.json",
+      "model": "ApprovalGrantResponse"
+    },
+    {
+      "filename": "approval-grant-list-response.schema.json",
+      "model": "ApprovalGrantListResponse"
+    }
+  ],
+  "schema_version": 1,
+  "source_module": "app.schemas.contracts"
+}

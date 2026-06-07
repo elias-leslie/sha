@@ -1,0 +1,104 @@
+{
+  "pack_id": "pack.public.disa-windows-server-2022-v2r5-starter",
+  "source_family": "disa_stig",
+  "source_name": "DISA Microsoft Windows Server 2022 STIG V2R5 Starter",
+  "source_version": "V2R5",
+  "generated_at": "2026-04-18T00:00:00Z",
+  "source_url": "https://dl.dod.cyber.mil/wp-content/uploads/stigs/zip/U_MS_Windows_Server_2022_V2R5_STIG.zip",
+  "platforms": [
+    "windows"
+  ],
+  "profiles": [
+    "server"
+  ],
+  "summary": "Curated starter pack for DISA Microsoft Windows Server 2022 STIG V2R5 Starter.",
+  "controls": [
+    {
+      "control_id": "control.public.disa-windows-server-2022.wn22-00-000010",
+      "title": "Separate administrator and standard user accounts",
+      "platform": "windows",
+      "profiles": [
+        "server"
+      ],
+      "severity": "medium",
+      "disruption": "moderate",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": false,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Separate administrator and standard user accounts.",
+      "detection_summary": "Check state for Separate administrator and standard user accounts.",
+      "remediation_summary": "Apply desired state for Separate administrator and standard user accounts.",
+      "rollback_summary": "Rollback desired state for Separate administrator and standard user accounts.",
+      "provenance": {
+        "source_locator": "DISA Windows Server 2022 STIG V2R5 WN22-00-000010 / V-254238",
+        "notes": "Starter control selected for DISA Microsoft Windows Server 2022 STIG V2R5 Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "stig_ids": [
+          "WN22-00-000010"
+        ],
+        "cisa_reference_ids": []
+      }
+    },
+    {
+      "control_id": "control.public.disa-windows-server-2022.wn22-au-000010",
+      "title": "Back up audit records separately",
+      "platform": "windows",
+      "profiles": [
+        "server"
+      ],
+      "severity": "medium",
+      "disruption": "minimal",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": false,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Back up audit records separately.",
+      "detection_summary": "Check state for Back up audit records separately.",
+      "remediation_summary": "Apply desired state for Back up audit records separately.",
+      "rollback_summary": "Rollback desired state for Back up audit records separately.",
+      "provenance": {
+        "source_locator": "DISA Windows Server 2022 STIG V2R5 WN22-AU-000010 / V-254294",
+        "notes": "Starter control selected for DISA Microsoft Windows Server 2022 STIG V2R5 Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "stig_ids": [
+          "WN22-AU-000010"
+        ],
+        "cisa_reference_ids": []
+      }
+    },
+    {
+      "control_id": "control.public.disa-windows-server-2022.wn22-cc-000020",
+      "title": "Disable WDigest authentication",
+      "platform": "windows",
+      "profiles": [
+        "server"
+      ],
+      "severity": "medium",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Disable WDigest authentication.",
+      "detection_summary": "Check state for Disable WDigest authentication.",
+      "remediation_summary": "Apply desired state for Disable WDigest authentication.",
+      "rollback_summary": "Rollback desired state for Disable WDigest authentication.",
+      "provenance": {
+        "source_locator": "DISA Windows Server 2022 STIG V2R5 WN22-CC-000020 / V-254334",
+        "notes": "Starter control selected for DISA Microsoft Windows Server 2022 STIG V2R5 Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [],
+        "stig_ids": [
+          "WN22-CC-000020"
+        ],
+        "cisa_reference_ids": []
+      }
+    }
+  ]
+}

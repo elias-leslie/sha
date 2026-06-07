@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "EndpointPlatform": {
+      "enum": [
+        "windows",
+        "linux"
+      ],
+      "title": "EndpointPlatform",
+      "type": "string"
+    },
+    "EndpointStatus": {
+      "enum": [
+        "pending",
+        "active",
+        "stale"
+      ],
+      "title": "EndpointStatus",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "agent_fingerprint": {
+      "title": "Agent Fingerprint",
+      "type": "string"
+    },
+    "agent_version": {
+      "title": "Agent Version",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "endpoint_id": {
+      "title": "Endpoint Id",
+      "type": "string"
+    },
+    "hostname": {
+      "title": "Hostname",
+      "type": "string"
+    },
+    "last_seen_at": {
+      "title": "Last Seen At",
+      "type": "string"
+    },
+    "platform": {
+      "$ref": "#/$defs/EndpointPlatform"
+    },
+    "platform_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Platform Version"
+    },
+    "site_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Site Id"
+    },
+    "status": {
+      "$ref": "#/$defs/EndpointStatus"
+    },
+    "tenant_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Tenant Id"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "endpoint_id",
+    "agent_fingerprint",
+    "hostname",
+    "platform",
+    "platform_version",
+    "agent_version",
+    "tenant_id",
+    "site_id",
+    "status",
+    "last_seen_at",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "EndpointResponse",
+  "type": "object"
+}

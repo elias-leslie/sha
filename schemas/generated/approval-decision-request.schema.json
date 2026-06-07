@@ -1,0 +1,46 @@
+{
+  "$defs": {
+    "ApprovalDecision": {
+      "enum": [
+        "approve",
+        "deny",
+        "revoke"
+      ],
+      "title": "ApprovalDecision",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "decided_by": {
+      "title": "Decided By",
+      "type": "string"
+    },
+    "decision": {
+      "$ref": "#/$defs/ApprovalDecision"
+    },
+    "decision_comment": {
+      "title": "Decision Comment",
+      "type": "string"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expires At"
+    }
+  },
+  "required": [
+    "decision",
+    "decided_by",
+    "decision_comment"
+  ],
+  "title": "ApprovalDecisionRequest",
+  "type": "object"
+}

@@ -1,0 +1,111 @@
+{
+  "pack_id": "pack.public.nist-800-53-rev5-starter",
+  "source_family": "nist_800_53",
+  "source_name": "NIST SP 800-53 Rev. 5 Starter",
+  "source_version": "5.2.0",
+  "generated_at": "2026-04-18T00:00:00Z",
+  "source_url": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json",
+  "platforms": [
+    "windows",
+    "linux"
+  ],
+  "profiles": [
+    "domain_controller",
+    "endpoint",
+    "server"
+  ],
+  "summary": "Curated starter pack for NIST SP 800-53 Rev. 5 Starter.",
+  "controls": [
+    {
+      "control_id": "control.public.nist-800-53.ac-17",
+      "title": "Remote Access",
+      "platform": "windows",
+      "profiles": [
+        "domain_controller",
+        "endpoint",
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": false,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Remote Access.",
+      "detection_summary": "Check state for Remote Access.",
+      "remediation_summary": "Apply desired state for Remote Access.",
+      "rollback_summary": "Rollback desired state for Remote Access.",
+      "provenance": {
+        "source_locator": "NIST SP 800-53 Rev. 5 control AC-17",
+        "notes": "Starter control selected for NIST SP 800-53 Rev. 5 Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [
+          "AC-17"
+        ],
+        "stig_ids": [],
+        "cisa_reference_ids": []
+      }
+    },
+    {
+      "control_id": "control.public.nist-800-53.au-11",
+      "title": "Audit Record Retention",
+      "platform": "linux",
+      "profiles": [
+        "server"
+      ],
+      "severity": "medium",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": false,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Audit Record Retention.",
+      "detection_summary": "Check state for Audit Record Retention.",
+      "remediation_summary": "Apply desired state for Audit Record Retention.",
+      "rollback_summary": "Rollback desired state for Audit Record Retention.",
+      "provenance": {
+        "source_locator": "NIST SP 800-53 Rev. 5 control AU-11",
+        "notes": "Starter control selected for NIST SP 800-53 Rev. 5 Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [
+          "AU-11"
+        ],
+        "stig_ids": [],
+        "cisa_reference_ids": []
+      }
+    },
+    {
+      "control_id": "control.public.nist-800-53.cm-2",
+      "title": "Baseline Configuration",
+      "platform": "windows",
+      "profiles": [
+        "domain_controller",
+        "endpoint",
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "minimal",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": false,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Baseline Configuration.",
+      "detection_summary": "Check state for Baseline Configuration.",
+      "remediation_summary": "Apply desired state for Baseline Configuration.",
+      "rollback_summary": "Rollback desired state for Baseline Configuration.",
+      "provenance": {
+        "source_locator": "NIST SP 800-53 Rev. 5 control CM-2",
+        "notes": "Starter control selected for NIST SP 800-53 Rev. 5 Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [
+          "CM-2"
+        ],
+        "stig_ids": [],
+        "cisa_reference_ids": []
+      }
+    }
+  ]
+}
