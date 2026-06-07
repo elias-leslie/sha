@@ -6,6 +6,8 @@ The project goal is practical hardening without casually breaking endpoints: obs
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
+![SHA security control plane dashboard smoke test](docs/images/security-control-plane-smoke.png)
+
 ## Current status
 
 This repository contains a working control-plane/dashboard slice, not a production-ready endpoint-management product.
