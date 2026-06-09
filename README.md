@@ -32,6 +32,34 @@ Not yet production-ready:
 
 Do not expose the backend or dashboard to an untrusted network without adding authentication, authorization, TLS, and deployment hardening appropriate for your environment.
 
+## How it compares
+
+Most hardening tools sit at one of two extremes. **Auditors** (Lynis, OpenSCAP
+scans) only report — you fix everything by hand. **Appliers** (ansible-lockdown,
+OpenSCAP remediation, Wazuh active response) push changes, or run arbitrary
+remote shell, with nothing between *detected* and *changed*.
+
+SHA's design splits the difference: posture is observed and gaps are ranked, but
+every disruptive action is a **typed hardening capability behind a mandatory
+human-approval gate** — never arbitrary remote shell. The control plane,
+dashboard, approval flow, and posture/enrollment API are implemented today; the
+privileged endpoint agent that executes approved capabilities is contract-defined
+and still in progress (see [Current status](#current-status)).
+
+| | SHA | Lynis | OpenSCAP · ansible-lockdown | Wazuh |
+|---|:---:|:---:|:---:|:---:|
+| Reports posture vs. public benchmarks | ✅ | ✅ | ✅ | ✅ |
+| Changes endpoints, not just audits | ✅ by design | audit only | ✅ | active response |
+| Disruptive actions gated on human approval | ✅ | n/a | ❌ applies directly | ❌ |
+| Endpoint work limited to typed capabilities (no arbitrary shell) | ✅ | n/a | playbooks/scripts | ❌ arbitrary commands |
+| Operator dashboard + approval queue | ✅ | ❌ | ❌ | ✅ |
+
+The differentiator isn't the control content — NIST, DISA, and CISA/NSA guidance
+is public and everyone ships it. It's the **execution model**: bounded, typed,
+and approval-gated by default.
+
+> ⭐ If a gated, typed approach to hardening is what you've wanted, a star helps others find it.
+
 ## Requirements
 
 - Python 3.13
