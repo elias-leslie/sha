@@ -17,11 +17,12 @@ This repository contains a working control-plane/dashboard slice, not a producti
 
 Implemented:
 
-- backend API for enrollment, heartbeats, posture snapshots, installer profiles, approval requests/grants, and source-pack catalog reads
-- frontend dashboard pages for fleet, endpoints, controls, installers, and approvals
-- deterministic Linux and Windows bootstrap artifact generation for installer profiles
-- generated JSON Schemas under `schemas/generated/`
-- curated starter control packs derived from public-source NIST, DISA, and CISA/NSA guidance
+- backend API (6 routers, 16 routes) for enrollment, heartbeats, posture snapshots, installer profiles, approval requests/grants, and source-pack catalog reads
+- frontend dashboard pages for fleet, endpoints, controls, installers, and approvals, each with a live/fixture data-source indicator and a weighted endpoint posture score
+- deterministic Linux and Windows bootstrap artifact generation for installer profiles, served with `Content-Disposition` and `X-SHA-Artifact-Sha256` integrity headers
+- a human-in-the-loop approval workflow with two typed request kinds (`hardening_change`, `elevated_troubleshooting`), bounded grant TTLs (15–240 min), manual emergency grants, append-only audit events, and concurrency-safe state transitions
+- 18 generated JSON Schemas under `schemas/generated/`, exported deterministically from the Pydantic contracts
+- 3 curated starter control packs (9 controls) derived from public-source NIST SP 800-53 Rev. 5, DISA Windows Server 2022 STIG, and CISA/NSA hardening guidance, built by a strict, repo-local, deterministic catalog builder
 
 Not yet production-ready:
 
@@ -31,6 +32,21 @@ Not yet production-ready:
 - no live AI/operator integration is required or bundled
 
 Do not expose the backend or dashboard to an untrusted network without adding authentication, authorization, TLS, and deployment hardening appropriate for your environment.
+
+## What the bootstrap reporters actually check
+
+The generated installer artifacts are not just stubs — each one installs a small read-only reporter (a systemd timer on Linux, a scheduled task on Windows, both on a 15-minute cadence) that runs a concrete posture check and reports back through the full `enroll → heartbeat → posture-snapshot` cycle:
+
+- **Linux** — firewall service active (ufw / firewalld / nftables), SSH `PasswordAuthentication`, root password lock, and automatic-update units.
+- **Windows** — all firewall profiles enabled, Microsoft Defender real-time protection, BitLocker system-drive protection, and Secure Boot.
+
+The reporters are read-only by construction: their execution hooks for remediation, rollback, and dry-run are hard-coded off. Posture results roll up into a per-endpoint weighted score and a control "drift matrix" on the dashboard.
+
+## Safety model
+
+- **Typed, bounded approvals** — every approval path rejects mixed hardening + troubleshooting, forbids actions outside the typed enums, and bounds elevated troubleshooting to six named scopes. There is no shell or arbitrary-command endpoint anywhere in the API.
+- **Deterministic, provenance-pinned controls** — the catalog builder validates each pack against a pinned spec, rejects unexpected, missing, or symlinked files, enforces unique/sorted IDs, and writes atomically. Every control carries provenance and NIST CSF / SP 800-53 / STIG / CISA compliance mappings.
+- **Installer policy modes** — profiles select `observe`, `safe_auto`, or `approval_required`, on a `stable` or `preview` channel.
 
 ## How it compares
 
