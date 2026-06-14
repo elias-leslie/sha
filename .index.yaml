@@ -1,12 +1,12 @@
 project: sha
-generated_at: 2026-04-20 15:04 UTC
+generated_at: 2026-06-14 10:11 UTC
 identity:
   display_name: Security Hardening Automation
   short_name: SHA
 environment:
   python_version: ==3.13.*
   venv_path: backend/.venv
-  package_manager: npm
+  package_manager: pnpm
 services:
   backend_port: 8010
   frontend_port: 3010
@@ -17,18 +17,18 @@ urls:
   frontend: http://localhost:3010
   api: http://localhost:8010/api
 network:
-  host_ip: 192.0.2.10
-  hostname: sha-demo-host
+  host_ip: 192.168.8.10
+  hostname: davion-sidarli
 explorer:
   scan_status: completed
-  last_completed_scan: '2026-04-19T12:15:01.012600+00:00'
+  last_completed_scan: '2026-06-14T08:11:31.235548+00:00'
   last_scan_type: file
   entry_counts:
     architecture: 1
-    dependency: 7
-    file: 125
+    dependency: 56
+    file: 146
     page: 6
-  symbol_count: 459
+  symbol_count: 431
   stale_metadata_count: 0
 pages:
 - / (home)
@@ -38,12 +38,12 @@ pages:
 - /fleet (fleet)
 - /installers (installers)
 folders:
-  (root): 12 files
-  .st: 1 files
+  (root): 17 files
+  .github: 2 files
   agent: 3 files
-  backend: 41 files - api, tests
-  control-packs: 12 files
-  docs: 9 files
-  frontend: 41 files - api, components, tests
-  schemas: 1 files
+  backend: 44 files - api, tests
+  control-packs: 6 files
+  docs: 5 files
+  frontend: 43 files - api, components, tests
+  schemas: 21 files
   scripts: 5 files - services
