@@ -1,5 +1,5 @@
 project: sha
-generated_at: 2026-06-28 06:11 UTC
+generated_at: 2026-06-28 08:11 UTC
 identity:
   display_name: Security Hardening Automation
   short_name: SHA
@@ -21,8 +21,8 @@ network:
   hostname: davion-sidarli
 explorer:
   scan_status: completed
-  last_completed_scan: '2026-06-28T06:01:39.655198+00:00'
-  last_scan_type: full
+  last_completed_scan: '2026-06-28T06:11:41.380191+00:00'
+  last_scan_type: file
   entry_counts:
     architecture: 1
     dependency: 56
