@@ -17,6 +17,7 @@ Set `SHA_API_TOKEN` to require `Authorization: Bearer <token>` or `X-SHA-API-Tok
 
 ```bash
 uv run pytest
+uv run python scripts/migrate.py
 uv run python scripts/build_source_catalog.py
 uv run python scripts/export_contract_schemas.py
 ```

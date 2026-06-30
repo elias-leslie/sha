@@ -32,7 +32,7 @@ Not yet production-ready:
 
 - no full multi-user authentication or SSO layer; built-in auth is limited to operator and least-privilege agent API tokens
 - no packaged cross-platform privileged Go endpoint service yet; the checked-in Go agent currently covers the Linux SSH-hardening path
-- no production migrations or HA deployment path
+- no HA deployment path; SQLite schema migrations are tracked but still intentionally small
 - no live AI/operator integration is required or bundled
 
 Do not expose the backend or dashboard to an untrusted network without enabling token protection or stronger external authentication, authorization, TLS, and deployment hardening appropriate for your environment.

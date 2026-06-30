@@ -154,6 +154,23 @@ def test_prepare_upgrades_legacy_platform_constraints_for_macos(db_path, make_cl
     assert profile_response.json()["platform"] == "macos"
     assert enroll_response.status_code == 201
     assert enroll_response.json()["platform"] == "macos"
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute("SELECT version FROM schema_migrations").fetchall() == [
+            ("20260630_0001_macos_platform_constraints",)
+        ]
+
+
+def test_prepare_records_schema_migration_on_new_database(db_path, make_client):
+    client = make_client(db_path)
+
+    assert client.get("/health").status_code == 200
+
+    with sqlite3.connect(db_path) as connection:
+        rows = connection.execute(
+            "SELECT version FROM schema_migrations ORDER BY version"
+        ).fetchall()
+
+    assert rows == [("20260630_0001_macos_platform_constraints",)]
 
 
 def test_posture_snapshot_persists_results_and_ack_count(db_path, make_client):
