@@ -4,7 +4,7 @@ This document defines the boundary the future privileged SHA agent must honor.
 
 ## Purpose
 
-The SHA agent is a local privileged service on Windows or Linux systems.
+The SHA agent is a local privileged service on endpoint systems. The checked-in Go implementation currently covers the Linux path.
 It exists to inspect hardening posture and execute approved hardening actions through typed verbs.
 It is not a general-purpose remote shell.
 
@@ -40,8 +40,9 @@ Current backend enrollment route:
 - `POST /api/endpoints/enroll`
 
 Authentication:
-- if the control plane has `SHA_API_TOKEN` configured, every `/api/*` call must include `Authorization: Bearer <token>` or `X-SHA-API-Token`
-- generated bootstrap artifacts include the active token in reporter config when token protection is enabled
+- if the control plane has `SHA_API_TOKEN` configured, operator `/api/*` calls must include `Authorization: Bearer <token>` or `X-SHA-API-Token`
+- if `SHA_AGENT_API_TOKEN` is configured, generated reporters and the Go agent should use that least-privilege token for enroll, heartbeat, posture, response-action polling, and action-result reporting
+- generated bootstrap artifacts include the least-privilege agent token when available, otherwise the operator token when token protection is enabled
 
 Current request payload fields:
 - `agent_fingerprint` — required, trimmed, lowercased for matching/storage
