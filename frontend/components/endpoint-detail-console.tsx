@@ -11,6 +11,7 @@ import {
   formatDateTime,
   formatLocalInputValue,
   futureIso,
+  hardeningControlOptionsForPlatform,
   approvalActionDisplay,
   createResponseAction,
   getEndpoint,
@@ -59,6 +60,10 @@ const RESPONSE_ACTION_SCOPE_OPTIONS: TroubleshootingScope[] = [
   "process_inventory",
   "network_bindings",
 ];
+
+function defaultHardeningControlId(platform: EndpointDetail["platform"]) {
+  return hardeningControlOptionsForPlatform(platform)[0]?.control_id ?? "";
+}
 
 function buildHeartbeatForm(endpoint: EndpointDetail) {
   return {
@@ -134,7 +139,7 @@ export default function EndpointDetailConsole({
   const [responseActionForm, setResponseActionForm] = useState({
     approval_grant_id: "",
     action: "collect_security_context" as ApprovalAction,
-    control_id: "linux.ssh.password-authentication-disabled",
+    control_id: defaultHardeningControlId(initialEndpoint.platform),
     troubleshooting_scope: "process_inventory" as TroubleshootingScope,
     requested_by: "ops-console",
     reason: "Queue approved bounded endpoint response action.",
@@ -208,7 +213,19 @@ export default function EndpointDetailConsole({
     }
   }, [endpoint, heartbeatDirty, snapshotDirty]);
 
+  const hardeningControlOptions = useMemo(
+    () => hardeningControlOptionsForPlatform(endpoint.platform),
+    [endpoint.platform],
+  );
   const executionHooks = useMemo(() => Object.entries(endpoint.execution_hooks ?? {}).filter(([, value]) => value), [endpoint.execution_hooks]);
+
+  useEffect(() => {
+    setResponseActionForm((current) =>
+      hardeningControlOptions.some((control) => control.control_id === current.control_id)
+        ? current
+        : { ...current, control_id: hardeningControlOptions[0]?.control_id ?? "" },
+    );
+  }, [hardeningControlOptions]);
 
   async function handleHeartbeat(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -580,12 +597,24 @@ export default function EndpointDetailConsole({
             {responseActionForm.action === "apply_control" || responseActionForm.action === "rollback_control" ? (
               <label className="field" htmlFor="response-action-control">
                 <span className="field__label">Control id</span>
-                <input
+                <select
                   className="field__control"
+                  disabled={!hardeningControlOptions.length}
                   id="response-action-control"
                   onChange={(event) => setResponseActionForm((current) => ({ ...current, control_id: event.target.value }))}
+                  required
                   value={responseActionForm.control_id}
-                />
+                >
+                  {hardeningControlOptions.length ? (
+                    hardeningControlOptions.map((control) => (
+                      <option key={control.control_id} value={control.control_id}>
+                        {control.label}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">No mutable controls for {platformDisplayName(endpoint.platform)}</option>
+                  )}
+                </select>
               </label>
             ) : responseActionForm.action === "collect_remediation_evidence" ? null : (
               <label className="field" htmlFor="response-action-scope">

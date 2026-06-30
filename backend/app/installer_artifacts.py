@@ -15,6 +15,7 @@ _MACOS_PLATFORM_PROFILE = "macos-bootstrap-v1"
 
 _READ_ONLY_REPORTER_CAPABILITIES = [
     "collect_posture_snapshot",
+    "collect_remediation_evidence",
     "collect_security_context",
     "enroll",
     "heartbeat",

@@ -47,6 +47,7 @@ def test_linux_installer_artifact_is_deterministic_and_contains_systemd_reporter
     assert "/api/endpoints/" in first.text
     assert "/response-actions" in first.text
     assert "/api/posture-snapshots" in first.text
+    assert '"collect_remediation_evidence"' in first.text
     assert '"apply_control"' in first.text
     assert '"rollback_control"' in first.text
     assert '"captures_rollback_artifacts": true' in first.text
@@ -235,6 +236,7 @@ def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task
     assert "/api/endpoints/enroll" in first.text
     assert "/response-actions" in first.text
     assert "/api/posture-snapshots" in first.text
+    assert '"collect_remediation_evidence"' in first.text
     assert "windows.firewall.all-profiles-enabled" in first.text
     assert "windows.defender.real-time-protection" in first.text
     assert "windows.bitlocker.system-drive-protected" in first.text
@@ -288,6 +290,7 @@ def test_macos_installer_artifact_is_deterministic_and_contains_launchd_reporter
     assert "/api/endpoints/enroll" in first.text
     assert "/response-actions" in first.text
     assert "/api/posture-snapshots" in first.text
+    assert '"collect_remediation_evidence"' in first.text
     assert "macos.firewall.application-firewall-enabled" in first.text
     assert "macos.disk.filevault-enabled" in first.text
     assert "macos.gatekeeper.assessments-enabled" in first.text

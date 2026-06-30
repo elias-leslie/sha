@@ -18,6 +18,7 @@ import {
   formatDateTime,
   formatLocalInputValue,
   futureIso,
+  hardeningControlOptionsForPlatform,
   getFixtureApprovalGrants,
   getFixtureApprovalRequests,
   getFixtureEndpoints,
@@ -50,6 +51,10 @@ const TROUBLESHOOTING_SCOPE_OPTIONS: TroubleshootingScope[] = [
   "network_bindings",
 ];
 
+function firstHardeningControlForEndpoint(endpoint: EndpointInventoryItem | undefined) {
+  return hardeningControlOptionsForPlatform(endpoint?.platform)[0]?.control_id ?? "";
+}
+
 export default function ApprovalsConsole({
   initialRequests = getFixtureApprovalRequests(),
   initialGrants = getFixtureApprovalGrants(),
@@ -71,7 +76,7 @@ export default function ApprovalsConsole({
   const [requestForm, setRequestForm] = useState({
     endpoint_id: initialEndpoints[0]?.endpoint_id ?? "",
     request_kind: "hardening_change" as ApprovalRequest["request_kind"],
-    control_id: "control.windows.rdp-network-level-authentication",
+    control_id: firstHardeningControlForEndpoint(initialEndpoints[0]),
     reason: "Approve guarded hardening rollout",
     requested_by: "ops-console",
     risk: "high" as ApprovalRequest["risk"],
@@ -114,9 +119,27 @@ export default function ApprovalsConsole({
   const pendingRequests = useMemo(() => requests.filter((request) => request.status === "pending"), [requests]);
   const activeGrants = useMemo(() => grants.filter((grant) => grant.status === "approved"), [grants]);
   const auditHistory = useMemo(() => requests.filter((request) => request.status !== "pending"), [requests]);
+  const requestEndpoint = useMemo(
+    () => endpoints.find((endpoint) => endpoint.endpoint_id === requestForm.endpoint_id),
+    [endpoints, requestForm.endpoint_id],
+  );
+  const hardeningControlOptions = useMemo(
+    () => hardeningControlOptionsForPlatform(requestEndpoint?.platform),
+    [requestEndpoint?.platform],
+  );
   const selectedRequest = useMemo(() => {
     return requests.find((request) => request.approval_request_id === selectedId) ?? pendingRequests[0] ?? requests[0] ?? null;
   }, [pendingRequests, requests, selectedId]);
+
+  useEffect(() => {
+    if (requestForm.request_kind !== "hardening_change") {
+      return;
+    }
+    if (hardeningControlOptions.some((control) => control.control_id === requestForm.control_id)) {
+      return;
+    }
+    setRequestForm((current) => ({ ...current, control_id: hardeningControlOptions[0]?.control_id ?? "" }));
+  }, [hardeningControlOptions, requestForm.control_id, requestForm.request_kind]);
 
   useEffect(() => {
     if (selectedRequest && selectedId !== selectedRequest.approval_request_id) {
@@ -432,12 +455,24 @@ export default function ApprovalsConsole({
             {requestForm.request_kind === "hardening_change" ? (
               <label className="field field--span-2" htmlFor="request-control-id">
                 <span className="field__label">Control id</span>
-                <input
+                <select
                   className="field__control"
+                  disabled={!hardeningControlOptions.length}
                   id="request-control-id"
                   onChange={(event) => setRequestForm((current) => ({ ...current, control_id: event.target.value }))}
+                  required
                   value={requestForm.control_id}
-                />
+                >
+                  {hardeningControlOptions.length ? (
+                    hardeningControlOptions.map((control) => (
+                      <option key={control.control_id} value={control.control_id}>
+                        {control.label}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">No mutable controls for this platform</option>
+                  )}
+                </select>
               </label>
             ) : (
               <label className="field field--span-2" htmlFor="request-troubleshooting">

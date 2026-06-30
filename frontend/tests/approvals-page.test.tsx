@@ -16,33 +16,33 @@ describe("SHA approvals control plane", () => {
         return {
           ok: true,
           json: async () => ({
-            approval_request_id: "apr_windows_rdp_rollout",
+            approval_request_id: "apr_windows_isolation_rollout",
             endpoint_ids: ["ep_demo_windows_01"],
             request_kind: "hardening_change",
             requested_actions: ["apply_control"],
-            control_ids: ["control.windows.rdp-network-level-authentication"],
+            control_ids: ["control.windows.firewall-endpoint-isolated"],
             troubleshooting_scopes: [],
             requested_ttl_minutes: 45,
             requested_by: "SHAna",
-            reason: "Approve RDP network level authentication rollout",
+            reason: "Approve Windows endpoint isolation rollout",
             risk: "high",
             status: "approved",
             decision_by: "secops-alpha",
             decision_comment: "Approved for the maintenance window.",
             decision_at: "2026-04-19T12:30:00Z",
-            approval_grant_id: "grant_windows_rdp_rollout",
+            approval_grant_id: "grant_windows_isolation_rollout",
             created_at: "2026-04-18T20:15:00Z",
             updated_at: "2026-04-19T12:30:00Z",
             audit_events: [
               {
-                approval_event_id: "ape_windows_rdp_requested",
+                approval_event_id: "ape_windows_isolation_requested",
                 event_type: "requested",
                 actor: "SHAna",
-                comment: "Approve RDP network level authentication rollout",
+                comment: "Approve Windows endpoint isolation rollout",
                 created_at: "2026-04-18T20:15:00Z",
               },
               {
-                approval_event_id: "ape_windows_rdp_approved",
+                approval_event_id: "ape_windows_isolation_approved",
                 event_type: "approved",
                 actor: "secops-alpha",
                 comment: "Approved for the maintenance window.",
@@ -80,7 +80,7 @@ describe("SHA approvals control plane", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/approval-requests/apr_windows_rdp_rollout/decisions"),
+        expect.stringContaining("/api/approval-requests/apr_windows_isolation_rollout/decisions"),
         expect.objectContaining({ method: "POST" }),
       )
     })

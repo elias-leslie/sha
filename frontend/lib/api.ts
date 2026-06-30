@@ -25,6 +25,39 @@ export type TroubleshootingScope =
   | "process_inventory"
   | "network_bindings";
 
+export interface HardeningControlOption {
+  control_id: string;
+  label: string;
+  platforms: readonly Platform[];
+}
+
+export const HARDENING_CONTROL_OPTIONS: readonly HardeningControlOption[] = [
+  {
+    control_id: "linux.ssh.password-authentication-disabled",
+    label: "Linux SSH password authentication",
+    platforms: ["linux"],
+  },
+  {
+    control_id: "linux.network.endpoint-isolated",
+    label: "Linux endpoint network isolation",
+    platforms: ["linux"],
+  },
+  {
+    control_id: "control.windows.firewall-all-profiles",
+    label: "Windows firewall all profiles",
+    platforms: ["windows"],
+  },
+  {
+    control_id: "control.windows.firewall-endpoint-isolated",
+    label: "Windows endpoint network isolation",
+    platforms: ["windows"],
+  },
+];
+
+export function hardeningControlOptionsForPlatform(platform: Platform | null | undefined) {
+  return HARDENING_CONTROL_OPTIONS.filter((control) => !platform || control.platforms.includes(platform));
+}
+
 export interface EndpointLatestPostureSummary {
   snapshot_id: string;
   observed_at: string;
@@ -354,10 +387,20 @@ const FIXTURE_ENDPOINT_DETAILS: Record<string, EndpointDetail> = {
     created_at: "2026-04-18T18:20:00Z",
     updated_at: "2026-04-19T12:04:00Z",
     last_platform_profile: "linux_cis_l1",
-    declared_capabilities: ["enroll", "heartbeat", "collect_posture_snapshot", "inspect_control"],
+    declared_capabilities: [
+      "apply_control",
+      "collect_posture_snapshot",
+      "collect_remediation_evidence",
+      "collect_security_context",
+      "enroll",
+      "heartbeat",
+      "inspect_control",
+      "request_elevated_troubleshooting",
+      "rollback_control",
+    ],
     execution_hooks: {
-      captures_rollback_artifacts: false,
-      reports_execution_results: false,
+      captures_rollback_artifacts: true,
+      reports_execution_results: true,
       supports_dry_run: false,
     },
     latest_posture_summary: {
@@ -416,10 +459,20 @@ const FIXTURE_ENDPOINT_DETAILS: Record<string, EndpointDetail> = {
     created_at: "2026-04-18T18:40:00Z",
     updated_at: "2026-04-19T11:56:00Z",
     last_platform_profile: "windows_defender_baseline",
-    declared_capabilities: ["enroll", "heartbeat", "collect_posture_snapshot", "inspect_control"],
+    declared_capabilities: [
+      "apply_control",
+      "collect_posture_snapshot",
+      "collect_remediation_evidence",
+      "collect_security_context",
+      "enroll",
+      "heartbeat",
+      "inspect_control",
+      "request_elevated_troubleshooting",
+      "rollback_control",
+    ],
     execution_hooks: {
-      captures_rollback_artifacts: false,
-      reports_execution_results: false,
+      captures_rollback_artifacts: true,
+      reports_execution_results: true,
       supports_dry_run: false,
     },
     latest_posture_summary: {
@@ -478,10 +531,20 @@ const FIXTURE_ENDPOINT_DETAILS: Record<string, EndpointDetail> = {
     created_at: "2026-04-18T17:55:00Z",
     updated_at: "2026-04-19T11:43:00Z",
     last_platform_profile: "windows_ops_recovery",
-    declared_capabilities: ["enroll", "heartbeat", "collect_posture_snapshot", "inspect_control"],
+    declared_capabilities: [
+      "apply_control",
+      "collect_posture_snapshot",
+      "collect_remediation_evidence",
+      "collect_security_context",
+      "enroll",
+      "heartbeat",
+      "inspect_control",
+      "request_elevated_troubleshooting",
+      "rollback_control",
+    ],
     execution_hooks: {
-      captures_rollback_artifacts: false,
-      reports_execution_results: false,
+      captures_rollback_artifacts: true,
+      reports_execution_results: true,
       supports_dry_run: false,
     },
     latest_posture_summary: {
@@ -529,15 +592,15 @@ const FIXTURE_ENDPOINT_DETAILS: Record<string, EndpointDetail> = {
 
 const FIXTURE_APPROVAL_REQUESTS = [
   {
-    approval_request_id: "apr_windows_rdp_rollout",
+    approval_request_id: "apr_windows_isolation_rollout",
     endpoint_ids: ["ep_demo_windows_01"],
     request_kind: "hardening_change",
     requested_actions: ["apply_control"],
-    control_ids: ["control.windows.rdp-network-level-authentication"],
+    control_ids: ["control.windows.firewall-endpoint-isolated"],
     troubleshooting_scopes: [],
     requested_ttl_minutes: 45,
     requested_by: "SHAna",
-    reason: "Approve RDP network level authentication rollout",
+    reason: "Approve Windows endpoint isolation rollout",
     risk: "high",
     status: "pending",
     decision_by: null,
@@ -548,10 +611,10 @@ const FIXTURE_APPROVAL_REQUESTS = [
     updated_at: "2026-04-18T20:15:00Z",
     audit_events: [
       {
-        approval_event_id: "ape_windows_rdp_requested",
+        approval_event_id: "ape_windows_isolation_requested",
         event_type: "requested",
         actor: "SHAna",
-        comment: "Approve RDP network level authentication rollout",
+        comment: "Approve Windows endpoint isolation rollout",
         created_at: "2026-04-18T20:15:00Z",
       },
     ],
@@ -624,7 +687,7 @@ const FIXTURE_APPROVAL_REQUESTS = [
     endpoint_ids: ["ep_demo_linux_01"],
     request_kind: "hardening_change",
     requested_actions: ["apply_control"],
-    control_ids: ["control.linux.ssh.disable-password-authentication"],
+    control_ids: ["linux.ssh.password-authentication-disabled"],
     troubleshooting_scopes: [],
     requested_ttl_minutes: 30,
     requested_by: "SHAna",
@@ -715,6 +778,21 @@ const FIXTURE_APPROVAL_GRANTS = [
     updated_at: "2026-04-18T20:25:00Z",
   },
   {
+    approval_grant_id: "grant_linux_ssh_apply",
+    approval_request_id: null,
+    endpoint_ids: ["ep_demo_linux_01"],
+    allowed_actions: ["apply_control", "rollback_control"],
+    control_ids: ["linux.ssh.password-authentication-disabled"],
+    troubleshooting_scopes: [],
+    requested_by: "ops",
+    approved_by: "secops",
+    reason: "Manual approved SSH password-authentication hardening window",
+    expires_at: "2026-04-18T23:45:00Z",
+    status: "approved",
+    created_at: "2026-04-18T20:35:00Z",
+    updated_at: "2026-04-18T20:35:00Z",
+  },
+  {
     approval_grant_id: "grant_linux_manual_context",
     approval_request_id: null,
     endpoint_ids: ["ep_demo_linux_01"],
@@ -750,7 +828,7 @@ const FIXTURE_RESPONSE_ACTIONS = [
   {
     response_action_id: "act_linux_ssh_apply",
     endpoint_id: "ep_demo_linux_01",
-    approval_grant_id: "grant_linux_manual_context",
+    approval_grant_id: "grant_linux_ssh_apply",
     action: "apply_control",
     control_id: "linux.ssh.password-authentication-disabled",
     troubleshooting_scope: null,
