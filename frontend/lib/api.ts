@@ -830,10 +830,12 @@ async function parseApiError(response: Response) {
 }
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const apiToken = process.env.NEXT_PUBLIC_SHA_API_TOKEN;
   const response = await fetch(path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
@@ -846,7 +848,14 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
 }
 
 export async function fetchText(path: string, init?: RequestInit): Promise<{ content: string; response: Response }> {
-  const response = await fetch(path, init);
+  const apiToken = process.env.NEXT_PUBLIC_SHA_API_TOKEN;
+  const response = await fetch(path, {
+    ...init,
+    headers: {
+      ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+      ...(init?.headers ?? {}),
+    },
+  });
   if (!response.ok) {
     throw new Error(await parseApiError(response));
   }

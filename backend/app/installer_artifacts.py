@@ -818,11 +818,21 @@ def _windows_reporter_script() -> str:
 
         function Invoke-JsonPost([string]$Url, $Body) {
             $json = $Body | ConvertTo-Json -Depth 8 -Compress
-            return Invoke-RestMethod -Method Post -Uri $Url -Body $json -ContentType 'application/json'
+            $headers = @{}
+            $config = Get-Config
+            if ($config.api_token) {
+                $headers['Authorization'] = "Bearer $($config.api_token)"
+            }
+            return Invoke-RestMethod -Method Post -Uri $Url -Body $json -ContentType 'application/json' -Headers $headers
         }
 
         function Invoke-JsonGet([string]$Url) {
-            return Invoke-RestMethod -Method Get -Uri $Url -ContentType 'application/json'
+            $headers = @{}
+            $config = Get-Config
+            if ($config.api_token) {
+                $headers['Authorization'] = "Bearer $($config.api_token)"
+            }
+            return Invoke-RestMethod -Method Get -Uri $Url -ContentType 'application/json' -Headers $headers
         }
 
         function New-Result(
