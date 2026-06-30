@@ -14,6 +14,7 @@ BACKEND_PID=""
 INSTALLED=0
 KEEP_E2E=${KEEP_E2E:-0}
 KEEP_MACOS_INSTALL=${KEEP_MACOS_INSTALL:-0}
+RUN_GO_AGENT_E2E=${RUN_GO_AGENT_E2E:-1}
 
 as_root() {
   if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
@@ -47,6 +48,9 @@ need() {
 need curl
 need python3
 PYTHON3=$(command -v python3)
+if [[ "$RUN_GO_AGENT_E2E" == "1" ]]; then
+  need go
+fi
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "macOS installer E2E must run on Darwin/macOS" >&2
@@ -306,6 +310,84 @@ if result["status"] != 422 or result["body"].get("detail") != "endpoint has not 
     raise SystemExit(f"unexpected apply_control rejection: {result}")
 print("apply_control_rejected=" + json.dumps(result, sort_keys=True))
 PY
+
+if [[ "$RUN_GO_AGENT_E2E" == "1" ]]; then
+  GO_SITE_ID="${SITE_ID}-go-agent"
+  GO_AGENT_PATH="$WORK_DIR/sha-agent"
+  (
+    cd "$ROOT_DIR/agent"
+    go build -o "$GO_AGENT_PATH" ./cmd/sha-agent
+  )
+  cat > "$WORK_DIR/go-agent-config.json" <<JSON
+{
+  "control_plane_url": "$BASE_URL",
+  "api_token": "$AGENT_TOKEN",
+  "profile_id": "macos-go-agent-e2e",
+  "agent_version": "sha-go-agent-e2e",
+  "tenant_id": "tenant-macos-e2e",
+  "site_id": "$GO_SITE_ID"
+}
+JSON
+  "$GO_AGENT_PATH" --config "$WORK_DIR/go-agent-config.json"
+  GO_ENDPOINT_ID=$(python3 - "$BASE_URL" "$OPERATOR_TOKEN" "$GO_SITE_ID" <<'PY'
+import json
+import sys
+import time
+from urllib import request
+
+base_url, token, site_id = sys.argv[1:]
+
+def get(path: str) -> dict[str, object]:
+    req = request.Request(base_url + path, method="GET")
+    req.add_header("Authorization", f"Bearer {token}")
+    with request.urlopen(req, timeout=20) as response:
+        return json.load(response)
+
+for _ in range(80):
+    for endpoint in get("/api/endpoints")["items"]:
+        if endpoint.get("site_id") == site_id:
+            print(endpoint["endpoint_id"])
+            raise SystemExit(0)
+    time.sleep(0.25)
+raise SystemExit(f"no Go agent endpoint enrolled for site_id={site_id}")
+PY
+)
+  python3 - "$BASE_URL" "$OPERATOR_TOKEN" "$GO_ENDPOINT_ID" <<'PY'
+import json
+import sys
+from urllib import request
+
+base_url, token, endpoint_id = sys.argv[1:]
+req = request.Request(base_url + f"/api/endpoints/{endpoint_id}", method="GET")
+req.add_header("Authorization", f"Bearer {token}")
+with request.urlopen(req, timeout=20) as response:
+    detail = json.load(response)
+capabilities = set(detail.get("declared_capabilities") or [])
+hooks = detail.get("execution_hooks") or {}
+keys = {result["control_key"] for result in detail.get("latest_results", [])}
+required = {
+    "macos.firewall.application-firewall-enabled",
+    "macos.disk.filevault-enabled",
+    "macos.gatekeeper.assessments-enabled",
+    "macos.agent.present",
+}
+missing = sorted(required - keys)
+if detail.get("platform") != "macos":
+    raise SystemExit(f"expected macos Go endpoint, got {detail.get('platform')!r}")
+if {"apply_control", "rollback_control"} & capabilities:
+    raise SystemExit(f"macOS Go agent declared mutation capability: {sorted(capabilities)}")
+if hooks.get("captures_rollback_artifacts") is not False or hooks.get("reports_execution_results") is not True:
+    raise SystemExit(f"unexpected macOS Go execution hooks: {hooks!r}")
+if missing:
+    raise SystemExit(f"missing macOS Go posture results: {missing}")
+print("macos_go_agent=" + json.dumps({
+    "endpoint_id": endpoint_id,
+    "latest_result_count": len(detail.get("latest_results", [])),
+    "platform": detail.get("platform"),
+    "site_id": detail.get("site_id"),
+}, sort_keys=True))
+PY
+fi
 
 if as_root launchctl print system/com.sha.reporter >/dev/null 2>&1; then
   printf 'launchd=loaded\n'
