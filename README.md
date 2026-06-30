@@ -17,7 +17,7 @@ This repository contains a working control-plane/dashboard slice, not a producti
 
 Implemented:
 
-- backend API (6 routers, 16 routes) for enrollment, heartbeats, posture snapshots, installer profiles, approval requests/grants, and source-pack catalog reads
+- backend API (7 routers, 19 routes) for enrollment, heartbeats, posture snapshots, installer profiles, approval requests/grants, response actions, and source-pack catalog reads
 - frontend dashboard pages for fleet, endpoints, controls, installers, and approvals, each with a live/fixture data-source indicator and a weighted endpoint posture score
 - deterministic Linux and Windows bootstrap artifact generation for installer profiles, served with `Content-Disposition` and `X-SHA-Artifact-Sha256` integrity headers
 - a human-in-the-loop approval workflow with two typed request kinds (`hardening_change`, `elevated_troubleshooting`), bounded grant TTLs (15–240 min), manual emergency grants, append-only audit events, and concurrency-safe state transitions
