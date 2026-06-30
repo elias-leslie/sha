@@ -20,6 +20,7 @@ _READ_ONLY_REPORTER_CAPABILITIES = [
     "request_elevated_troubleshooting",
 ]
 _LINUX_REPORTER_CAPABILITIES = sorted([*_READ_ONLY_REPORTER_CAPABILITIES, "apply_control", "rollback_control"])
+_WINDOWS_REPORTER_CAPABILITIES = sorted([*_READ_ONLY_REPORTER_CAPABILITIES, "apply_control", "rollback_control"])
 
 _READ_ONLY_EXECUTION_HOOKS = {
     "captures_rollback_artifacts": False,
@@ -27,6 +28,11 @@ _READ_ONLY_EXECUTION_HOOKS = {
     "supports_dry_run": False,
 }
 _LINUX_EXECUTION_HOOKS = {
+    "captures_rollback_artifacts": True,
+    "reports_execution_results": True,
+    "supports_dry_run": False,
+}
+_WINDOWS_EXECUTION_HOOKS = {
     "captures_rollback_artifacts": True,
     "reports_execution_results": True,
     "supports_dry_run": False,
@@ -778,6 +784,7 @@ def _windows_reporter_script() -> str:
         Set-StrictMode -Version Latest
         $ErrorActionPreference = 'Stop'
         $ConfigPath = 'C:\ProgramData\SHA\reporter-config.json'
+        $FirewallRollbackPath = 'C:\ProgramData\SHA\firewall-profile-rollback.json'
 
         function Get-Config {
             return Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
@@ -909,6 +916,46 @@ def _windows_reporter_script() -> str:
             return New-Result 'windows.firewall.all-profiles-enabled' 'fail' $names 'enabled' 'high' "Firewall disabled on profile(s): $names." $false
         }
 
+        function Invoke-ApplyWindowsFirewallAllProfiles {
+            if (-not (Get-Command Get-NetFirewallProfile -ErrorAction SilentlyContinue) -or -not (Get-Command Set-NetFirewallProfile -ErrorAction SilentlyContinue)) {
+                return @('failed', 'Windows firewall profile cmdlets are unavailable.')
+            }
+            $profiles = @(Get-NetFirewallProfile -Name Domain,Private,Public)
+            if (-not (Test-Path -LiteralPath $FirewallRollbackPath)) {
+                $profiles | Select-Object Name, Enabled | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $FirewallRollbackPath -Encoding UTF8
+            }
+            Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True
+            return @('succeeded', "Enabled Domain, Private, and Public firewall profiles; rollback saved to $FirewallRollbackPath.")
+        }
+
+        function Invoke-RollbackWindowsFirewallAllProfiles {
+            if (-not (Get-Command Set-NetFirewallProfile -ErrorAction SilentlyContinue)) {
+                return @('failed', 'Set-NetFirewallProfile is unavailable.')
+            }
+            if (-not (Test-Path -LiteralPath $FirewallRollbackPath)) {
+                return @('failed', "No SHA firewall rollback artifact found at $FirewallRollbackPath.")
+            }
+            $profiles = @(Get-Content -LiteralPath $FirewallRollbackPath -Raw | ConvertFrom-Json)
+            foreach ($profile in $profiles) {
+                Set-NetFirewallProfile -Profile ([string]$profile.Name) -Enabled ([bool]$profile.Enabled)
+            }
+            Remove-Item -LiteralPath $FirewallRollbackPath -Force
+            return @('succeeded', 'Restored Windows firewall profile enabled states from SHA rollback artifact.')
+        }
+
+        function Invoke-HardeningAction([string]$ActionName, [string]$ControlId) {
+            if ($ControlId -ne 'control.windows.firewall-all-profiles') {
+                return @('failed', "Unsupported Windows hardening control: $ControlId.")
+            }
+            if ($ActionName -eq 'apply_control') {
+                return Invoke-ApplyWindowsFirewallAllProfiles
+            }
+            if ($ActionName -eq 'rollback_control') {
+                return Invoke-RollbackWindowsFirewallAllProfiles
+            }
+            return @('failed', "Unsupported Windows hardening action: $ActionName.")
+        }
+
         function Get-DefenderRealTimeProtectionResult {
             if (-not (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue)) {
                 return New-Result 'windows.defender.real-time-protection' 'not_applicable' 'Get-MpComputerStatus missing' 'enabled' $null 'Microsoft Defender inspection cmdlet is unavailable.' $false
@@ -998,6 +1045,11 @@ def _windows_reporter_script() -> str:
                 Complete-ResponseAction $ControlPlaneUrl $Action 'succeeded' (ConvertTo-ResultSummary $results)
                 return
             }
+            if ($actionName -in @('apply_control', 'rollback_control')) {
+                $outcome = Invoke-HardeningAction $actionName ([string]$Action.control_id)
+                Complete-ResponseAction $ControlPlaneUrl $Action ([string]$outcome[0]) ([string]$outcome[1])
+                return
+            }
             Complete-ResponseAction $ControlPlaneUrl $Action 'failed' "Unsupported Windows bootstrap action: $actionName."
         }
 
@@ -1064,8 +1116,8 @@ def _render_windows_bootstrap(profile: InstallerProfile) -> str:
         profile,
         agent_version=_WINDOWS_AGENT_VERSION,
         platform_profile=_WINDOWS_PLATFORM_PROFILE,
-        capabilities=_READ_ONLY_REPORTER_CAPABILITIES,
-        execution_hooks=_READ_ONLY_EXECUTION_HOOKS,
+        capabilities=_WINDOWS_REPORTER_CAPABILITIES,
+        execution_hooks=_WINDOWS_EXECUTION_HOOKS,
     )
     reporter_script = _windows_reporter_script().rstrip("\n")
     return "\n".join(

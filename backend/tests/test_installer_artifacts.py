@@ -189,7 +189,12 @@ def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task
     assert "Get-NetTCPConnection" in first.text
     assert "Get-ProcessInventoryResult" in first.text
     assert "Invoke-PendingResponseActions" in first.text
-    assert '"apply_control"' not in first.text
+    assert "Invoke-ApplyWindowsFirewallAllProfiles" in first.text
+    assert "Invoke-RollbackWindowsFirewallAllProfiles" in first.text
+    assert "control.windows.firewall-all-profiles" in first.text
+    assert '"apply_control"' in first.text
+    assert '"rollback_control"' in first.text
+    assert '"captures_rollback_artifacts": true' in first.text
     assert '"reports_execution_results": true' in first.text
 
 
