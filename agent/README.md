@@ -12,6 +12,14 @@ Current implementation:
 - bounded evidence actions for `collect_security_context`, `collect_remediation_evidence`, and `inspect_control`
 - apply/rollback for `linux.ssh.password-authentication-disabled`
 
+Install as a Linux systemd service:
+
+```bash
+sudo scripts/install-sha-agent-linux.sh
+sudoedit /etc/sha/agent-config.json
+sudo systemctl restart sha-agent
+```
+
 Build and run once:
 
 ```bash
