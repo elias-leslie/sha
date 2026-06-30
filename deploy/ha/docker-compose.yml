@@ -22,6 +22,7 @@ services:
       SHA_API_TOKEN: ${SHA_API_TOKEN:-operator-token}
       SHA_READONLY_API_TOKEN: ${SHA_READONLY_API_TOKEN:-readonly-token}
       SHA_AGENT_API_TOKEN: ${SHA_AGENT_API_TOKEN:-agent-token}
+      SHA_EXTERNAL_AUTH_TRUSTED_TOKEN: ${SHA_EXTERNAL_AUTH_TRUSTED_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy

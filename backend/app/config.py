@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     api_token: str | None = None
     agent_api_token: str | None = None
     readonly_api_token: str | None = None
+    external_auth_trusted_token: str | None = None
 
 
 @lru_cache

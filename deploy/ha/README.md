@@ -2,7 +2,7 @@
 
 This compose stack runs SHA with two stateless backend replicas, a shared PostgreSQL database, the Next.js dashboard, and an nginx edge that load-balances `/api/*` and `/health` across the backend replicas.
 
-It is still a starter deployment: put TLS, external identity/SSO, backup policy, and production secrets management in front of it before internet exposure.
+It is still a starter deployment: put TLS, backup policy, and production secrets management in front of it before internet exposure. For SSO/identity-proxy deployments, set `SHA_EXTERNAL_AUTH_TRUSTED_TOKEN` and have the trusted proxy strip client `X-SHA-External-*` headers before adding `X-SHA-External-Auth` and `X-SHA-External-Role: operator|readonly`.
 
 ```bash
 cd deploy/ha

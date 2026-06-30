@@ -8,6 +8,7 @@ POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-sha-ha-e2e-password}
 OPERATOR_TOKEN=${SHA_API_TOKEN:-operator-token}
 READONLY_TOKEN=${SHA_READONLY_API_TOKEN:-readonly-token}
 AGENT_TOKEN=${SHA_AGENT_API_TOKEN:-agent-token}
+EXTERNAL_AUTH_TOKEN=${SHA_EXTERNAL_AUTH_TRUSTED_TOKEN:-proxy-e2e-token}
 PORT=${SHA_PUBLIC_PORT:-}
 
 need() {
@@ -32,6 +33,7 @@ compose() {
   SHA_API_TOKEN="$OPERATOR_TOKEN" \
   SHA_READONLY_API_TOKEN="$READONLY_TOKEN" \
   SHA_AGENT_API_TOKEN="$AGENT_TOKEN" \
+  SHA_EXTERNAL_AUTH_TRUSTED_TOKEN="$EXTERNAL_AUTH_TOKEN" \
   SHA_PUBLIC_PORT="$PORT" \
   docker compose -p "$PROJECT" -f "$COMPOSE_FILE" "$@"
 }
@@ -51,6 +53,10 @@ compose ps --status running
 BASE_URL="http://127.0.0.1:${PORT}"
 curl -fsS "$BASE_URL/health" >/dev/null
 curl -fsS -H "Authorization: Bearer $READONLY_TOKEN" "$BASE_URL/api/source-packs" >/dev/null
+curl -fsS \
+  -H "X-SHA-External-Auth: $EXTERNAL_AUTH_TOKEN" \
+  -H "X-SHA-External-Role: readonly" \
+  "$BASE_URL/api/source-packs" >/dev/null
 
 python3 - "$BASE_URL" "$OPERATOR_TOKEN" <<'PY'
 import json

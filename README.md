@@ -31,7 +31,7 @@ Implemented:
 
 Not yet production-ready:
 
-- no full multi-user authentication or SSO layer; built-in auth is limited to operator, read-only, and least-privilege agent API tokens
+- no bundled identity provider; production auth can use operator/read-only/agent API tokens or a trusted external SSO/identity proxy header
 - no fully proven Windows/macOS privileged runtime yet; cross-platform Go agent packages are built, while real execution is proven on Linux
 - no fully managed production HA offering; a starter PostgreSQL/nginx compose path is checked in for HA-ready self-hosting
 - no live AI/operator integration is required or bundled
@@ -135,6 +135,7 @@ Backend settings use the `SHA_` prefix:
 - `SHA_API_TOKEN` — optional bearer/API token; when set, all `/api/*` routes require `Authorization: Bearer <token>` or `X-SHA-API-Token`
 - `SHA_READONLY_API_TOKEN` — optional read-only token for dashboards/auditors; GET-only and blocked from installer artifact downloads
 - `SHA_AGENT_API_TOKEN` — optional least-privilege token embedded in generated reporters; it can only enroll, heartbeat, post posture, fetch assigned response actions, and report action results
+- `SHA_EXTERNAL_AUTH_TRUSTED_TOKEN` — optional shared secret for a trusted SSO/identity proxy; requests with `X-SHA-External-Auth: <secret>` and `X-SHA-External-Role: operator|readonly` are mapped to the same operator/read-only authorization gates. Only use this when the backend is reachable solely through that proxy.
 
 Frontend settings:
 

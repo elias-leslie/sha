@@ -11,7 +11,7 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8010
 
 SQLite defaults to `data/sha.sqlite3` when running inside `backend/` and is created automatically on startup. Override with `SHA_DATABASE_URL`.
 
-Set `SHA_API_TOKEN` to require `Authorization: Bearer <token>` or `X-SHA-API-Token` on `/api/*` routes. `/health` remains unauthenticated for service checks. Set `SHA_READONLY_API_TOKEN` for GET-only dashboard/auditor access that cannot download installer artifacts. Set `SHA_AGENT_API_TOKEN` to embed a least-privilege token in generated reporters instead of the operator token.
+Set `SHA_API_TOKEN` to require `Authorization: Bearer <token>` or `X-SHA-API-Token` on `/api/*` routes. `/health` remains unauthenticated for service checks. Set `SHA_READONLY_API_TOKEN` for GET-only dashboard/auditor access that cannot download installer artifacts. Set `SHA_AGENT_API_TOKEN` to embed a least-privilege token in generated reporters instead of the operator token. Set `SHA_EXTERNAL_AUTH_TRUSTED_TOKEN` only behind a trusted SSO/identity proxy that strips client-supplied `X-SHA-External-*` headers and adds `X-SHA-External-Auth` plus `X-SHA-External-Role: operator|readonly`.
 
 ## Test and regenerate generated files
 

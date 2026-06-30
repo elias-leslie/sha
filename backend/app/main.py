@@ -22,6 +22,7 @@ def create_app(
     api_token: str | None = None,
     agent_api_token: str | None = None,
     readonly_api_token: str | None = None,
+    external_auth_trusted_token: str | None = None,
 ) -> FastAPI:
     settings = get_settings()
     store = DatabaseStore(database_url or settings.database_url)
@@ -40,6 +41,11 @@ def create_app(
     app.state.agent_api_token = agent_api_token if agent_api_token is not None else settings.agent_api_token
     app.state.readonly_api_token = (
         readonly_api_token if readonly_api_token is not None else settings.readonly_api_token
+    )
+    app.state.external_auth_trusted_token = (
+        external_auth_trusted_token
+        if external_auth_trusted_token is not None
+        else settings.external_auth_trusted_token
     )
     app.middleware("http")(api_token_middleware)
     app.include_router(health_router)

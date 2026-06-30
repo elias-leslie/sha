@@ -16,6 +16,15 @@ def _request_token(request: Request) -> str:
     return request.headers.get("x-sha-api-token", "").strip()
 
 
+def _external_auth_role(request: Request, trusted_token: str | None) -> str | None:
+    if not trusted_token:
+        return None
+    header_token = request.headers.get("x-sha-external-auth", "").strip()
+    if not header_token or not compare_digest(header_token, trusted_token):
+        return None
+    return request.headers.get("x-sha-external-role", "").strip().lower()
+
+
 def _is_agent_path(method: str, path: str) -> bool:
     parts = path.strip("/").split("/")
     if method == "POST" and parts == ["api", "endpoints", "enroll"]:
@@ -47,8 +56,18 @@ async def api_token_middleware(
     token = getattr(request.app.state, "api_token", None)
     agent_token = getattr(request.app.state, "agent_api_token", None)
     readonly_token = getattr(request.app.state, "readonly_api_token", None)
-    if (not token and not agent_token and not readonly_token) or request.url.path in _OPEN_PATHS:
+    external_auth_token = getattr(request.app.state, "external_auth_trusted_token", None)
+    if (not token and not agent_token and not readonly_token and not external_auth_token) or request.url.path in _OPEN_PATHS:
         return await call_next(request)
+    external_role = _external_auth_role(request, external_auth_token)
+    if external_role == "operator":
+        return await call_next(request)
+    if external_role == "readonly":
+        if _is_readonly_path(request.method, request.url.path):
+            return await call_next(request)
+        return JSONResponse({"detail": "forbidden for external read-only role"}, status_code=403)
+    if external_role is not None:
+        return JSONResponse({"detail": "forbidden for external auth role"}, status_code=403)
     request_token = _request_token(request)
     if token and compare_digest(request_token, token):
         return await call_next(request)
