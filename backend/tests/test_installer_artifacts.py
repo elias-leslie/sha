@@ -62,6 +62,7 @@ def test_linux_installer_artifact_is_deterministic_and_contains_systemd_reporter
     assert "linux.telemetry.startup-services" in first.text
     assert "linux.telemetry.login-sessions" in first.text
     assert "linux.telemetry.network-listeners" in first.text
+    assert "linux.network.endpoint-isolated" in first.text
 
 
 
@@ -157,6 +158,51 @@ def test_linux_reporter_applies_and_rolls_back_ssh_password_hardening(tmp_path: 
     assert hardening_path.read_text(encoding="utf-8") == "PasswordAuthentication yes\n"
     assert ("sshd", "-t") in commands
     assert ("systemctl", "reload", "sshd") in commands
+
+
+def test_linux_reporter_applies_and_rolls_back_network_isolation(tmp_path: Path, monkeypatch):
+    state_path = tmp_path / "network-isolation.json"
+    monkeypatch.setenv("SHA_NETWORK_ISOLATION_STATE_PATH", str(state_path))
+    namespace: dict[str, object] = {"__name__": "sha_reporter_test"}
+    exec(_linux_reporter_script(), namespace)  # noqa: S102 - exercises the generated bootstrap script
+    namespace["load_config"] = lambda: {"control_plane_url": "http://127.0.0.1:8010"}
+    commands: list[tuple[str, ...]] = []
+    jumps: set[tuple[str, str]] = set()
+
+    def fake_run_command(*args: str) -> tuple[bool, str]:
+        commands.append(args)
+        if args == ("iptables", "--version"):
+            return True, "iptables v1.8"
+        if len(args) >= 5 and args[1] == "-C":
+            return (args[2], args[4]) in jumps, "jump exists"
+        if len(args) >= 6 and args[1] == "-I":
+            jumps.add((args[2], args[5]))
+            return True, "inserted"
+        if len(args) >= 5 and args[1] == "-D":
+            jumps.discard((args[2], args[4]))
+            return True, "deleted"
+        return True, "ok"
+
+    namespace["run_command"] = fake_run_command
+    reporter = cast(dict[str, Callable[..., tuple[str, str]]], namespace)
+
+    status, summary = reporter["apply_linux_network_isolation"]()
+    assert status == "succeeded"
+    assert "127.0.0.1" in summary
+    assert state_path.exists()
+    assert ("iptables", "-I", "INPUT", "1", "-j", "SHA-ISOLATION-IN") in commands
+    assert ("iptables", "-I", "OUTPUT", "1", "-j", "SHA-ISOLATION-OUT") in commands
+    assert any(
+        command[:7] == ("iptables", "-A", "SHA-ISOLATION-OUT", "-p", "tcp", "-d", "127.0.0.1")
+        for command in commands
+    )
+
+    assert reporter["rollback_linux_network_isolation"]() == (
+        "succeeded",
+        "Removed SHA-managed Linux network isolation iptables rules.",
+    )
+    assert not state_path.exists()
+    assert not jumps
 
 
 

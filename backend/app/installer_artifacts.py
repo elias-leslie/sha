@@ -117,11 +117,14 @@ def _linux_reporter_script() -> str:
         import subprocess
         import sys
         from pathlib import Path
-        from urllib import error, request
+        from urllib import error, parse, request
 
         CONFIG_PATH = Path("/etc/sha/reporter-config.json")
         SSH_HARDENING_PATH = Path(
             os.environ.get("SHA_SSH_HARDENING_PATH", "/etc/ssh/sshd_config.d/99-sha-hardening.conf")
+        )
+        NETWORK_ISOLATION_STATE_PATH = Path(
+            os.environ.get("SHA_NETWORK_ISOLATION_STATE_PATH", "/etc/sha/network-isolation.json")
         )
 
 
@@ -666,14 +669,118 @@ def _linux_reporter_script() -> str:
             return "succeeded", f"{action}; {reload_summary}."
 
 
+        def control_plane_ipv4_targets() -> list[tuple[str, int]]:
+            # ponytail: IPv4 iptables first; add ip6tables/nft when managed hosts need IPv6 containment.
+            config = load_config()
+            parsed = parse.urlparse(str(config["control_plane_url"]))
+            host = parsed.hostname
+            if not host:
+                return []
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            targets: set[tuple[str, int]] = set()
+            try:
+                for family, _, _, _, sockaddr in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM):
+                    if family == socket.AF_INET:
+                        targets.add((str(sockaddr[0]), int(sockaddr[1])))
+            except OSError:
+                return []
+            return sorted(targets)
+
+
+        def run_required(*args: str) -> tuple[bool, str]:
+            ok, output = run_command(*args)
+            if not ok:
+                raise RuntimeError(f"{' '.join(args)} failed: {output[:500]}")
+            return ok, output
+
+
+        def install_isolation_chain(parent_chain: str, isolation_chain: str, rules: list[list[str]]) -> None:
+            run_command("iptables", "-N", isolation_chain)
+            run_required("iptables", "-F", isolation_chain)
+            for rule in rules:
+                run_required("iptables", *rule)
+            jump_exists, _ = run_command("iptables", "-C", parent_chain, "-j", isolation_chain)
+            if not jump_exists:
+                run_required("iptables", "-I", parent_chain, "1", "-j", isolation_chain)
+
+
+        def rollback_linux_network_isolation() -> tuple[str, str]:
+            ok, output = run_command("iptables", "--version")
+            if not ok:
+                return "failed", f"iptables unavailable; cannot rollback endpoint isolation: {output}"
+
+            changed = False
+            for parent_chain, isolation_chain in (("INPUT", "SHA-ISOLATION-IN"), ("OUTPUT", "SHA-ISOLATION-OUT")):
+                while True:
+                    jump_exists, _ = run_command("iptables", "-C", parent_chain, "-j", isolation_chain)
+                    if not jump_exists:
+                        break
+                    run_required("iptables", "-D", parent_chain, "-j", isolation_chain)
+                    changed = True
+                run_command("iptables", "-F", isolation_chain)
+                removed, _ = run_command("iptables", "-X", isolation_chain)
+                changed = changed or removed
+
+            if NETWORK_ISOLATION_STATE_PATH.exists():
+                NETWORK_ISOLATION_STATE_PATH.unlink()
+                changed = True
+
+            if not changed:
+                return "failed", "No SHA-managed Linux network isolation state or rules found."
+            return "succeeded", "Removed SHA-managed Linux network isolation iptables rules."
+
+
+        def apply_linux_network_isolation() -> tuple[str, str]:
+            ok, output = run_command("iptables", "--version")
+            if not ok:
+                return "failed", f"iptables unavailable; cannot isolate endpoint: {output}"
+            targets = control_plane_ipv4_targets()
+            if not targets:
+                return "failed", "No IPv4 control-plane target could be resolved for isolation allowlist."
+
+            input_rules = [
+                ["-A", "SHA-ISOLATION-IN", "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"],
+                ["-A", "SHA-ISOLATION-IN", "-i", "lo", "-j", "ACCEPT"],
+                ["-A", "SHA-ISOLATION-IN", "-j", "DROP"],
+            ]
+            output_rules = [
+                ["-A", "SHA-ISOLATION-OUT", "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"],
+                ["-A", "SHA-ISOLATION-OUT", "-o", "lo", "-j", "ACCEPT"],
+            ]
+            for address, port in targets:
+                output_rules.append(["-A", "SHA-ISOLATION-OUT", "-p", "tcp", "-d", address, "--dport", str(port), "-j", "ACCEPT"])
+            output_rules.append(["-A", "SHA-ISOLATION-OUT", "-j", "DROP"])
+
+            try:
+                install_isolation_chain("INPUT", "SHA-ISOLATION-IN", input_rules)
+                install_isolation_chain("OUTPUT", "SHA-ISOLATION-OUT", output_rules)
+                NETWORK_ISOLATION_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+                NETWORK_ISOLATION_STATE_PATH.write_text(
+                    json.dumps({"control_plane_targets": targets, "applied_at": utc_now()}, sort_keys=True),
+                    encoding="utf-8",
+                )
+                NETWORK_ISOLATION_STATE_PATH.chmod(0o600)
+            except Exception as exc:
+                rollback_linux_network_isolation()
+                return "failed", f"Linux network isolation failed and rollback was attempted: {exc}"
+            return "succeeded", f"Applied SHA-managed Linux network isolation; allowed control plane targets: {targets}."
+
+
         def execute_hardening_action(action_name: str, control_id: str | None) -> tuple[str, str]:
-            if control_id != "linux.ssh.password-authentication-disabled":
+            if control_id == "linux.ssh.password-authentication-disabled":
+                if action_name == "apply_control":
+                    return apply_linux_ssh_password_authentication_disabled()
+                if action_name == "rollback_control":
+                    return rollback_linux_ssh_password_authentication_disabled()
+                return "failed", f"Unsupported Linux hardening action: {action_name}."
+            if control_id == "linux.network.endpoint-isolated":
+                if action_name == "apply_control":
+                    return apply_linux_network_isolation()
+                if action_name == "rollback_control":
+                    return rollback_linux_network_isolation()
+                return "failed", f"Unsupported Linux containment action: {action_name}."
+            else:
                 return "failed", f"Unsupported Linux hardening control: {control_id or 'missing'}."
-            if action_name == "apply_control":
-                return apply_linux_ssh_password_authentication_disabled()
-            if action_name == "rollback_control":
-                return rollback_linux_ssh_password_authentication_disabled()
-            return "failed", f"Unsupported Linux hardening action: {action_name}."
 
 
         def context_result_for_scope(scope: str | None) -> dict[str, object]:

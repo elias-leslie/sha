@@ -161,7 +161,7 @@ Bootstrap artifact behavior in this slice:
 - the generated reporter computes a stable per-host fingerprint from local machine identity + installer profile ID
 - each run performs `POST /api/endpoints/enroll`, `POST /api/endpoints/{endpoint_id}/heartbeat`, `POST /api/posture-snapshots`, `GET /api/endpoints/{endpoint_id}/response-actions`, and `POST /api/response-actions/{response_action_id}/result`
 - Linux posture checks stay read-only and bounded to firewall service state, SSH password-auth configuration, root-password lock state, automatic update enablement, audit/log-retention signal, hardware summary, process inventory, and listening-port inventory
-- Linux response-action execution is bounded to context/evidence collection for the approved troubleshooting scope plus apply/rollback for `linux.ssh.password-authentication-disabled`
+- Linux response-action execution is bounded to context/evidence collection for the approved troubleshooting scope plus apply/rollback for `linux.ssh.password-authentication-disabled` and `linux.network.endpoint-isolated`
 - Windows posture checks and context/evidence actions stay read-only and bounded to firewall profile state, Defender real-time protection, BitLocker system-drive protection, Secure Boot state, process inventory, TCP listener inventory, recent Security log readability, service status, and current service identity; Windows hardening execution is bounded to apply/rollback for `control.windows.firewall-all-profiles`
 - the bootstrap path does not expose arbitrary shell execution, filesystem browsing, or generic remote command hooks
 
