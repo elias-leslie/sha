@@ -21,6 +21,7 @@ Implemented:
 - frontend dashboard pages for fleet, endpoints, controls, installers, and approvals, each with a live/fixture data-source indicator, weighted endpoint posture score, and endpoint response-action trail
 - deterministic Linux and Windows bootstrap artifact generation for installer profiles, served with `Content-Disposition` and `X-SHA-Artifact-Sha256` integrity headers
 - generated Linux and Windows reporters poll approval-backed response actions; both complete bounded incident-response context/evidence collection and each has a first reversible typed hardening control
+- optional API token enforcement for control-plane `/api` routes, with generated reporters carrying the active bearer token when enabled
 - a human-in-the-loop approval workflow with two typed request kinds (`hardening_change`, `elevated_troubleshooting`), bounded grant TTLs (15–240 min), manual emergency grants, append-only audit events, and concurrency-safe state transitions
 - an approval-backed response-action queue for dispatching typed agent work and reporting execution results without arbitrary remote shell access
 - 22 generated JSON Schemas under `schemas/generated/`, exported deterministically from the Pydantic contracts
@@ -28,12 +29,12 @@ Implemented:
 
 Not yet production-ready:
 
-- no built-in authentication or authorization layer
+- no built-in multi-user authentication, RBAC, or SSO layer
 - no completed privileged Go endpoint agent
 - no production migrations or HA deployment path
 - no live AI/operator integration is required or bundled
 
-Do not expose the backend or dashboard to an untrusted network without adding authentication, authorization, TLS, and deployment hardening appropriate for your environment.
+Do not expose the backend or dashboard to an untrusted network without enabling token protection or stronger external authentication, authorization, TLS, and deployment hardening appropriate for your environment.
 
 ## What the bootstrap reporters actually check
 
@@ -128,10 +129,12 @@ Backend settings use the `SHA_` prefix:
 
 - `SHA_DATABASE_URL` — defaults to `sqlite:///data/sha.sqlite3` when run from `backend/`
 - `SHA_PORT` — documented local backend port, default `8010`
+- `SHA_API_TOKEN` — optional bearer/API token; when set, all `/api/*` routes require `Authorization: Bearer <token>` or `X-SHA-API-Token`
 
 Frontend settings:
 
 - `API_URL` — backend origin used by Next.js rewrites, default `http://127.0.0.1:8010`
+- `NEXT_PUBLIC_SHA_API_TOKEN` — optional lab/operator token sent with frontend API requests when `SHA_API_TOKEN` is enabled
 
 Optional operator/agentic automation concepts such as SHAna are documented as product direction only. The checked-in app runs without private agent infrastructure or external AI credentials.
 

@@ -39,6 +39,10 @@ Elevated troubleshooting mode:
 Current backend enrollment route:
 - `POST /api/endpoints/enroll`
 
+Authentication:
+- if the control plane has `SHA_API_TOKEN` configured, every `/api/*` call must include `Authorization: Bearer <token>` or `X-SHA-API-Token`
+- generated bootstrap artifacts include the active token in reporter config when token protection is enabled
+
 Current request payload fields:
 - `agent_fingerprint` — required, trimmed, lowercased for matching/storage
 - `hostname` — required, trimmed
