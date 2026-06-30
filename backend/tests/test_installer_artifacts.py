@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import cast
 
 from app.installer_artifacts import _linux_reporter_script
@@ -46,6 +47,9 @@ def test_linux_installer_artifact_is_deterministic_and_contains_systemd_reporter
     assert "/api/endpoints/" in first.text
     assert "/response-actions" in first.text
     assert "/api/posture-snapshots" in first.text
+    assert '"apply_control"' in first.text
+    assert '"rollback_control"' in first.text
+    assert '"captures_rollback_artifacts": true' in first.text
     assert '"reports_execution_results": true' in first.text
     assert "linux.firewall.service-active" in first.text
     assert "linux.ssh.password-authentication-disabled" in first.text
@@ -114,6 +118,39 @@ def test_linux_reporter_executes_bounded_context_response_action():
 
 
 
+def test_linux_reporter_applies_and_rolls_back_ssh_password_hardening(tmp_path: Path, monkeypatch):
+    hardening_path = tmp_path / "sshd_config.d" / "99-sha-hardening.conf"
+    hardening_path.parent.mkdir()
+    hardening_path.write_text("PasswordAuthentication yes\n", encoding="utf-8")
+    monkeypatch.setenv("SHA_SSH_HARDENING_PATH", str(hardening_path))
+    namespace: dict[str, object] = {"__name__": "sha_reporter_test"}
+    exec(_linux_reporter_script(), namespace)  # noqa: S102 - exercises the generated bootstrap script
+    commands: list[tuple[str, ...]] = []
+
+    def fake_run_command(*args: str) -> tuple[bool, str]:
+        commands.append(args)
+        return True, "ok"
+
+    namespace["run_command"] = fake_run_command
+    reporter = cast(dict[str, Callable[..., object]], namespace)
+
+    assert reporter["apply_linux_ssh_password_authentication_disabled"]() == (
+        "succeeded",
+        f"Set PasswordAuthentication no in {hardening_path}; reloaded sshd.",
+    )
+    assert hardening_path.read_text(encoding="utf-8").endswith("PasswordAuthentication no\n")
+    assert hardening_path.with_name("99-sha-hardening.conf.rollback").exists()
+
+    assert reporter["rollback_linux_ssh_password_authentication_disabled"]() == (
+        "succeeded",
+        f"restored {hardening_path.with_name('99-sha-hardening.conf.rollback')}; reloaded sshd.",
+    )
+    assert hardening_path.read_text(encoding="utf-8") == "PasswordAuthentication yes\n"
+    assert ("sshd", "-t") in commands
+    assert ("systemctl", "reload", "sshd") in commands
+
+
+
 def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task_reporter(db_path, make_client):
     client = make_client(db_path)
     profile = create_installer_profile(
@@ -146,6 +183,8 @@ def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task
     assert "windows.defender.real-time-protection" in first.text
     assert "windows.bitlocker.system-drive-protected" in first.text
     assert "windows.secure-boot.enabled" in first.text
+    assert '"apply_control"' not in first.text
+    assert '"reports_execution_results": false' in first.text
 
 
 

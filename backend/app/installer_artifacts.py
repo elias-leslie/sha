@@ -11,7 +11,7 @@ _WINDOWS_AGENT_VERSION = "bootstrap-windows-v1"
 _LINUX_PLATFORM_PROFILE = "linux-bootstrap-v1"
 _WINDOWS_PLATFORM_PROFILE = "windows-bootstrap-v1"
 
-_SAFE_REPORTER_CAPABILITIES = [
+_READ_ONLY_REPORTER_CAPABILITIES = [
     "collect_posture_snapshot",
     "collect_security_context",
     "enroll",
@@ -19,9 +19,15 @@ _SAFE_REPORTER_CAPABILITIES = [
     "inspect_control",
     "request_elevated_troubleshooting",
 ]
+_LINUX_REPORTER_CAPABILITIES = sorted([*_READ_ONLY_REPORTER_CAPABILITIES, "apply_control", "rollback_control"])
 
-_EXECUTION_HOOKS = {
+_READ_ONLY_EXECUTION_HOOKS = {
     "captures_rollback_artifacts": False,
+    "reports_execution_results": False,
+    "supports_dry_run": False,
+}
+_LINUX_EXECUTION_HOOKS = {
+    "captures_rollback_artifacts": True,
     "reports_execution_results": True,
     "supports_dry_run": False,
 }
@@ -55,6 +61,8 @@ def _profile_config(
     *,
     agent_version: str,
     platform_profile: str,
+    capabilities: list[str],
+    execution_hooks: dict[str, bool],
 ) -> str:
     payload = {
         "profile_id": profile.id,
@@ -67,8 +75,8 @@ def _profile_config(
         "site_id": profile.site_id,
         "agent_version": agent_version,
         "platform_profile": platform_profile,
-        "capabilities": _SAFE_REPORTER_CAPABILITIES,
-        "execution_hooks": _EXECUTION_HOOKS,
+        "capabilities": capabilities,
+        "execution_hooks": execution_hooks,
     }
     return json.dumps(payload, indent=2)
 
@@ -94,6 +102,9 @@ def _linux_reporter_script() -> str:
         from urllib import error, request
 
         CONFIG_PATH = Path("/etc/sha/reporter-config.json")
+        SSH_HARDENING_PATH = Path(
+            os.environ.get("SHA_SSH_HARDENING_PATH", "/etc/ssh/sshd_config.d/99-sha-hardening.conf")
+        )
 
 
         def utc_now() -> str:
@@ -464,6 +475,68 @@ def _linux_reporter_script() -> str:
             ]
 
 
+        def reload_ssh_service() -> tuple[bool, str]:
+            for unit in ("sshd", "ssh"):
+                ok, output = run_command("systemctl", "reload", unit)
+                if ok:
+                    return True, f"reloaded {unit}"
+                if output == "command missing":
+                    return True, "systemctl missing; restart manually"
+            return False, "failed to reload sshd or ssh"
+
+
+        def apply_linux_ssh_password_authentication_disabled() -> tuple[str, str]:
+            path = SSH_HARDENING_PATH
+            if not path.parent.exists():
+                return "failed", f"SSH configuration directory does not exist: {path.parent}"
+            backup_path = path.with_name(f"{path.name}.rollback")
+            original = path.read_text(encoding="utf-8", errors="ignore") if path.exists() else None
+            if original is not None and not backup_path.exists():
+                backup_path.write_text(original, encoding="utf-8")
+                backup_path.chmod(0o600)
+            path.write_text("# Managed by SHA. Remove or rollback through SHA.\\nPasswordAuthentication no\\n", encoding="utf-8")
+            path.chmod(0o644)
+            ok, output = run_command("sshd", "-t")
+            if not ok and output != "command missing":
+                if original is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    path.write_text(original, encoding="utf-8")
+                return "failed", f"sshd validation failed; restored previous config: {output[:2000]}"
+            reload_ok, reload_summary = reload_ssh_service()
+            if not reload_ok:
+                return "failed", reload_summary
+            return "succeeded", f"Set PasswordAuthentication no in {path}; {reload_summary}."
+
+
+        def rollback_linux_ssh_password_authentication_disabled() -> tuple[str, str]:
+            path = SSH_HARDENING_PATH
+            backup_path = path.with_name(f"{path.name}.rollback")
+            if backup_path.exists():
+                path.write_text(backup_path.read_text(encoding="utf-8", errors="ignore"), encoding="utf-8")
+                backup_path.unlink()
+                action = f"restored {backup_path}"
+            elif path.exists() and "Managed by SHA" in path.read_text(encoding="utf-8", errors="ignore"):
+                path.unlink()
+                action = f"removed {path}"
+            else:
+                return "failed", "No SHA-managed SSH hardening artifact or rollback backup found."
+            reload_ok, reload_summary = reload_ssh_service()
+            if not reload_ok:
+                return "failed", f"{action}; {reload_summary}"
+            return "succeeded", f"{action}; {reload_summary}."
+
+
+        def execute_hardening_action(action_name: str, control_id: str | None) -> tuple[str, str]:
+            if control_id != "linux.ssh.password-authentication-disabled":
+                return "failed", f"Unsupported Linux hardening control: {control_id or 'missing'}."
+            if action_name == "apply_control":
+                return apply_linux_ssh_password_authentication_disabled()
+            if action_name == "rollback_control":
+                return rollback_linux_ssh_password_authentication_disabled()
+            return "failed", f"Unsupported Linux hardening action: {action_name}."
+
+
         def context_result_for_scope(scope: str | None) -> dict[str, object]:
             if scope == "process_inventory":
                 return linux_process_inventory_result()
@@ -509,10 +582,24 @@ def _linux_reporter_script() -> str:
             action_id = str(action["response_action_id"])
             action_name = str(action["action"])
             scope = action.get("troubleshooting_scope")
+            control_id = action.get("control_id")
             if action_name in {"collect_security_context", "inspect_control", "request_elevated_troubleshooting"}:
                 results = [context_result_for_scope(str(scope) if scope is not None else None)]
             elif action_name == "collect_remediation_evidence":
                 results = collect_results()
+            elif action_name in {"apply_control", "rollback_control"}:
+                result_status, result_summary = execute_hardening_action(
+                    action_name,
+                    str(control_id) if control_id is not None else None,
+                )
+                post_json(
+                    f"{control_plane_url}/api/response-actions/{action_id}/result",
+                    {
+                        "status": result_status,
+                        "result_summary": result_summary,
+                    },
+                )
+                return
             else:
                 post_json(
                     f"{control_plane_url}/api/response-actions/{action_id}/result",
@@ -597,7 +684,13 @@ def _linux_reporter_script() -> str:
 
 
 def _render_linux_bootstrap(profile: InstallerProfile) -> str:
-    config_json = _profile_config(profile, agent_version=_LINUX_AGENT_VERSION, platform_profile=_LINUX_PLATFORM_PROFILE)
+    config_json = _profile_config(
+        profile,
+        agent_version=_LINUX_AGENT_VERSION,
+        platform_profile=_LINUX_PLATFORM_PROFILE,
+        capabilities=_LINUX_REPORTER_CAPABILITIES,
+        execution_hooks=_LINUX_EXECUTION_HOOKS,
+    )
     reporter_script = _linux_reporter_script().rstrip("\n")
     service_unit = dedent(
         """
@@ -847,7 +940,13 @@ def _windows_reporter_script() -> str:
 
 
 def _render_windows_bootstrap(profile: InstallerProfile) -> str:
-    config_json = _profile_config(profile, agent_version=_WINDOWS_AGENT_VERSION, platform_profile=_WINDOWS_PLATFORM_PROFILE)
+    config_json = _profile_config(
+        profile,
+        agent_version=_WINDOWS_AGENT_VERSION,
+        platform_profile=_WINDOWS_PLATFORM_PROFILE,
+        capabilities=_READ_ONLY_REPORTER_CAPABILITIES,
+        execution_hooks=_READ_ONLY_EXECUTION_HOOKS,
+    )
     reporter_script = _windows_reporter_script().rstrip("\n")
     return "\n".join(
         [
