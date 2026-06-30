@@ -44,7 +44,9 @@ def test_linux_installer_artifact_is_deterministic_and_contains_systemd_reporter
     assert "systemctl enable --now sha-reporter.timer" in first.text
     assert "/api/endpoints/enroll" in first.text
     assert "/api/endpoints/" in first.text
+    assert "/response-actions" in first.text
     assert "/api/posture-snapshots" in first.text
+    assert '"reports_execution_results": true' in first.text
     assert "linux.firewall.service-active" in first.text
     assert "linux.ssh.password-authentication-disabled" in first.text
     assert "linux.root.password-locked" in first.text
@@ -76,6 +78,39 @@ def test_linux_reporter_collects_bounded_local_telemetry_without_network():
         assert result["status"] in {"pass", "warn", "not_applicable"}
         assert result["evidence_summary"]
         assert result["reboot_required"] is False
+
+
+
+def test_linux_reporter_executes_bounded_context_response_action():
+    namespace: dict[str, object] = {"__name__": "sha_reporter_test"}
+    exec(_linux_reporter_script(), namespace)  # noqa: S102 - exercises the generated bootstrap script
+    completed: list[tuple[str, dict[str, object]]] = []
+
+    def fake_post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
+        completed.append((url, payload))
+        return {}
+
+    namespace["post_json"] = fake_post_json
+    reporter = cast(dict[str, Callable[..., object]], namespace)
+    reporter["execute_response_action"](
+        "https://sha.example.test/control",
+        {
+            "response_action_id": "act_test",
+            "action": "collect_security_context",
+            "troubleshooting_scope": "process_inventory",
+        },
+    )
+
+    assert completed == [
+        (
+            "https://sha.example.test/control/api/response-actions/act_test/result",
+            {
+                "status": "succeeded",
+                "result_summary": completed[0][1]["result_summary"],
+            },
+        )
+    ]
+    assert "linux.telemetry.process-inventory=" in str(completed[0][1]["result_summary"])
 
 
 

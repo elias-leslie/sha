@@ -22,7 +22,7 @@ _SAFE_REPORTER_CAPABILITIES = [
 
 _EXECUTION_HOOKS = {
     "captures_rollback_artifacts": False,
-    "reports_execution_results": False,
+    "reports_execution_results": True,
     "supports_dry_run": False,
 }
 
@@ -109,6 +109,13 @@ def _linux_reporter_script() -> str:
             http_request = request.Request(url, data=body, method="POST")
             http_request.add_header("Accept", "application/json")
             http_request.add_header("Content-Type", "application/json")
+            with request.urlopen(http_request, timeout=20) as response:
+                return json.load(response)
+
+
+        def get_json(url: str) -> dict[str, object]:
+            http_request = request.Request(url, method="GET")
+            http_request.add_header("Accept", "application/json")
             with request.urlopen(http_request, timeout=20) as response:
                 return json.load(response)
 
@@ -457,6 +464,84 @@ def _linux_reporter_script() -> str:
             ]
 
 
+        def context_result_for_scope(scope: str | None) -> dict[str, object]:
+            if scope == "process_inventory":
+                return linux_process_inventory_result()
+            if scope == "network_bindings":
+                return linux_network_listeners_result()
+            if scope == "security_logs":
+                return linux_security_logging_result()
+            if scope == "firewall_state":
+                return linux_firewall_result()
+            if scope == "identity_state":
+                return linux_root_password_locked_result()
+            if scope == "service_status":
+                ok, output = run_command("systemctl", "is-system-running")
+                state = output.splitlines()[0] if output else "unknown"
+                return {
+                    "control_key": "linux.telemetry.service-status",
+                    "status": "pass" if ok else "warn",
+                    "current_value": state,
+                    "recommended_value": "systemd reports running or degraded state",
+                    "severity": None if ok else "medium",
+                    "evidence_summary": "Collected bounded system service-manager status for incident response triage.",
+                    "reboot_required": False,
+                }
+            return {
+                "control_key": "linux.telemetry.unsupported-scope",
+                "status": "error",
+                "current_value": scope or "missing",
+                "recommended_value": "supported troubleshooting scope",
+                "severity": "medium",
+                "evidence_summary": "Unsupported troubleshooting scope requested.",
+                "reboot_required": False,
+            }
+
+
+        def summarize_results(results: list[dict[str, object]]) -> str:
+            return "; ".join(
+                f"{result['control_key']}={result['status']}: {result['evidence_summary']}"
+                for result in results
+            )[:4000]
+
+
+        def execute_response_action(control_plane_url: str, action: dict[str, object]) -> None:
+            action_id = str(action["response_action_id"])
+            action_name = str(action["action"])
+            scope = action.get("troubleshooting_scope")
+            if action_name in {"collect_security_context", "inspect_control", "request_elevated_troubleshooting"}:
+                results = [context_result_for_scope(str(scope) if scope is not None else None)]
+            elif action_name == "collect_remediation_evidence":
+                results = collect_results()
+            else:
+                post_json(
+                    f"{control_plane_url}/api/response-actions/{action_id}/result",
+                    {
+                        "status": "failed",
+                        "result_summary": f"Unsupported Linux bootstrap action: {action_name}.",
+                    },
+                )
+                return
+
+            post_json(
+                f"{control_plane_url}/api/response-actions/{action_id}/result",
+                {
+                    "status": "failed" if any(result["status"] == "error" for result in results) else "succeeded",
+                    "result_summary": summarize_results(results),
+                },
+            )
+
+
+        def execute_pending_response_actions(control_plane_url: str, endpoint_id: str) -> None:
+            payload = get_json(f"{control_plane_url}/api/endpoints/{endpoint_id}/response-actions")
+            items = payload.get("items", [])
+            if not isinstance(items, list):
+                return
+            for action in items:
+                if isinstance(action, dict):
+                    execute_response_action(control_plane_url, action)
+
+
         def main() -> None:
             config = load_config()
             control_plane_url = str(config["control_plane_url"]).rstrip("/")
@@ -494,6 +579,7 @@ def _linux_reporter_script() -> str:
                     "results": collect_results(),
                 },
             )
+            execute_pending_response_actions(control_plane_url, endpoint_id)
 
 
         if __name__ == "__main__":
