@@ -12,4 +12,4 @@ cd backend
 uv run python scripts/export_contract_schemas.py
 ```
 
-The generated set covers endpoint enrollment, heartbeat, inventory/detail, posture snapshots, installer profiles, approval requests, and approval grants. `schemas/generated/manifest.json` records exported filenames and source model names.
+The generated set covers endpoint enrollment, heartbeat, inventory/detail, posture snapshots, installer profiles, approval requests/grants, and response actions. `schemas/generated/manifest.json` records exported filenames and source model names.

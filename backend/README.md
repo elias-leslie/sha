@@ -1,6 +1,6 @@
 # SHA backend
 
-FastAPI control-plane foundation for endpoint enrollment, heartbeats, posture snapshot uploads, installer profiles, deterministic bootstrap artifact generation, approval requests/grants, and source-pack catalog reads.
+FastAPI control-plane foundation for endpoint enrollment, heartbeats, posture snapshot uploads, installer profiles, deterministic bootstrap artifact generation, approval requests/grants, response-action dispatch, and source-pack catalog reads.
 
 ## Run
 
@@ -32,6 +32,9 @@ uv run python scripts/export_contract_schemas.py
 - `GET/POST /api/approval-requests`
 - `POST /api/approval-requests/{approval_request_id}/decisions`
 - `GET/POST /api/approval-grants`
+- `POST /api/response-actions`
+- `GET /api/endpoints/{endpoint_id}/response-actions`
+- `POST /api/response-actions/{response_action_id}/result`
 - `GET /api/source-packs`
 
 Bootstrap artifacts stay inside SHA's bounded posture boundary: enrollment, heartbeat, and small read-only posture snapshots. They do not expose arbitrary shell access.

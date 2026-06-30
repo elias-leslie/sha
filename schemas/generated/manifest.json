@@ -71,6 +71,22 @@
     {
       "filename": "approval-grant-list-response.schema.json",
       "model": "ApprovalGrantListResponse"
+    },
+    {
+      "filename": "response-action-create-request.schema.json",
+      "model": "ResponseActionCreateRequest"
+    },
+    {
+      "filename": "response-action-result-request.schema.json",
+      "model": "ResponseActionResultRequest"
+    },
+    {
+      "filename": "response-action-response.schema.json",
+      "model": "ResponseActionResponse"
+    },
+    {
+      "filename": "response-action-list-response.schema.json",
+      "model": "ResponseActionListResponse"
     }
   ],
   "schema_version": 1,

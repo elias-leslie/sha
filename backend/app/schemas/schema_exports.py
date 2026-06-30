@@ -24,6 +24,10 @@ from app.schemas.contracts import (
     InstallerProfileResponse,
     PostureSnapshotAck,
     PostureSnapshotCreateRequest,
+    ResponseActionCreateRequest,
+    ResponseActionListResponse,
+    ResponseActionResponse,
+    ResponseActionResultRequest,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -51,6 +55,10 @@ def exported_contract_models() -> tuple[tuple[str, type[BaseModel]], ...]:
         ("approval-grant-create-request.schema.json", ApprovalGrantCreateRequest),
         ("approval-grant-response.schema.json", ApprovalGrantResponse),
         ("approval-grant-list-response.schema.json", ApprovalGrantListResponse),
+        ("response-action-create-request.schema.json", ResponseActionCreateRequest),
+        ("response-action-result-request.schema.json", ResponseActionResultRequest),
+        ("response-action-response.schema.json", ResponseActionResponse),
+        ("response-action-list-response.schema.json", ResponseActionListResponse),
     )
 
 

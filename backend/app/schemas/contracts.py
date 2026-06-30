@@ -89,6 +89,13 @@ class ApprovalGrantStatus(str, Enum):
     revoked = "revoked"
 
 
+class ResponseActionStatus(str, Enum):
+    queued = "queued"
+    succeeded = "succeeded"
+    failed = "failed"
+    cancelled = "cancelled"
+
+
 class ApprovalRequestStatus(str, Enum):
     pending = "pending"
     approved = "approved"
@@ -391,3 +398,46 @@ class ApprovalGrantListResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     items: list[ApprovalGrantResponse]
+
+
+class ResponseActionCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    endpoint_id: str
+    approval_grant_id: str
+    action: ApprovalAction
+    control_id: str | None = None
+    troubleshooting_scope: TroubleshootingScope | None = None
+    requested_by: str
+    reason: str
+
+
+class ResponseActionResultRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    status: ResponseActionStatus
+    result_summary: str
+
+
+class ResponseActionResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    response_action_id: str
+    endpoint_id: str
+    approval_grant_id: str
+    action: ApprovalAction
+    control_id: str | None = None
+    troubleshooting_scope: TroubleshootingScope | None = None
+    requested_by: str
+    reason: str
+    status: ResponseActionStatus
+    result_summary: str | None = None
+    created_at: str
+    updated_at: str
+    completed_at: str | None = None
+
+
+class ResponseActionListResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    items: list[ResponseActionResponse]

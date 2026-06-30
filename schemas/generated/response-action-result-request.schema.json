@@ -1,0 +1,29 @@
+{
+  "$defs": {
+    "ResponseActionStatus": {
+      "enum": [
+        "queued",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "title": "ResponseActionStatus",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "result_summary": {
+      "title": "Result Summary",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ResponseActionStatus"
+    }
+  },
+  "required": [
+    "status",
+    "result_summary"
+  ],
+  "title": "ResponseActionResultRequest",
+  "type": "object"
+}

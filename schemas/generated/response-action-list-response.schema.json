@@ -1,0 +1,150 @@
+{
+  "$defs": {
+    "ApprovalAction": {
+      "enum": [
+        "collect_security_context",
+        "collect_remediation_evidence",
+        "inspect_control",
+        "apply_control",
+        "rollback_control",
+        "request_elevated_troubleshooting"
+      ],
+      "title": "ApprovalAction",
+      "type": "string"
+    },
+    "ResponseActionResponse": {
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/ApprovalAction"
+        },
+        "approval_grant_id": {
+          "title": "Approval Grant Id",
+          "type": "string"
+        },
+        "completed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "control_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Control Id"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "requested_by": {
+          "title": "Requested By",
+          "type": "string"
+        },
+        "response_action_id": {
+          "title": "Response Action Id",
+          "type": "string"
+        },
+        "result_summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result Summary"
+        },
+        "status": {
+          "$ref": "#/$defs/ResponseActionStatus"
+        },
+        "troubleshooting_scope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TroubleshootingScope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "response_action_id",
+        "endpoint_id",
+        "approval_grant_id",
+        "action",
+        "requested_by",
+        "reason",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "ResponseActionResponse",
+      "type": "object"
+    },
+    "ResponseActionStatus": {
+      "enum": [
+        "queued",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "title": "ResponseActionStatus",
+      "type": "string"
+    },
+    "TroubleshootingScope": {
+      "enum": [
+        "service_status",
+        "security_logs",
+        "firewall_state",
+        "identity_state",
+        "process_inventory",
+        "network_bindings"
+      ],
+      "title": "TroubleshootingScope",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/ResponseActionResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "ResponseActionListResponse",
+  "type": "object"
+}

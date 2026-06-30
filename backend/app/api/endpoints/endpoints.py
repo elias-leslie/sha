@@ -4,11 +4,11 @@ import json
 from collections import Counter
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import DatabaseStore, get_store
-from app.models import Endpoint, PostureResult, PostureSnapshot
+from app.models import ApprovalGrant, Endpoint, PostureResult, PostureSnapshot, ResponseAction
 from app.schemas.contracts import (
     EndpointDetailResponse,
     EndpointEnrollRequest,
@@ -270,6 +270,20 @@ def heartbeat_endpoint(
                     endpoint.platform_version = normalize_optional_string(payload.platform_version, "platform_version")
 
             session.flush()
+            pending_action_count = int(
+                session.scalar(
+                    select(func.count())
+                    .select_from(ResponseAction)
+                    .join(ApprovalGrant, ApprovalGrant.approval_grant_id == ResponseAction.approval_grant_id)
+                    .where(
+                        ResponseAction.endpoint_id == endpoint.endpoint_id,
+                        ResponseAction.status == "queued",
+                        ApprovalGrant.status == "approved",
+                        ApprovalGrant.expires_at > now,
+                    )
+                )
+                or 0
+            )
             return {
                 "endpoint_id": endpoint.endpoint_id,
                 "status": endpoint.status,
@@ -277,7 +291,7 @@ def heartbeat_endpoint(
                 "last_seen_at": endpoint.last_seen_at,
                 "last_heartbeat_at": endpoint.last_heartbeat_at,
                 "accepted_capability_count": len(declared_capabilities),
-                "pending_action_count": 0,
+                "pending_action_count": pending_action_count,
                 "created_at": endpoint.created_at,
                 "updated_at": endpoint.updated_at,
             }

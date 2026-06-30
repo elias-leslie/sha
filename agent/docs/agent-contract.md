@@ -271,6 +271,22 @@ Important rules:
 - no wildcard action scopes in this slice
 - no arbitrary shell access is represented anywhere in this contract
 
+## Response action contract
+
+Current backend response-action routes:
+- `POST /api/response-actions`
+- `GET /api/endpoints/{endpoint_id}/response-actions`
+- `POST /api/response-actions/{response_action_id}/result`
+
+Important rules:
+- queued actions require an active, unexpired approval grant
+- the grant must include the endpoint, action, and requested control or troubleshooting scope
+- the endpoint must have declared the action capability in heartbeat before the action can be queued
+- endpoint fetches only return queued actions whose grant is still active
+- result reporting only accepts `succeeded` or `failed`; completed actions are terminal
+- heartbeat `pending_action_count` reflects queued actions backed by active grants
+- actions remain typed (`apply_control`, `rollback_control`, bounded troubleshooting actions); no arbitrary shell payload exists
+
 ## Mutation contract
 
 Every future mutating action should capture:

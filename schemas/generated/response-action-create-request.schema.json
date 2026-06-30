@@ -1,0 +1,81 @@
+{
+  "$defs": {
+    "ApprovalAction": {
+      "enum": [
+        "collect_security_context",
+        "collect_remediation_evidence",
+        "inspect_control",
+        "apply_control",
+        "rollback_control",
+        "request_elevated_troubleshooting"
+      ],
+      "title": "ApprovalAction",
+      "type": "string"
+    },
+    "TroubleshootingScope": {
+      "enum": [
+        "service_status",
+        "security_logs",
+        "firewall_state",
+        "identity_state",
+        "process_inventory",
+        "network_bindings"
+      ],
+      "title": "TroubleshootingScope",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/ApprovalAction"
+    },
+    "approval_grant_id": {
+      "title": "Approval Grant Id",
+      "type": "string"
+    },
+    "control_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Control Id"
+    },
+    "endpoint_id": {
+      "title": "Endpoint Id",
+      "type": "string"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "requested_by": {
+      "title": "Requested By",
+      "type": "string"
+    },
+    "troubleshooting_scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TroubleshootingScope"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "endpoint_id",
+    "approval_grant_id",
+    "action",
+    "requested_by",
+    "reason"
+  ],
+  "title": "ResponseActionCreateRequest",
+  "type": "object"
+}

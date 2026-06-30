@@ -195,3 +195,39 @@ class ApprovalGrant(Base):
             name="ck_approval_grants_status",
         ),
     )
+
+
+class ResponseAction(Base):
+    __tablename__ = "response_actions"
+
+    response_action_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    endpoint_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("endpoints.endpoint_id", ondelete="CASCADE"), nullable=False
+    )
+    approval_grant_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("approval_grants.approval_grant_id", ondelete="CASCADE"), nullable=False
+    )
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    control_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    troubleshooting_scope: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    requested_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    reason: Mapped[str] = mapped_column(String(4096), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    result_summary: Mapped[str | None] = mapped_column(String(4096), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
+    completed_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "action IN ("
+            "'collect_security_context', 'collect_remediation_evidence', 'inspect_control', "
+            "'apply_control', 'rollback_control', 'request_elevated_troubleshooting'"
+            ")",
+            name="ck_response_actions_action",
+        ),
+        CheckConstraint(
+            "status IN ('queued', 'succeeded', 'failed', 'cancelled')",
+            name="ck_response_actions_status",
+        ),
+    )
