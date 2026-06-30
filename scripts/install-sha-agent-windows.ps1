@@ -22,7 +22,8 @@ if (-not (Test-Path $ConfigPath)) {
   "control_plane_url": "https://sha.example.test",
   "api_token": "replace-with-SHA_AGENT_API_TOKEN",
   "profile_id": "windows-agent",
-  "agent_version": "sha-go-agent-v0.1.0"
+  "agent_version": "sha-go-agent-v0.1.0",
+  "windows_firewall_rollback_path": "C:\\ProgramData\\SHA\\firewall-profiles-rollback.json"
 }
 '@ | Set-Content -Encoding UTF8 -Path $ConfigPath
 }

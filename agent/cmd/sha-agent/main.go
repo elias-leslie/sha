@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -20,13 +22,14 @@ import (
 const defaultAgentVersion = "sha-go-agent-v0.1.0"
 
 type Config struct {
-	ControlPlaneURL   string  `json:"control_plane_url"`
-	APIToken          string  `json:"api_token"`
-	TenantID          *string `json:"tenant_id"`
-	SiteID            *string `json:"site_id"`
-	ProfileID         string  `json:"profile_id"`
-	AgentVersion      string  `json:"agent_version"`
-	SSHDHardeningPath string  `json:"sshd_hardening_path"`
+	ControlPlaneURL             string  `json:"control_plane_url"`
+	APIToken                    string  `json:"api_token"`
+	TenantID                    *string `json:"tenant_id"`
+	SiteID                      *string `json:"site_id"`
+	ProfileID                   string  `json:"profile_id"`
+	AgentVersion                string  `json:"agent_version"`
+	SSHDHardeningPath           string  `json:"sshd_hardening_path"`
+	WindowsFirewallRollbackPath string  `json:"windows_firewall_rollback_path"`
 }
 
 type Agent struct {
@@ -58,6 +61,11 @@ type postureResult struct {
 	EvidenceSummary  string  `json:"evidence_summary"`
 	RebootRequired   bool    `json:"reboot_required"`
 }
+
+var (
+	currentPlatformName = platformName
+	runCommand          = runCommandWithTimeout
+)
 
 func main() {
 	configPath := flag.String("config", firstNonEmpty(os.Getenv("SHA_AGENT_CONFIG"), "/etc/sha/agent-config.json"), "agent config JSON path")
@@ -105,6 +113,9 @@ func loadConfig(path string) (Config, error) {
 	if config.SSHDHardeningPath == "" {
 		config.SSHDHardeningPath = "/etc/ssh/sshd_config.d/99-sha-hardening.conf"
 	}
+	if config.WindowsFirewallRollbackPath == "" {
+		config.WindowsFirewallRollbackPath = `C:\ProgramData\SHA\firewall-profiles-rollback.json`
+	}
 	return config, nil
 }
 
@@ -118,7 +129,7 @@ func (a Agent) RunOnce() error {
 	if err := a.doJSON("POST", "/api/endpoints/enroll", map[string]any{
 		"agent_fingerprint": fingerprint(hostname, a.config.ProfileID),
 		"hostname":          hostname,
-		"platform":          platformName(),
+		"platform":          currentPlatformName(),
 		"platform_version":  platformVersion,
 		"agent_version":     a.config.AgentVersion,
 		"tenant_id":         a.config.TenantID,
@@ -129,21 +140,17 @@ func (a Agent) RunOnce() error {
 	if err := a.doJSON("POST", "/api/endpoints/"+endpoint.EndpointID+"/heartbeat", map[string]any{
 		"agent_version":         a.config.AgentVersion,
 		"platform_version":      platformVersion,
-		"platform_profile":      platformName() + "-go-agent",
+		"platform_profile":      currentPlatformName() + "-go-agent",
 		"connectivity_status":   "online",
-		"declared_capabilities": []string{"enroll", "heartbeat", "collect_posture_snapshot", "inspect_control", "apply_control", "rollback_control", "collect_security_context", "collect_remediation_evidence"},
-		"execution_hooks": map[string]bool{
-			"captures_rollback_artifacts": true,
-			"reports_execution_results":   true,
-			"supports_dry_run":            true,
-		},
+		"declared_capabilities": declaredCapabilities(),
+		"execution_hooks":       executionHooks(),
 	}, nil); err != nil {
 		return err
 	}
 	if err := a.doJSON("POST", "/api/posture-snapshots", map[string]any{
 		"endpoint_id":      endpoint.EndpointID,
 		"observed_at":      time.Now().UTC().Format(time.RFC3339),
-		"platform_profile": platformName() + "-go-agent",
+		"platform_profile": currentPlatformName() + "-go-agent",
 		"results":          a.postureResults(),
 	}, nil); err != nil {
 		return err
@@ -162,6 +169,22 @@ func (a Agent) RunOnce() error {
 		}
 	}
 	return nil
+}
+
+func declaredCapabilities() []string {
+	capabilities := []string{"enroll", "heartbeat", "collect_posture_snapshot", "inspect_control", "collect_security_context", "collect_remediation_evidence"}
+	if currentPlatformName() != "macos" {
+		capabilities = append(capabilities, "apply_control", "rollback_control")
+	}
+	return capabilities
+}
+
+func executionHooks() map[string]bool {
+	return map[string]bool{
+		"captures_rollback_artifacts": currentPlatformName() != "macos",
+		"reports_execution_results":   true,
+		"supports_dry_run":            true,
+	}
 }
 
 func (a Agent) doJSON(method, path string, body any, out any) error {
@@ -197,9 +220,12 @@ func (a Agent) doJSON(method, path string, body any, out any) error {
 }
 
 func (a Agent) postureResults() []postureResult {
-	if platformName() != "linux" {
+	if currentPlatformName() == "windows" {
+		return a.windowsPostureResults()
+	}
+	if currentPlatformName() != "linux" {
 		return []postureResult{{
-			ControlKey:      platformName() + ".agent.present",
+			ControlKey:      currentPlatformName() + ".agent.present",
 			Status:          "pass",
 			EvidenceSummary: "SHA Go agent reported successfully.",
 		}}
@@ -252,6 +278,9 @@ func (a Agent) executeAction(action responseAction) (string, string) {
 			}
 			return "succeeded", "Applied Linux SSH PasswordAuthentication no."
 		}
+		if currentPlatformName() == "windows" && action.ControlID != nil && *action.ControlID == "control.windows.firewall-all-profiles" {
+			return a.applyWindowsFirewallAllProfiles()
+		}
 	case "rollback_control":
 		if action.ControlID != nil && *action.ControlID == "linux.ssh.password-authentication-disabled" {
 			if err := os.Remove(a.config.SSHDHardeningPath); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -259,8 +288,88 @@ func (a Agent) executeAction(action responseAction) (string, string) {
 			}
 			return "succeeded", "Rolled back Linux SSH PasswordAuthentication managed file."
 		}
+		if currentPlatformName() == "windows" && action.ControlID != nil && *action.ControlID == "control.windows.firewall-all-profiles" {
+			return a.rollbackWindowsFirewallAllProfiles()
+		}
 	}
 	return "failed", "Unsupported SHA Go agent action/control pair."
+}
+
+func (a Agent) windowsPostureResults() []postureResult {
+	current := "unknown"
+	status := "warn"
+	evidence := "Windows Firewall profile state could not be inspected."
+	output, err := runPowerShell("$disabled = @(Get-NetFirewallProfile -Name Domain,Private,Public | Where-Object { -not $_.Enabled }); if ($disabled.Count -eq 0) { 'enabled' } else { ($disabled | ForEach-Object { $_.Name }) -join ',' }")
+	if err == nil {
+		current = strings.TrimSpace(output)
+		if current == "enabled" {
+			status = "pass"
+			evidence = "Domain, Private, and Public firewall profiles are enabled."
+		} else {
+			status = "fail"
+			evidence = "Windows Firewall disabled profile(s): " + current + "."
+		}
+	}
+	recommended := "enabled"
+	severity := "high"
+	return []postureResult{
+		{
+			ControlKey:       "windows.firewall.all-profiles-enabled",
+			Status:           status,
+			CurrentValue:     &current,
+			RecommendedValue: &recommended,
+			Severity:         &severity,
+			EvidenceSummary:  evidence,
+		},
+		{
+			ControlKey:      "windows.agent.present",
+			Status:          "pass",
+			EvidenceSummary: "SHA Go agent reported successfully.",
+		},
+	}
+}
+
+func (a Agent) applyWindowsFirewallAllProfiles() (string, string) {
+	path := psQuote(a.config.WindowsFirewallRollbackPath)
+	script := "$rollback = '" + path + "'; " +
+		"$parent = Split-Path -Parent $rollback; if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }; " +
+		"if (-not (Test-Path -LiteralPath $rollback)) { Get-NetFirewallProfile -Name Domain,Private,Public | Select-Object Name,Enabled | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $rollback -Encoding UTF8 }; " +
+		"Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True"
+	if output, err := runPowerShell(script); err != nil {
+		return "failed", strings.TrimSpace(output + " " + err.Error())
+	}
+	return "succeeded", "Enabled Windows Firewall Domain, Private, and Public profiles; rollback saved to " + a.config.WindowsFirewallRollbackPath + "."
+}
+
+func (a Agent) rollbackWindowsFirewallAllProfiles() (string, string) {
+	path := psQuote(a.config.WindowsFirewallRollbackPath)
+	script := "$rollback = '" + path + "'; " +
+		"if (-not (Test-Path -LiteralPath $rollback)) { throw \"No SHA firewall rollback artifact found at $rollback\" }; " +
+		"$profiles = @(Get-Content -LiteralPath $rollback -Raw | ConvertFrom-Json); " +
+		"foreach ($profile in $profiles) { Set-NetFirewallProfile -Profile ([string]$profile.Name) -Enabled ([bool]$profile.Enabled) }; " +
+		"Remove-Item -LiteralPath $rollback -Force"
+	if output, err := runPowerShell(script); err != nil {
+		return "failed", strings.TrimSpace(output + " " + err.Error())
+	}
+	return "succeeded", "Restored Windows Firewall profile states from SHA rollback artifact."
+}
+
+func runPowerShell(script string) (string, error) {
+	return runCommand("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
+}
+
+func runCommandWithTimeout(name string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
+	if ctx.Err() != nil {
+		return string(output), ctx.Err()
+	}
+	return string(output), err
+}
+
+func psQuote(value string) string {
+	return strings.ReplaceAll(value, "'", "''")
 }
 
 func applySSHHardening(path string) error {
@@ -301,7 +410,7 @@ func fingerprint(hostname, profileID string) string {
 	if machineID == "" {
 		machineID = hostname
 	}
-	sum := sha256.Sum256([]byte(platformName() + "|" + strings.TrimSpace(machineID) + "|" + profileID))
+	sum := sha256.Sum256([]byte(currentPlatformName() + "|" + strings.TrimSpace(machineID) + "|" + profileID))
 	return "sha-go-" + hex.EncodeToString(sum[:])
 }
 
@@ -316,7 +425,7 @@ func platformName() string {
 }
 
 func platformVersion() string {
-	if platformName() == "linux" {
+	if currentPlatformName() == "linux" {
 		content := firstReadable("/etc/os-release")
 		for _, line := range strings.Split(content, "\n") {
 			if strings.HasPrefix(line, "PRETTY_NAME=") {

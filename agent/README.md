@@ -11,6 +11,7 @@ Current implementation:
 - queued response-action polling and result reporting
 - bounded evidence actions for `collect_security_context`, `collect_remediation_evidence`, and `inspect_control`
 - apply/rollback for `linux.ssh.password-authentication-disabled`
+- Windows Firewall all-profile posture plus apply/rollback for `control.windows.firewall-all-profiles`
 
 Install as a Linux systemd service:
 
@@ -24,6 +25,12 @@ Build release bundles:
 
 ```bash
 scripts/build-sha-agent-release.sh
+```
+
+Verify release bundles:
+
+```bash
+scripts/test-sha-agent-release.sh
 ```
 
 Build and run once:
@@ -41,6 +48,7 @@ Config shape:
   "api_token": "agent-token",
   "profile_id": "linux-prod",
   "agent_version": "sha-go-agent-v0.1.0",
-  "sshd_hardening_path": "/etc/ssh/sshd_config.d/99-sha-hardening.conf"
+  "sshd_hardening_path": "/etc/ssh/sshd_config.d/99-sha-hardening.conf",
+  "windows_firewall_rollback_path": "C:\\\\ProgramData\\\\SHA\\\\firewall-profiles-rollback.json"
 }
 ```

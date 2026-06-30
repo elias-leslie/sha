@@ -21,7 +21,7 @@ Implemented:
 - frontend dashboard pages for fleet, endpoints, controls, installers, and approvals, each with a live/fixture data-source indicator, weighted endpoint posture score, and endpoint response-action trail
 - deterministic Linux, Windows, and macOS bootstrap artifact generation for installer profiles, served with `Content-Disposition` and `X-SHA-Artifact-Sha256` integrity headers
 - generated Linux, Windows, and macOS reporters poll approval-backed response actions; all complete bounded incident-response context/evidence collection, while Linux and Windows each have a first reversible typed hardening control
-- cross-compiled Go endpoint agent release path with Linux systemd, macOS launchd, and Windows scheduled-task packaging for enroll, heartbeat, posture upload, response-action polling, evidence reporting, and SSH password-authentication apply/rollback
+- cross-compiled Go endpoint agent release path with Linux systemd, macOS launchd, and Windows scheduled-task packaging for enroll, heartbeat, posture upload, response-action polling, evidence reporting, Linux SSH password-authentication apply/rollback, and Windows Firewall all-profile apply/rollback
 - optional API token enforcement for control-plane `/api` routes, with generated reporters carrying a least-privilege agent token when configured
 - a human-in-the-loop approval workflow with two typed request kinds (`hardening_change`, `elevated_troubleshooting`), bounded grant TTLs (15–240 min), manual emergency grants, append-only audit events, and concurrency-safe state transitions
 - an approval-backed response-action queue for dispatching typed agent work and reporting execution results without arbitrary remote shell access

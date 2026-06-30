@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -63,6 +64,72 @@ func TestAgentRunOnceCompletesApprovedSSHAction(t *testing.T) {
 	}
 	if !completed {
 		t.Fatal("action result was not posted")
+	}
+}
+
+func TestAgentCompletesWindowsFirewallAction(t *testing.T) {
+	restorePlatform := currentPlatformName
+	restoreRunCommand := runCommand
+	currentPlatformName = func() string { return "windows" }
+	var commands []string
+	runCommand = func(name string, args ...string) (string, error) {
+		commands = append(commands, name+" "+args[len(args)-1])
+		return "", nil
+	}
+	t.Cleanup(func() {
+		currentPlatformName = restorePlatform
+		runCommand = restoreRunCommand
+	})
+
+	controlID := "control.windows.firewall-all-profiles"
+	agent := Agent{config: Config{WindowsFirewallRollbackPath: `C:\ProgramData\SHA\firewall.json`}}
+	status, summary := agent.executeAction(responseAction{Action: "apply_control", ControlID: &controlID})
+	if status != "succeeded" {
+		t.Fatalf("unexpected status %q: %s", status, summary)
+	}
+	if len(commands) != 1 || !strings.Contains(commands[0], "Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True") {
+		t.Fatalf("unexpected apply command: %#v", commands)
+	}
+
+	status, summary = agent.executeAction(responseAction{Action: "rollback_control", ControlID: &controlID})
+	if status != "succeeded" {
+		t.Fatalf("unexpected rollback status %q: %s", status, summary)
+	}
+	if len(commands) != 2 || !strings.Contains(commands[1], "Set-NetFirewallProfile -Profile ([string]$profile.Name) -Enabled ([bool]$profile.Enabled)") {
+		t.Fatalf("unexpected rollback command: %#v", commands)
+	}
+}
+
+func TestWindowsPostureReportsFirewallState(t *testing.T) {
+	restorePlatform := currentPlatformName
+	restoreRunCommand := runCommand
+	currentPlatformName = func() string { return "windows" }
+	runCommand = func(name string, args ...string) (string, error) {
+		return "enabled\n", nil
+	}
+	t.Cleanup(func() {
+		currentPlatformName = restorePlatform
+		runCommand = restoreRunCommand
+	})
+
+	results := (Agent{}).postureResults()
+	if results[0].ControlKey != "windows.firewall.all-profiles-enabled" || results[0].Status != "pass" {
+		t.Fatalf("unexpected windows posture: %#v", results)
+	}
+}
+
+func TestMacOSAgentDeclaresObserveOnlyCapabilities(t *testing.T) {
+	restorePlatform := currentPlatformName
+	currentPlatformName = func() string { return "macos" }
+	t.Cleanup(func() { currentPlatformName = restorePlatform })
+
+	for _, capability := range declaredCapabilities() {
+		if capability == "apply_control" || capability == "rollback_control" {
+			t.Fatalf("macOS Go agent must not declare hardening mutation capability: %#v", declaredCapabilities())
+		}
+	}
+	if executionHooks()["captures_rollback_artifacts"] {
+		t.Fatal("macOS observe-only agent must not claim rollback artifacts")
 	}
 }
 
