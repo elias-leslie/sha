@@ -63,6 +63,50 @@ def test_agent_api_token_is_limited_to_reporter_routes(db_path):
         ).status_code == 202
 
 
+def test_readonly_api_token_can_read_but_not_mutate_or_download_agent_artifacts(db_path):
+    with TestClient(
+        create_app(
+            database_url=f"sqlite:///{db_path}",
+            api_token="operator-token",
+            readonly_api_token="readonly-token",
+        )
+    ) as client:
+        readonly_headers = {"Authorization": "Bearer readonly-token"}
+        operator_headers = {"Authorization": "Bearer operator-token"}
+
+        assert client.get("/api/endpoints", headers=readonly_headers).status_code == 200
+        forbidden_write = client.post(
+            "/api/endpoints/enroll",
+            headers=readonly_headers,
+            json={
+                "agent_fingerprint": "readonly-fingerprint",
+                "hostname": "readonly-host",
+                "platform": "linux",
+                "agent_version": "agent-test",
+            },
+        )
+        assert forbidden_write.status_code == 403
+        assert forbidden_write.json() == {"detail": "forbidden for read-only token"}
+
+        created = client.post(
+            "/api/installer-profiles",
+            headers=operator_headers,
+            json={
+                "name": "Linux Readonly Guard",
+                "platform": "linux",
+                "channel": "stable",
+                "control_plane_url": "https://sha.example.test/control",
+                "policy_mode": "observe",
+            },
+        )
+        assert created.status_code == 201
+        artifact = client.get(
+            f"/api/installer-profiles/{created.json()['id']}/artifact",
+            headers=readonly_headers,
+        )
+        assert artifact.status_code == 403
+
+
 def test_protected_installer_artifact_embeds_active_api_token(db_path):
     headers = {"Authorization": "Bearer secret-token"}
     with TestClient(create_app(database_url=f"sqlite:///{db_path}", api_token="secret-token")) as client:

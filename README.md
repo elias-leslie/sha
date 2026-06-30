@@ -31,7 +31,7 @@ Implemented:
 
 Not yet production-ready:
 
-- no full multi-user authentication or SSO layer; built-in auth is limited to operator and least-privilege agent API tokens
+- no full multi-user authentication or SSO layer; built-in auth is limited to operator, read-only, and least-privilege agent API tokens
 - no packaged cross-platform privileged Go endpoint service yet; the checked-in Go agent currently covers the Linux SSH-hardening path
 - no fully managed production HA offering; a starter PostgreSQL/nginx compose path is checked in for HA-ready self-hosting
 - no live AI/operator integration is required or bundled
@@ -133,6 +133,7 @@ Backend settings use the `SHA_` prefix:
 - `SHA_DATABASE_URL` — defaults to `sqlite:///data/sha.sqlite3` when run from `backend/`
 - `SHA_PORT` — documented local backend port, default `8010`
 - `SHA_API_TOKEN` — optional bearer/API token; when set, all `/api/*` routes require `Authorization: Bearer <token>` or `X-SHA-API-Token`
+- `SHA_READONLY_API_TOKEN` — optional read-only token for dashboards/auditors; GET-only and blocked from installer artifact downloads
 - `SHA_AGENT_API_TOKEN` — optional least-privilege token embedded in generated reporters; it can only enroll, heartbeat, post posture, fetch assigned response actions, and report action results
 
 Frontend settings:

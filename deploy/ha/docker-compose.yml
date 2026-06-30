@@ -20,6 +20,7 @@ services:
     environment:
       SHA_DATABASE_URL: postgresql+psycopg://sha:${POSTGRES_PASSWORD:-sha-dev-password}@postgres:5432/sha
       SHA_API_TOKEN: ${SHA_API_TOKEN:-operator-token}
+      SHA_READONLY_API_TOKEN: ${SHA_READONLY_API_TOKEN:-readonly-token}
       SHA_AGENT_API_TOKEN: ${SHA_AGENT_API_TOKEN:-agent-token}
     depends_on:
       postgres:
