@@ -4,6 +4,7 @@ import json
 import re
 from textwrap import dedent
 
+from app.config import get_settings
 from app.models import InstallerProfile
 
 _LINUX_AGENT_VERSION = "bootstrap-linux-v1"
@@ -81,6 +82,7 @@ def _profile_config(
         "site_id": profile.site_id,
         "agent_version": agent_version,
         "platform_profile": platform_profile,
+        "api_token": get_settings().api_token,
         "capabilities": capabilities,
         "execution_hooks": execution_hooks,
     }
@@ -121,11 +123,19 @@ def _linux_reporter_script() -> str:
             return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
 
 
+        def add_auth_header(http_request: request.Request) -> None:
+            config = load_config()
+            api_token = config.get("api_token")
+            if api_token:
+                http_request.add_header("Authorization", f"Bearer {api_token}")
+
+
         def post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
             body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
             http_request = request.Request(url, data=body, method="POST")
             http_request.add_header("Accept", "application/json")
             http_request.add_header("Content-Type", "application/json")
+            add_auth_header(http_request)
             with request.urlopen(http_request, timeout=20) as response:
                 return json.load(response)
 
@@ -133,6 +143,7 @@ def _linux_reporter_script() -> str:
         def get_json(url: str) -> dict[str, object]:
             http_request = request.Request(url, method="GET")
             http_request.add_header("Accept", "application/json")
+            add_auth_header(http_request)
             with request.urlopen(http_request, timeout=20) as response:
                 return json.load(response)
 
