@@ -213,7 +213,7 @@ def post(path: str, payload: dict[str, object]) -> dict[str, object]:
 expires_at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=45)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 grant = post("/api/approval-grants", {
     "endpoint_ids": [endpoint_id],
-    "allowed_actions": ["collect_security_context"],
+    "allowed_actions": ["request_elevated_troubleshooting", "collect_security_context"],
     "control_ids": [],
     "troubleshooting_scopes": ["service_status"],
     "requested_by": "macos-e2e",
