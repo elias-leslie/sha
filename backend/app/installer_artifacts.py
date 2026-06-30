@@ -23,7 +23,7 @@ _LINUX_REPORTER_CAPABILITIES = sorted([*_READ_ONLY_REPORTER_CAPABILITIES, "apply
 
 _READ_ONLY_EXECUTION_HOOKS = {
     "captures_rollback_artifacts": False,
-    "reports_execution_results": False,
+    "reports_execution_results": True,
     "supports_dry_run": False,
 }
 _LINUX_EXECUTION_HOOKS = {
@@ -803,6 +803,10 @@ def _windows_reporter_script() -> str:
             return Invoke-RestMethod -Method Post -Uri $Url -Body $json -ContentType 'application/json'
         }
 
+        function Invoke-JsonGet([string]$Url) {
+            return Invoke-RestMethod -Method Get -Uri $Url -ContentType 'application/json'
+        }
+
         function New-Result(
             [string]$ControlKey,
             [string]$Status,
@@ -833,6 +837,63 @@ def _windows_reporter_script() -> str:
                 $parts += $currentVersion.ReleaseId
             }
             return (($parts | Where-Object { $_ }) -join ' ').Trim()
+        }
+
+        function Get-ProcessInventoryResult {
+            try {
+                $processes = @(Get-Process)
+            }
+            catch {
+                return New-Result 'windows.telemetry.process-inventory' 'warn' 'Get-Process failed' 'bounded process inventory collected' 'medium' "Process inventory failed: $($_.Exception.Message)" $false
+            }
+            $top = (($processes | Group-Object ProcessName | Sort-Object Count -Descending | Select-Object -First 8 | ForEach-Object { "$($_.Name):$($_.Count)" }) -join ', ')
+            return New-Result 'windows.telemetry.process-inventory' 'pass' "processes=$($processes.Count); top=$top" 'bounded process inventory collected' $null 'Collected process count and top process names for incident response context.' $false
+        }
+
+        function Get-NetworkBindingsResult {
+            if (-not (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue)) {
+                return New-Result 'windows.telemetry.network-bindings' 'not_applicable' 'Get-NetTCPConnection missing' 'bounded TCP listener inventory collected' $null 'TCP listener inspection cmdlet is unavailable.' $false
+            }
+            try {
+                $listeners = @(Get-NetTCPConnection -State Listen -ErrorAction Stop)
+            }
+            catch {
+                return New-Result 'windows.telemetry.network-bindings' 'warn' 'Get-NetTCPConnection failed' 'bounded TCP listener inventory collected' 'medium' "TCP listener inventory failed: $($_.Exception.Message)" $false
+            }
+            $sample = (($listeners | Sort-Object LocalPort, OwningProcess | Select-Object -First 50 | ForEach-Object { "tcp/$($_.LocalPort):pid=$($_.OwningProcess)" }) -join ',')
+            if (-not $sample) {
+                $sample = 'none observed'
+            }
+            return New-Result 'windows.telemetry.network-bindings' 'pass' "listeners=$($listeners.Count); sample=$sample" 'bounded TCP listener inventory collected' $null 'Collected listening TCP ports for containment triage.' $false
+        }
+
+        function Get-SecurityLogResult {
+            if (-not (Get-Command Get-WinEvent -ErrorAction SilentlyContinue)) {
+                return New-Result 'windows.telemetry.security-logs' 'not_applicable' 'Get-WinEvent missing' 'recent Security log readable' $null 'Security event inspection cmdlet is unavailable.' $false
+            }
+            try {
+                $events = @(Get-WinEvent -LogName Security -MaxEvents 5 -ErrorAction Stop)
+                return New-Result 'windows.telemetry.security-logs' 'pass' "recent_events=$($events.Count)" 'recent Security log readable' $null 'Read recent Windows Security log entries for incident response context.' $false
+            }
+            catch {
+                return New-Result 'windows.telemetry.security-logs' 'warn' 'Security log unreadable' 'recent Security log readable' 'medium' "Security log read failed: $($_.Exception.Message)" $false
+            }
+        }
+
+        function Get-IdentityStateResult {
+            $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+            return New-Result 'windows.telemetry.identity-state' 'pass' $identity.Name 'current service identity captured' $null 'Captured current Windows service identity for response attribution.' $false
+        }
+
+        function Get-ServiceStatusResult {
+            try {
+                $services = @(Get-Service)
+                $stopped = @($services | Where-Object { $_.Status -ne 'Running' })
+                return New-Result 'windows.telemetry.service-status' 'pass' "services=$($services.Count); stopped=$($stopped.Count)" 'bounded service inventory collected' $null 'Collected service running/stopped counts for incident response triage.' $false
+            }
+            catch {
+                return New-Result 'windows.telemetry.service-status' 'warn' 'Get-Service failed' 'bounded service inventory collected' 'medium' "Service inventory failed: $($_.Exception.Message)" $false
+            }
         }
 
         function Get-FirewallResult {
@@ -889,6 +950,64 @@ def _windows_reporter_script() -> str:
             }
         }
 
+        function Get-ContextResultForScope([string]$Scope) {
+            switch ($Scope) {
+                'process_inventory' { return Get-ProcessInventoryResult }
+                'network_bindings' { return Get-NetworkBindingsResult }
+                'security_logs' { return Get-SecurityLogResult }
+                'firewall_state' { return Get-FirewallResult }
+                'identity_state' { return Get-IdentityStateResult }
+                'service_status' { return Get-ServiceStatusResult }
+                default { return New-Result 'windows.telemetry.unsupported-scope' 'error' $Scope 'supported troubleshooting scope' 'medium' 'Unsupported troubleshooting scope requested.' $false }
+            }
+        }
+
+        function ConvertTo-ResultSummary($Results) {
+            $summary = (($Results | ForEach-Object { "$($_['control_key'])=$($_['status']): $($_['evidence_summary'])" }) -join '; ')
+            if ($summary.Length -gt 4000) {
+                return $summary.Substring(0, 4000)
+            }
+            return $summary
+        }
+
+        function Complete-ResponseAction($ControlPlaneUrl, $Action, [string]$Status, [string]$Summary) {
+            Invoke-JsonPost "$ControlPlaneUrl/api/response-actions/$($Action.response_action_id)/result" ([ordered]@{
+                status = $Status
+                result_summary = $Summary
+            }) | Out-Null
+        }
+
+        function Invoke-ResponseAction($ControlPlaneUrl, $Action) {
+            $actionName = [string]$Action.action
+            if ($actionName -in @('collect_security_context', 'inspect_control', 'request_elevated_troubleshooting')) {
+                $results = @(Get-ContextResultForScope ([string]$Action.troubleshooting_scope))
+                $status = if (@($results | Where-Object { $_['status'] -eq 'error' }).Count) { 'failed' } else { 'succeeded' }
+                Complete-ResponseAction $ControlPlaneUrl $Action $status (ConvertTo-ResultSummary $results)
+                return
+            }
+            if ($actionName -eq 'collect_remediation_evidence') {
+                $results = @(
+                    Get-FirewallResult
+                    Get-DefenderRealTimeProtectionResult
+                    Get-BitLockerSystemDriveResult
+                    Get-SecureBootResult
+                    Get-ProcessInventoryResult
+                    Get-NetworkBindingsResult
+                    Get-SecurityLogResult
+                )
+                Complete-ResponseAction $ControlPlaneUrl $Action 'succeeded' (ConvertTo-ResultSummary $results)
+                return
+            }
+            Complete-ResponseAction $ControlPlaneUrl $Action 'failed' "Unsupported Windows bootstrap action: $actionName."
+        }
+
+        function Invoke-PendingResponseActions([string]$ControlPlaneUrl, [string]$EndpointId) {
+            $payload = Invoke-JsonGet "$ControlPlaneUrl/api/endpoints/$EndpointId/response-actions"
+            foreach ($action in @($payload.items)) {
+                Invoke-ResponseAction $ControlPlaneUrl $action
+            }
+        }
+
         try {
             $config = Get-Config
             $machineGuid = [string](Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Microsoft\Cryptography' -Name 'MachineGuid')
@@ -929,6 +1048,7 @@ def _windows_reporter_script() -> str:
                 platform_profile = $config.platform_profile
                 results = $results
             }) | Out-Null
+            Invoke-PendingResponseActions $controlPlaneUrl $endpointId
         }
         catch {
             Write-Error "sha reporter failed: $($_.Exception.Message)"

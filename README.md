@@ -20,7 +20,7 @@ Implemented:
 - backend API (7 routers, 19 routes) for enrollment, heartbeats, posture snapshots, installer profiles, approval requests/grants, response actions, and source-pack catalog reads
 - frontend dashboard pages for fleet, endpoints, controls, installers, and approvals, each with a live/fixture data-source indicator, weighted endpoint posture score, and endpoint response-action trail
 - deterministic Linux and Windows bootstrap artifact generation for installer profiles, served with `Content-Disposition` and `X-SHA-Artifact-Sha256` integrity headers
-- generated Linux reporters poll approval-backed response actions, complete bounded incident-response context/evidence collection, and apply/rollback the first typed SSH hardening control
+- generated Linux and Windows reporters poll approval-backed response actions; both complete bounded incident-response context/evidence collection, and Linux can apply/rollback the first typed SSH hardening control
 - a human-in-the-loop approval workflow with two typed request kinds (`hardening_change`, `elevated_troubleshooting`), bounded grant TTLs (15–240 min), manual emergency grants, append-only audit events, and concurrency-safe state transitions
 - an approval-backed response-action queue for dispatching typed agent work and reporting execution results without arbitrary remote shell access
 - 22 generated JSON Schemas under `schemas/generated/`, exported deterministically from the Pydantic contracts
@@ -40,9 +40,9 @@ Do not expose the backend or dashboard to an untrusted network without adding au
 The generated installer artifacts are not just stubs — each one installs a small read-only reporter (a systemd timer on Linux, a scheduled task on Windows, both on a 15-minute cadence) that runs a concrete posture check and reports back through the full `enroll → heartbeat → posture-snapshot` cycle:
 
 - **Linux** — firewall service active (ufw / firewalld / nftables), SSH `PasswordAuthentication`, root password lock, automatic-update units, audit/log-retention signal, bounded hardware summary, process inventory, and listening-port inventory.
-- **Windows** — all firewall profiles enabled, Microsoft Defender real-time protection, BitLocker system-drive protection, and Secure Boot.
+- **Windows** — all firewall profiles enabled, Microsoft Defender real-time protection, BitLocker system-drive protection, Secure Boot, process inventory, TCP listener inventory, recent Security log readability, service status, and current service identity.
 
-The reporters avoid arbitrary endpoint control by construction: Windows stays read-only, while Linux can complete approval-backed context/evidence response actions and one reversible SSH hardening action (`PasswordAuthentication no`) using a SHA-managed drop-in plus rollback artifact. Posture results roll up into a per-endpoint weighted score and a control "drift matrix" on the dashboard.
+The reporters avoid arbitrary endpoint control by construction: Windows stays read-only with bounded context/evidence actions, while Linux can also run one reversible SSH hardening action (`PasswordAuthentication no`) using a SHA-managed drop-in plus rollback artifact. Posture results roll up into a per-endpoint weighted score and a control "drift matrix" on the dashboard.
 
 ## Safety model
 

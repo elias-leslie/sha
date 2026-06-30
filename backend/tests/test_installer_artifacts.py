@@ -178,13 +178,19 @@ def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task
     assert "Invoke-RestMethod" in first.text
     assert "MachineGuid" in first.text
     assert "/api/endpoints/enroll" in first.text
+    assert "/response-actions" in first.text
     assert "/api/posture-snapshots" in first.text
     assert "windows.firewall.all-profiles-enabled" in first.text
     assert "windows.defender.real-time-protection" in first.text
     assert "windows.bitlocker.system-drive-protected" in first.text
     assert "windows.secure-boot.enabled" in first.text
+    assert "windows.telemetry.process-inventory" in first.text
+    assert "windows.telemetry.network-bindings" in first.text
+    assert "Get-NetTCPConnection" in first.text
+    assert "Get-ProcessInventoryResult" in first.text
+    assert "Invoke-PendingResponseActions" in first.text
     assert '"apply_control"' not in first.text
-    assert '"reports_execution_results": false' in first.text
+    assert '"reports_execution_results": true' in first.text
 
 
 
