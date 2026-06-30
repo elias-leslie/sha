@@ -202,6 +202,13 @@ HA compose deployment E2E:
 scripts/test-ha-compose.sh
 ```
 
+HA PostgreSQL backup/restore:
+
+```bash
+PROJECT=ha scripts/backup-ha-postgres.sh
+CONFIRM_RESTORE=sha-restore PROJECT=ha scripts/restore-ha-postgres.sh backups/sha-postgres-YYYYmmddHHMMSS.dump
+```
+
 ## Runtime smoke test
 
 With the backend running:
