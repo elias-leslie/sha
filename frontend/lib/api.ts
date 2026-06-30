@@ -1,4 +1,4 @@
-export type Platform = "windows" | "linux";
+export type Platform = "windows" | "linux" | "macos";
 export type EndpointStatus = "pending" | "active" | "stale";
 export type ConnectivityStatus = "online" | "degraded" | null;
 export type PostureStatus = "pass" | "fail" | "warn" | "error" | "not_applicable";
@@ -794,6 +794,18 @@ const FIXTURE_INSTALLER_PROFILES = [
     created_at: "2026-04-18T19:18:00Z",
     updated_at: "2026-04-18T19:18:00Z",
   },
+  {
+    id: "ip_macos_laptop",
+    name: "macOS Laptop",
+    platform: "macos",
+    channel: "preview",
+    control_plane_url: "https://sha.example.test",
+    policy_mode: "observe",
+    tenant_id: "tenant-demo",
+    site_id: "site-demo-mac",
+    created_at: "2026-04-18T19:28:00Z",
+    updated_at: "2026-04-18T19:28:00Z",
+  },
 ] satisfies readonly InstallerProfile[];
 
 const CONTROL_LIBRARY = [
@@ -1003,7 +1015,14 @@ export function getControlLibrary() {
 }
 
 export function platformDisplayName(platform: Platform) {
-  return platform === "windows" ? "Windows" : "Linux";
+  switch (platform) {
+    case "windows":
+      return "Windows";
+    case "macos":
+      return "macOS";
+    default:
+      return "Linux";
+  }
 }
 
 export function connectivityDisplay(status: ConnectivityStatus) {

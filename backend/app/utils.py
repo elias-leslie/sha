@@ -10,7 +10,7 @@ from fastapi import HTTPException
 UTC = timezone.utc
 
 ENDPOINT_STATUSES = {"pending", "active", "stale"}
-ENDPOINT_PLATFORMS = {"windows", "linux"}
+ENDPOINT_PLATFORMS = {"windows", "linux", "macos"}
 CONNECTIVITY_STATUSES = {"online", "degraded"}
 AGENT_CAPABILITIES = {
     "enroll",

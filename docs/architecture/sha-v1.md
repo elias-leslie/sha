@@ -4,7 +4,7 @@
 
 1. SHA should be usable from a clean public clone without private infrastructure.
 2. Operator automation, if added, should reason centrally on the server; endpoint agents should stay deterministic and non-LLM.
-3. Windows and Linux support matter first; macOS is deferred.
+3. Windows and Linux support matter first; macOS starts as observe-only bootstrap coverage.
 4. Safe hardening beats maximal hardening. High-disruption remediations must not auto-fire.
 5. Official or primary-source guidance should be normalized into versioned control packs, not applied from ad hoc scraping.
 
@@ -33,7 +33,7 @@ Responsibilities:
 - normalized control catalog and source provenance
 - posture snapshots and drift history
 - remediation proposals, rollout policies, and rollback records
-- installer/package generation for Windows and Linux agents
+- installer/package generation for Windows, Linux, and macOS bootstrap reporters
 - approval workflow for elevated access and disruptive remediations
 - API surface for endpoint agents and optional operator automation
 
@@ -205,7 +205,7 @@ Operator-facing views:
 - remediation queue and rollout history
 - approval inbox for elevated access and disruptive controls
 - baseline / control-pack browser with source provenance
-- package builder for Windows/Linux installer output
+- package builder for Windows/Linux/macOS installer output
 - operator-assistant activity log and audit trail when automation is integrated
 
 Installer/profile builder:

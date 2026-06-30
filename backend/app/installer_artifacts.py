@@ -8,8 +8,10 @@ from app.models import InstallerProfile
 
 _LINUX_AGENT_VERSION = "bootstrap-linux-v1"
 _WINDOWS_AGENT_VERSION = "bootstrap-windows-v1"
+_MACOS_AGENT_VERSION = "bootstrap-macos-v1"
 _LINUX_PLATFORM_PROFILE = "linux-bootstrap-v1"
 _WINDOWS_PLATFORM_PROFILE = "windows-bootstrap-v1"
+_MACOS_PLATFORM_PROFILE = "macos-bootstrap-v1"
 
 _READ_ONLY_REPORTER_CAPABILITIES = [
     "collect_posture_snapshot",
@@ -37,6 +39,8 @@ _WINDOWS_EXECUTION_HOOKS = {
     "reports_execution_results": True,
     "supports_dry_run": False,
 }
+_MACOS_REPORTER_CAPABILITIES = _READ_ONLY_REPORTER_CAPABILITIES
+_MACOS_EXECUTION_HOOKS = _READ_ONLY_EXECUTION_HOOKS
 
 
 def render_installer_artifact(profile: InstallerProfile, *, api_token: str | None = None) -> tuple[str, str, str]:
@@ -51,6 +55,12 @@ def render_installer_artifact(profile: InstallerProfile, *, api_token: str | Non
             _artifact_filename(profile, extension="ps1"),
             "text/x-powershell; charset=utf-8",
             _render_windows_bootstrap(profile, api_token=api_token),
+        )
+    if profile.platform == "macos":
+        return (
+            _artifact_filename(profile, extension="sh"),
+            "text/x-shellscript; charset=utf-8",
+            _render_macos_bootstrap(profile, api_token=api_token),
         )
     raise ValueError(f"unsupported installer profile platform: {profile.platform}")
 
@@ -784,6 +794,571 @@ def _render_linux_bootstrap(profile: InstallerProfile, *, api_token: str | None 
             "systemctl start sha-reporter.service",
             "",
             f'echo "SHA bootstrap installed for profile {profile.id}"',
+            "",
+        ]
+    )
+
+
+def _macos_reporter_script() -> str:
+    return dedent(
+        """
+        #!/usr/bin/env python3
+        from __future__ import annotations
+
+        from collections import Counter
+        import datetime as dt
+        import hashlib
+        import json
+        import os
+        import platform
+        import socket
+        import subprocess
+        import sys
+        from pathlib import Path
+        from urllib import error, request
+
+        CONFIG_PATH = Path("/Library/Application Support/SHA/reporter-config.json")
+
+
+        def utc_now() -> str:
+            return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+        def load_config() -> dict[str, object]:
+            return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+
+
+        def add_auth_header(http_request: request.Request) -> None:
+            config = load_config()
+            api_token = config.get("api_token")
+            if api_token:
+                http_request.add_header("Authorization", f"Bearer {api_token}")
+
+
+        def post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
+            body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+            http_request = request.Request(url, data=body, method="POST")
+            http_request.add_header("Accept", "application/json")
+            http_request.add_header("Content-Type", "application/json")
+            add_auth_header(http_request)
+            with request.urlopen(http_request, timeout=20) as response:
+                return json.load(response)
+
+
+        def get_json(url: str) -> dict[str, object]:
+            http_request = request.Request(url, method="GET")
+            http_request.add_header("Accept", "application/json")
+            add_auth_header(http_request)
+            with request.urlopen(http_request, timeout=20) as response:
+                return json.load(response)
+
+
+        def run_command(*args: str) -> tuple[bool, str]:
+            try:
+                completed = subprocess.run(
+                    list(args),
+                    capture_output=True,
+                    check=False,
+                    text=True,
+                    timeout=10,
+                )
+            except FileNotFoundError:
+                return False, "command missing"
+            output = (completed.stdout + completed.stderr).strip()
+            return completed.returncode == 0, output
+
+
+        def read_machine_id() -> str:
+            ok, output = run_command("ioreg", "-rd1", "-c", "IOPlatformExpertDevice")
+            if ok:
+                for line in output.splitlines():
+                    if "IOPlatformUUID" in line and "=" in line:
+                        value = line.split("=", 1)[1].strip().strip('"')
+                        if value:
+                            return value
+            hostname = socket.gethostname().strip().lower()
+            return hostname or "unknown-host"
+
+
+        def fingerprint_for_profile(profile_id: str) -> str:
+            seed = f"macos|{profile_id}|{read_machine_id()}"
+            return hashlib.sha256(seed.encode("utf-8")).hexdigest()
+
+
+        def platform_version() -> str:
+            version, _, machine = platform.mac_ver()
+            return f"macOS {version or platform.platform()} {machine or platform.machine()}".strip()
+
+
+        def sysctl_value(name: str) -> str:
+            ok, output = run_command("sysctl", "-n", name)
+            if ok and output:
+                return output.splitlines()[0].strip()
+            return "unknown"
+
+
+        def macos_hardware_summary_result() -> dict[str, object]:
+            memory_bytes = sysctl_value("hw.memsize")
+            memory_mb = str(int(memory_bytes) // 1024 // 1024) if memory_bytes.isdigit() else "unknown"
+            cpu_count = sysctl_value("hw.ncpu")
+            current = f"arch={platform.machine() or 'unknown'}; cpus={cpu_count}; mem_mb={memory_mb}"
+            return {
+                "control_key": "macos.telemetry.hardware-summary",
+                "status": "pass",
+                "current_value": current,
+                "recommended_value": "hardware inventory collected",
+                "severity": None,
+                "evidence_summary": "Collected bounded CPU, architecture, and memory inventory for incident response context.",
+                "reboot_required": False,
+            }
+
+
+        def macos_firewall_result() -> dict[str, object]:
+            ok, output = run_command("/usr/libexec/ApplicationFirewall/socketfilterfw", "--getglobalstate")
+            if not ok and output == "command missing":
+                return {
+                    "control_key": "macos.firewall.application-firewall-enabled",
+                    "status": "not_applicable",
+                    "current_value": "socketfilterfw missing",
+                    "recommended_value": "enabled",
+                    "severity": None,
+                    "evidence_summary": "macOS Application Firewall utility was not found.",
+                    "reboot_required": False,
+                }
+            normalized = output.lower()
+            enabled = "enabled" in normalized and "disabled" not in normalized
+            return {
+                "control_key": "macos.firewall.application-firewall-enabled",
+                "status": "pass" if enabled else "warn",
+                "current_value": "enabled" if enabled else "disabled",
+                "recommended_value": "enabled",
+                "severity": None if enabled else "medium",
+                "evidence_summary": f"socketfilterfw reported: {output[:200] or 'unknown'}.",
+                "reboot_required": False,
+            }
+
+
+        def macos_filevault_result() -> dict[str, object]:
+            ok, output = run_command("fdesetup", "status")
+            if not ok and output == "command missing":
+                return {
+                    "control_key": "macos.disk.filevault-enabled",
+                    "status": "not_applicable",
+                    "current_value": "fdesetup missing",
+                    "recommended_value": "on",
+                    "severity": None,
+                    "evidence_summary": "FileVault status utility was not found.",
+                    "reboot_required": False,
+                }
+            enabled = "filevault is on" in output.lower()
+            return {
+                "control_key": "macos.disk.filevault-enabled",
+                "status": "pass" if enabled else "fail",
+                "current_value": "on" if enabled else "off",
+                "recommended_value": "on",
+                "severity": None if enabled else "high",
+                "evidence_summary": f"fdesetup reported: {output[:200] or 'unknown'}.",
+                "reboot_required": False,
+            }
+
+
+        def macos_gatekeeper_result() -> dict[str, object]:
+            ok, output = run_command("spctl", "--status")
+            if not ok and output == "command missing":
+                return {
+                    "control_key": "macos.gatekeeper.assessments-enabled",
+                    "status": "not_applicable",
+                    "current_value": "spctl missing",
+                    "recommended_value": "assessments enabled",
+                    "severity": None,
+                    "evidence_summary": "Gatekeeper status utility was not found.",
+                    "reboot_required": False,
+                }
+            enabled = "assessments enabled" in output.lower()
+            return {
+                "control_key": "macos.gatekeeper.assessments-enabled",
+                "status": "pass" if enabled else "fail",
+                "current_value": "enabled" if enabled else "disabled",
+                "recommended_value": "assessments enabled",
+                "severity": None if enabled else "high",
+                "evidence_summary": f"spctl reported: {output[:200] or 'unknown'}.",
+                "reboot_required": False,
+            }
+
+
+        def macos_automatic_updates_result() -> dict[str, object]:
+            ok, output = run_command(
+                "defaults",
+                "read",
+                "/Library/Preferences/com.apple.SoftwareUpdate",
+                "AutomaticCheckEnabled",
+            )
+            if not ok and output == "command missing":
+                return {
+                    "control_key": "macos.updates.automatic-check-enabled",
+                    "status": "not_applicable",
+                    "current_value": "defaults missing",
+                    "recommended_value": "1",
+                    "severity": None,
+                    "evidence_summary": "macOS defaults utility was not found.",
+                    "reboot_required": False,
+                }
+            value = output.splitlines()[-1].strip() if output else "unknown"
+            enabled = value == "1"
+            return {
+                "control_key": "macos.updates.automatic-check-enabled",
+                "status": "pass" if enabled else "warn",
+                "current_value": value,
+                "recommended_value": "1",
+                "severity": None if enabled else "medium",
+                "evidence_summary": "Read the AutomaticCheckEnabled Software Update preference.",
+                "reboot_required": False,
+            }
+
+
+        def macos_security_logging_result() -> dict[str, object]:
+            diagnostics = Path("/var/db/diagnostics")
+            exists = diagnostics.exists()
+            return {
+                "control_key": "macos.telemetry.security-logging",
+                "status": "pass" if exists else "warn",
+                "current_value": "unified-log-store-present" if exists else "unified-log-store-missing",
+                "recommended_value": "unified log diagnostics store present",
+                "severity": None if exists else "medium",
+                "evidence_summary": "Checked for the local unified log diagnostics store used during incident review.",
+                "reboot_required": False,
+            }
+
+
+        def macos_process_inventory_result() -> dict[str, object]:
+            ok, output = run_command("ps", "-axo", "comm=")
+            if not ok and output == "command missing":
+                return {
+                    "control_key": "macos.telemetry.process-inventory",
+                    "status": "not_applicable",
+                    "current_value": "ps missing",
+                    "recommended_value": "bounded process inventory collected",
+                    "severity": None,
+                    "evidence_summary": "Process inventory is unavailable because ps is missing.",
+                    "reboot_required": False,
+                }
+            names = [Path(line.strip()).name[:64] for line in output.splitlines() if line.strip()]
+            if not names:
+                return {
+                    "control_key": "macos.telemetry.process-inventory",
+                    "status": "warn",
+                    "current_value": "no readable processes",
+                    "recommended_value": "bounded process inventory collected",
+                    "severity": "medium",
+                    "evidence_summary": "No process names could be read from ps output.",
+                    "reboot_required": False,
+                }
+            top_names = ", ".join(f"{name}:{count}" for name, count in Counter(names).most_common(8))
+            return {
+                "control_key": "macos.telemetry.process-inventory",
+                "status": "pass",
+                "current_value": f"processes={len(names)}; top={top_names}",
+                "recommended_value": "bounded process inventory collected",
+                "severity": None,
+                "evidence_summary": "Collected process count and top process names for containment triage.",
+                "reboot_required": False,
+            }
+
+
+        def macos_network_bindings_result() -> dict[str, object]:
+            ok, output = run_command("lsof", "-nP", "-iTCP", "-sTCP:LISTEN")
+            if not ok and output == "command missing":
+                return {
+                    "control_key": "macos.telemetry.network-bindings",
+                    "status": "not_applicable",
+                    "current_value": "lsof missing",
+                    "recommended_value": "bounded listener inventory collected",
+                    "severity": None,
+                    "evidence_summary": "Network listener inventory is unavailable because lsof is missing.",
+                    "reboot_required": False,
+                }
+            listeners: set[str] = set()
+            for line in output.splitlines()[1:]:
+                parts = line.split()
+                if len(parts) >= 9:
+                    listeners.add(parts[8][:80])
+            sample = ",".join(sorted(listeners)[:50]) if listeners else "none observed"
+            return {
+                "control_key": "macos.telemetry.network-bindings",
+                "status": "pass" if ok else "warn",
+                "current_value": f"listeners={len(listeners)}; sample={sample}",
+                "recommended_value": "bounded listener inventory collected",
+                "severity": None if ok else "medium",
+                "evidence_summary": "Collected listening TCP sockets from lsof for containment triage.",
+                "reboot_required": False,
+            }
+
+
+        def macos_identity_state_result() -> dict[str, object]:
+            ok, output = run_command("stat", "-f", "%Su", "/dev/console")
+            if not ok and output == "command missing":
+                return {
+                    "control_key": "macos.telemetry.identity-state",
+                    "status": "not_applicable",
+                    "current_value": "stat missing",
+                    "recommended_value": "console user collected",
+                    "severity": None,
+                    "evidence_summary": "Console-user identity context is unavailable because stat is missing.",
+                    "reboot_required": False,
+                }
+            console_user = output.splitlines()[0].strip() if ok and output else "unknown"
+            return {
+                "control_key": "macos.telemetry.identity-state",
+                "status": "pass" if ok else "warn",
+                "current_value": f"console_user={console_user}",
+                "recommended_value": "console user collected",
+                "severity": None if ok else "medium",
+                "evidence_summary": "Collected bounded current console-user context for incident triage.",
+                "reboot_required": False,
+            }
+
+
+        def macos_service_status_result() -> dict[str, object]:
+            ok, output = run_command("launchctl", "print", "system/com.sha.reporter")
+            return {
+                "control_key": "macos.telemetry.service-status",
+                "status": "pass" if ok else "warn",
+                "current_value": "launchd job loaded" if ok else "launchd job not loaded",
+                "recommended_value": "launchd reporter job loaded",
+                "severity": None if ok else "medium",
+                "evidence_summary": f"launchctl reporter status: {output[:200] or 'unknown'}.",
+                "reboot_required": False,
+            }
+
+
+        def collect_results() -> list[dict[str, object]]:
+            return [
+                macos_hardware_summary_result(),
+                macos_firewall_result(),
+                macos_filevault_result(),
+                macos_gatekeeper_result(),
+                macos_automatic_updates_result(),
+                macos_security_logging_result(),
+                macos_process_inventory_result(),
+                macos_network_bindings_result(),
+            ]
+
+
+        def context_result_for_scope(scope: str | None) -> dict[str, object]:
+            if scope == "process_inventory":
+                return macos_process_inventory_result()
+            if scope == "network_bindings":
+                return macos_network_bindings_result()
+            if scope == "security_logs":
+                return macos_security_logging_result()
+            if scope == "firewall_state":
+                return macos_firewall_result()
+            if scope == "identity_state":
+                return macos_identity_state_result()
+            if scope == "service_status":
+                return macos_service_status_result()
+            return {
+                "control_key": "macos.telemetry.unsupported-scope",
+                "status": "error",
+                "current_value": scope or "missing",
+                "recommended_value": "supported troubleshooting scope",
+                "severity": "medium",
+                "evidence_summary": "Unsupported troubleshooting scope requested.",
+                "reboot_required": False,
+            }
+
+
+        def summarize_results(results: list[dict[str, object]]) -> str:
+            return "; ".join(
+                f"{result['control_key']}={result['status']}: {result['evidence_summary']}"
+                for result in results
+            )[:4000]
+
+
+        def execute_response_action(control_plane_url: str, action: dict[str, object]) -> None:
+            action_id = str(action["response_action_id"])
+            action_name = str(action["action"])
+            scope = action.get("troubleshooting_scope")
+            if action_name in {"collect_security_context", "inspect_control", "request_elevated_troubleshooting"}:
+                results = [context_result_for_scope(str(scope) if scope is not None else None)]
+            elif action_name == "collect_remediation_evidence":
+                results = collect_results()
+            elif action_name in {"apply_control", "rollback_control"}:
+                post_json(
+                    f"{control_plane_url}/api/response-actions/{action_id}/result",
+                    {
+                        "status": "failed",
+                        "result_summary": "macOS bootstrap is observe-only and cannot execute hardening changes.",
+                    },
+                )
+                return
+            else:
+                post_json(
+                    f"{control_plane_url}/api/response-actions/{action_id}/result",
+                    {
+                        "status": "failed",
+                        "result_summary": f"Unsupported macOS bootstrap action: {action_name}.",
+                    },
+                )
+                return
+
+            post_json(
+                f"{control_plane_url}/api/response-actions/{action_id}/result",
+                {
+                    "status": "failed" if any(result["status"] == "error" for result in results) else "succeeded",
+                    "result_summary": summarize_results(results),
+                },
+            )
+
+
+        def execute_pending_response_actions(control_plane_url: str, endpoint_id: str) -> None:
+            payload = get_json(f"{control_plane_url}/api/endpoints/{endpoint_id}/response-actions")
+            items = payload.get("items", [])
+            if not isinstance(items, list):
+                return
+            for action in items:
+                if isinstance(action, dict):
+                    execute_response_action(control_plane_url, action)
+
+
+        def main() -> None:
+            config = load_config()
+            control_plane_url = str(config["control_plane_url"]).rstrip("/")
+            current_platform_version = platform_version()
+            enroll_response = post_json(
+                f"{control_plane_url}/api/endpoints/enroll",
+                {
+                    "agent_fingerprint": fingerprint_for_profile(str(config["profile_id"])),
+                    "hostname": socket.gethostname().strip() or "unknown-host",
+                    "platform": "macos",
+                    "platform_version": current_platform_version,
+                    "agent_version": config["agent_version"],
+                    "tenant_id": config.get("tenant_id"),
+                    "site_id": config.get("site_id"),
+                },
+            )
+            endpoint_id = str(enroll_response["endpoint_id"])
+            post_json(
+                f"{control_plane_url}/api/endpoints/{endpoint_id}/heartbeat",
+                {
+                    "agent_version": config["agent_version"],
+                    "platform_version": current_platform_version,
+                    "platform_profile": config["platform_profile"],
+                    "connectivity_status": "online",
+                    "declared_capabilities": config["capabilities"],
+                    "execution_hooks": config["execution_hooks"],
+                },
+            )
+            post_json(
+                f"{control_plane_url}/api/posture-snapshots",
+                {
+                    "endpoint_id": endpoint_id,
+                    "observed_at": utc_now(),
+                    "platform_profile": config["platform_profile"],
+                    "results": collect_results(),
+                },
+            )
+            execute_pending_response_actions(control_plane_url, endpoint_id)
+
+
+        if __name__ == "__main__":
+            try:
+                main()
+            except error.HTTPError as exc:
+                sys.stderr.write(f"sha reporter HTTP error: {exc.code} {exc.reason}\\n")
+                sys.exit(1)
+            except Exception as exc:  # pragma: no cover - bootstrap script runtime safety
+                sys.stderr.write(f"sha reporter failed: {exc}\\n")
+                sys.exit(1)
+        """
+    ).strip() + "\n"
+
+
+def _render_macos_bootstrap(profile: InstallerProfile, *, api_token: str | None = None) -> str:
+    config_json = _profile_config(
+        profile,
+        agent_version=_MACOS_AGENT_VERSION,
+        platform_profile=_MACOS_PLATFORM_PROFILE,
+        api_token=api_token,
+        capabilities=_MACOS_REPORTER_CAPABILITIES,
+        execution_hooks=_MACOS_EXECUTION_HOOKS,
+    )
+    reporter_script = _macos_reporter_script().rstrip("\n")
+    launch_daemon = dedent(
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+          <key>Label</key>
+          <string>com.sha.reporter</string>
+          <key>ProgramArguments</key>
+          <array>
+            <string>/usr/bin/env</string>
+            <string>python3</string>
+            <string>/Library/Application Support/SHA/reporter.py</string>
+          </array>
+          <key>RunAtLoad</key>
+          <true/>
+          <key>StartInterval</key>
+          <integer>900</integer>
+          <key>StandardOutPath</key>
+          <string>/Library/Logs/sha-reporter.log</string>
+          <key>StandardErrorPath</key>
+          <string>/Library/Logs/sha-reporter.err</string>
+        </dict>
+        </plist>
+        """
+    ).strip()
+    return "\n".join(
+        [
+            "#!/usr/bin/env bash",
+            "set -euo pipefail",
+            "",
+            'if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then',
+            '  echo "sha bootstrap requires root" >&2',
+            "  exit 1",
+            "fi",
+            "",
+            "if [[ \"$(uname -s)\" != \"Darwin\" ]]; then",
+            '  echo "sha macOS bootstrap must run on Darwin/macOS" >&2',
+            "  exit 1",
+            "fi",
+            "",
+            "if ! command -v python3 >/dev/null 2>&1; then",
+            '  echo "sha bootstrap requires python3" >&2',
+            "  exit 1",
+            "fi",
+            "",
+            "SHA_ROOT='/Library/Application Support/SHA'",
+            'CONFIG_PATH="${SHA_ROOT}/reporter-config.json"',
+            'REPORTER_PATH="${SHA_ROOT}/reporter.py"',
+            "PLIST_PATH='/Library/LaunchDaemons/com.sha.reporter.plist'",
+            "",
+            'install -d -m 0755 "${SHA_ROOT}" /Library/LaunchDaemons /Library/Logs',
+            "",
+            'cat > "${CONFIG_PATH}" <<\'JSON\'',
+            config_json,
+            "JSON",
+            'chmod 600 "${CONFIG_PATH}"',
+            "",
+            'cat > "${REPORTER_PATH}" <<\'PY\'',
+            reporter_script,
+            "PY",
+            'chmod 755 "${REPORTER_PATH}"',
+            "",
+            'cat > "${PLIST_PATH}" <<\'PLIST\'',
+            launch_daemon,
+            "PLIST",
+            'chown root:wheel "${CONFIG_PATH}" "${REPORTER_PATH}" "${PLIST_PATH}"',
+            'chmod 644 "${PLIST_PATH}"',
+            "",
+            'launchctl bootout system/com.sha.reporter >/dev/null 2>&1 || true',
+            'launchctl bootstrap system "${PLIST_PATH}"',
+            "launchctl enable system/com.sha.reporter",
+            "launchctl kickstart -k system/com.sha.reporter",
+            "",
+            f'echo "SHA bootstrap installed for macOS profile {profile.id}"',
             "",
         ]
     )

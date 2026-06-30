@@ -27,6 +27,7 @@ const FILTERS = [
   { key: "all", label: "All" },
   { key: "windows", label: "Windows" },
   { key: "linux", label: "Linux" },
+  { key: "macos", label: "macOS" },
   { key: "attention", label: "Needs attention" },
 ] as const;
 
@@ -79,6 +80,9 @@ export default function FleetConsole({ initialEndpoints = getFixtureEndpoints() 
         }
         if (filter === "linux") {
           return endpoint.platform === "linux";
+        }
+        if (filter === "macos") {
+          return endpoint.platform === "macos";
         }
         if (filter === "attention") {
           return endpointTone(endpoint) !== "success";
@@ -267,6 +271,7 @@ export default function FleetConsole({ initialEndpoints = getFixtureEndpoints() 
               >
                 <option value="linux">Linux</option>
                 <option value="windows">Windows</option>
+                <option value="macos">macOS</option>
               </select>
             </label>
             <label className="field" htmlFor="enroll-platform-version">

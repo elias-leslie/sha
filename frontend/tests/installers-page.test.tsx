@@ -55,6 +55,50 @@ describe("SHA installer workspace", () => {
     expect(await screen.findByText("Branch Office Linux")).toBeInTheDocument()
   })
 
+  it("creates a macOS installer profile from the operator form", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+
+      if (url.endsWith("/api/installer-profiles") && init?.method === "POST") {
+        expect(JSON.parse(String(init.body))).toMatchObject({ platform: "macos" })
+        return {
+          ok: true,
+          json: async () => ({
+            id: "ip_macos_preview",
+            name: "macOS Preview",
+            platform: "macos",
+            channel: "stable",
+            control_plane_url: "https://sha.example.test",
+            policy_mode: "observe",
+            tenant_id: "tenant-branch",
+            site_id: "site-demo-branch",
+            created_at: "2026-04-19T12:40:00Z",
+            updated_at: "2026-04-19T12:40:00Z",
+          }),
+        } as Response
+      }
+
+      if (url.endsWith("/api/installer-profiles")) {
+        return { ok: true, json: async () => ({ items: [] }) } as Response
+      }
+
+      return { ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response
+    })
+
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<InstallersPage />)
+
+    fireEvent.change(screen.getByLabelText(/profile name/i), { target: { value: "macOS Preview" } })
+    fireEvent.change(screen.getByLabelText(/platform/i), { target: { value: "macos" } })
+    fireEvent.change(screen.getByLabelText(/policy mode/i), { target: { value: "observe" } })
+    fireEvent.click(screen.getByRole("button", { name: /create installer profile/i }))
+
+    expect(await screen.findByText("macOS Preview")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /download shell/i })).toBeInTheDocument()
+    expect(screen.getAllByText("macOS").length).toBeGreaterThan(0)
+  })
+
   it("selects the first live profile when fixture state does not exist in the live registry", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)

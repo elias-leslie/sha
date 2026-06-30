@@ -31,7 +31,7 @@ class Endpoint(Base):
 
     __table_args__ = (
         CheckConstraint("status IN ('pending', 'active', 'stale')", name="ck_endpoints_status"),
-        CheckConstraint("platform IN ('windows', 'linux')", name="ck_endpoints_platform"),
+        CheckConstraint("platform IN ('windows', 'linux', 'macos')", name="ck_endpoints_platform"),
         CheckConstraint(
             "connectivity_status IS NULL OR connectivity_status IN ('online', 'degraded')",
             name="ck_endpoints_connectivity_status",
@@ -97,7 +97,7 @@ class InstallerProfile(Base):
 
     __table_args__ = (
         UniqueConstraint("platform", "name_normalized", name="uq_installer_profiles_platform_name"),
-        CheckConstraint("platform IN ('windows', 'linux')", name="ck_installer_profiles_platform"),
+        CheckConstraint("platform IN ('windows', 'linux', 'macos')", name="ck_installer_profiles_platform"),
         CheckConstraint("channel IN ('stable', 'preview')", name="ck_installer_profiles_channel"),
         CheckConstraint(
             "policy_mode IN ('observe', 'safe_auto', 'approval_required')",

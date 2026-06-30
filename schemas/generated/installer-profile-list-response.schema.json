@@ -3,7 +3,8 @@
     "EndpointPlatform": {
       "enum": [
         "windows",
-        "linux"
+        "linux",
+        "macos"
       ],
       "title": "EndpointPlatform",
       "type": "string"

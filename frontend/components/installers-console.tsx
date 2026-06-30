@@ -158,7 +158,7 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
                     <button className="action-button action-button--ghost" onClick={() => downloadArtifact(profile.id)} type="button">
                       {artifactPending && selectedProfileId === profile.id
                         ? "Preparing download…"
-                        : `Download ${profile.platform === "linux" ? "shell" : "PowerShell"}`}
+                        : `Download ${profile.platform === "windows" ? "PowerShell" : "shell"}`}
                     </button>
                   </div>
                 </article>
@@ -199,6 +199,7 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
               >
                 <option value="linux">Linux</option>
                 <option value="windows">Windows</option>
+                <option value="macos">macOS</option>
               </select>
             </label>
             <label className="field" htmlFor="profile-channel">
@@ -303,16 +304,19 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
           />
           {selectedProfile ? (
             <div className="stack-gap">
-              <div className="mini-card">
-                <strong>Linux</strong>
-                <p>curl -fsSL {installOrigin}{getInstallerArtifactUrl(selectedProfile.id)} | sudo bash</p>
-                <p>If token protection is enabled, add -H "Authorization: Bearer $SHA_API_TOKEN" before the URL.</p>
-              </div>
-              <div className="mini-card">
-                <strong>Windows</strong>
-                <p>iwr {installOrigin}{getInstallerArtifactUrl(selectedProfile.id)} -OutFile sha-agent.ps1; powershell -ExecutionPolicy Bypass -File .\sha-agent.ps1</p>
-                <p>If token protection is enabled, pass -Headers @{"{Authorization='Bearer ' + $env:SHA_API_TOKEN}"} to iwr.</p>
-              </div>
+              {selectedProfile.platform === "windows" ? (
+                <div className="mini-card">
+                  <strong>Windows</strong>
+                  <p>iwr {installOrigin}{getInstallerArtifactUrl(selectedProfile.id)} -OutFile sha-agent.ps1; powershell -ExecutionPolicy Bypass -File .\sha-agent.ps1</p>
+                  <p>If token protection is enabled, pass -Headers @{"{Authorization='Bearer ' + $env:SHA_API_TOKEN}"} to iwr.</p>
+                </div>
+              ) : (
+                <div className="mini-card">
+                  <strong>{selectedProfile.platform === "macos" ? "macOS" : "Linux"}</strong>
+                  <p>curl -fsSL {installOrigin}{getInstallerArtifactUrl(selectedProfile.id)} | sudo bash</p>
+                  <p>If token protection is enabled, add -H "Authorization: Bearer $SHA_API_TOKEN" before the URL.</p>
+                </div>
+              )}
             </div>
           ) : (
             <EmptyState title="Select a profile" body="Installer commands appear once a profile has been selected." />

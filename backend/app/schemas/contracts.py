@@ -15,6 +15,7 @@ class EndpointStatus(str, Enum):
 class EndpointPlatform(str, Enum):
     windows = "windows"
     linux = "linux"
+    macos = "macos"
 
 
 class ConnectivityStatus(str, Enum):

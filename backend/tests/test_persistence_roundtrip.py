@@ -74,6 +74,88 @@ def test_reenroll_rejects_cross_platform_fingerprint_reuse(db_path, make_client)
     }
 
 
+def test_prepare_upgrades_legacy_platform_constraints_for_macos(db_path, make_client):
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE endpoints (
+                endpoint_id VARCHAR(64) NOT NULL,
+                agent_fingerprint VARCHAR(255) NOT NULL,
+                hostname VARCHAR(255) NOT NULL,
+                platform VARCHAR(32) NOT NULL,
+                platform_version VARCHAR(255),
+                platform_profile VARCHAR(255),
+                agent_version VARCHAR(64) NOT NULL,
+                tenant_id VARCHAR(255),
+                site_id VARCHAR(255),
+                status VARCHAR(16) NOT NULL,
+                connectivity_status VARCHAR(16),
+                declared_capabilities_json VARCHAR(2048),
+                execution_hooks_json VARCHAR(255),
+                last_seen_at VARCHAR(32) NOT NULL,
+                last_heartbeat_at VARCHAR(32),
+                created_at VARCHAR(32) NOT NULL,
+                updated_at VARCHAR(32) NOT NULL,
+                PRIMARY KEY (endpoint_id),
+                CONSTRAINT ck_endpoints_status CHECK (status IN ('pending', 'active', 'stale')),
+                CONSTRAINT ck_endpoints_platform CHECK (platform IN ('windows', 'linux')),
+                CONSTRAINT ck_endpoints_connectivity_status CHECK (
+                    connectivity_status IS NULL OR connectivity_status IN ('online', 'degraded')
+                ),
+                UNIQUE (agent_fingerprint)
+            );
+            CREATE TABLE installer_profiles (
+                id VARCHAR(64) NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                name_normalized VARCHAR(255) NOT NULL,
+                platform VARCHAR(32) NOT NULL,
+                channel VARCHAR(32) NOT NULL,
+                control_plane_url VARCHAR(2048) NOT NULL,
+                policy_mode VARCHAR(32) NOT NULL,
+                tenant_id VARCHAR(255),
+                site_id VARCHAR(255),
+                created_at VARCHAR(32) NOT NULL,
+                updated_at VARCHAR(32) NOT NULL,
+                PRIMARY KEY (id),
+                CONSTRAINT uq_installer_profiles_platform_name UNIQUE (platform, name_normalized),
+                CONSTRAINT ck_installer_profiles_platform CHECK (platform IN ('windows', 'linux')),
+                CONSTRAINT ck_installer_profiles_channel CHECK (channel IN ('stable', 'preview')),
+                CONSTRAINT ck_installer_profiles_policy_mode CHECK (
+                    policy_mode IN ('observe', 'safe_auto', 'approval_required')
+                )
+            );
+            """
+        )
+
+    client = make_client(db_path)
+
+    profile_response = client.post(
+        "/api/installer-profiles",
+        json={
+            "name": "macOS Preview",
+            "platform": "macos",
+            "channel": "preview",
+            "control_plane_url": "https://sha.example.test",
+            "policy_mode": "observe",
+            "tenant_id": "tenant-a",
+            "site_id": "site-mac",
+        },
+    )
+    enroll_response = enroll_endpoint(
+        client,
+        agent_fingerprint="macos-fingerprint",
+        hostname="macbook-01",
+        platform="macos",
+        platform_version="macOS 15",
+    )
+
+    assert profile_response.status_code == 201
+    assert profile_response.json()["platform"] == "macos"
+    assert enroll_response.status_code == 201
+    assert enroll_response.json()["platform"] == "macos"
+
+
 def test_posture_snapshot_persists_results_and_ack_count(db_path, make_client):
     client = make_client(db_path)
     endpoint_id = enroll_endpoint(client).json()["endpoint_id"]

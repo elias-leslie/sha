@@ -4,7 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-from app.installer_artifacts import _linux_reporter_script
+from app.installer_artifacts import _linux_reporter_script, _macos_reporter_script
 
 
 def create_installer_profile(client, **overrides):
@@ -197,6 +197,85 @@ def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task
     assert '"captures_rollback_artifacts": true' in first.text
     assert '"reports_execution_results": true' in first.text
 
+def test_macos_installer_artifact_is_deterministic_and_contains_launchd_reporter(db_path, make_client):
+    client = make_client(db_path)
+    profile = create_installer_profile(
+        client,
+        name="macOS Preview",
+        platform="macos",
+        channel="preview",
+        policy_mode="observe",
+    )
+
+    first = client.get(f"/api/installer-profiles/{profile['id']}/artifact")
+    second = client.get(f"/api/installer-profiles/{profile['id']}/artifact")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.text == second.text
+    assert first.headers["content-type"].startswith("text/x-shellscript")
+    assert first.headers["content-disposition"].endswith('.sh"')
+    assert profile["id"] in first.headers["content-disposition"]
+    assert first.headers["x-sha-artifact-sha256"] == second.headers["x-sha-artifact-sha256"]
+    assert '"profile_id": "{}"'.format(profile["id"]) in first.text
+    assert '"platform": "macos"' in first.text
+    assert '"platform_profile": "macos-bootstrap-v1"' in first.text
+    assert "com.sha.reporter" in first.text
+    assert "launchctl bootstrap" in first.text
+    assert "/api/endpoints/enroll" in first.text
+    assert "/response-actions" in first.text
+    assert "/api/posture-snapshots" in first.text
+    assert "macos.firewall.application-firewall-enabled" in first.text
+    assert "macos.disk.filevault-enabled" in first.text
+    assert "macos.gatekeeper.assessments-enabled" in first.text
+    assert "macos.telemetry.process-inventory" in first.text
+    assert "macos.telemetry.network-bindings" in first.text
+    assert '"captures_rollback_artifacts": false' in first.text
+    assert '"reports_execution_results": true' in first.text
+
+
+def test_macos_reporter_collects_bounded_local_telemetry_without_network():
+    namespace: dict[str, object] = {"__name__": "sha_reporter_test"}
+    exec(_macos_reporter_script(), namespace)  # noqa: S102 - exercises the generated bootstrap script
+
+    def fake_run_command(*args: str) -> tuple[bool, str]:
+        command = " ".join(args)
+        if "socketfilterfw" in command:
+            return True, "Firewall is enabled. (State = 1)"
+        if command == "fdesetup status":
+            return True, "FileVault is On."
+        if command == "spctl --status":
+            return True, "assessments enabled"
+        if command.startswith("defaults read"):
+            return True, "1"
+        if command == "ps -axo comm=":
+            return True, "/sbin/launchd\n/usr/libexec/runningboardd\n/usr/libexec/runningboardd\n"
+        if command.startswith("lsof"):
+            return True, "COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\nPython 12 root 4u IPv4 TCP *:8010 (LISTEN)"
+        if command.startswith("sysctl"):
+            return True, "8"
+        return True, "ok"
+
+    namespace["run_command"] = fake_run_command
+    reporter = cast(dict[str, Callable[[], dict[str, object]]], namespace)
+
+    results = [
+        reporter["macos_firewall_result"](),
+        reporter["macos_filevault_result"](),
+        reporter["macos_gatekeeper_result"](),
+        reporter["macos_process_inventory_result"](),
+        reporter["macos_network_bindings_result"](),
+    ]
+
+    assert {result["control_key"] for result in results} == {
+        "macos.firewall.application-firewall-enabled",
+        "macos.disk.filevault-enabled",
+        "macos.gatekeeper.assessments-enabled",
+        "macos.telemetry.process-inventory",
+        "macos.telemetry.network-bindings",
+    }
+    assert all(result["status"] == "pass" for result in results)
+    assert all(result["reboot_required"] is False for result in results)
 
 
 def test_installer_artifact_returns_not_found_for_unknown_profile(db_path, make_client):

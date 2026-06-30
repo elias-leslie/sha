@@ -7,7 +7,7 @@ export default function InstallersPage() {
     <NavShell
       currentPath="/installers"
       title="Installer profile registry"
-      description="Package-definition console for Windows and Linux enrollment profiles, channels, and policy modes."
+      description="Package-definition console for Windows, Linux, and macOS enrollment profiles, channels, and policy modes."
     >
       <InstallersConsole initialProfiles={getFixtureInstallerProfiles()} />
     </NavShell>

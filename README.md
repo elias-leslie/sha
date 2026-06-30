@@ -1,6 +1,6 @@
 # SHA — Security Hardening Automation
 
-SHA is an early-stage Windows/Linux security hardening automation platform. It combines a FastAPI control-plane API, a Next.js operator dashboard, deterministic installer-profile artifacts, and shared agent contracts for endpoint enrollment, posture reporting, approvals, and bounded remediation workflows.
+SHA is an early-stage Windows/Linux/macOS security hardening automation platform. It combines a FastAPI control-plane API, a Next.js operator dashboard, deterministic installer-profile artifacts, and shared agent contracts for endpoint enrollment, posture reporting, approvals, and bounded remediation workflows.
 
 The project goal is practical hardening without casually breaking endpoints: observe posture, rank gaps, require human approval for disruptive actions, and keep all endpoint work constrained to typed hardening capabilities rather than arbitrary remote shell access.
 
@@ -19,8 +19,8 @@ Implemented:
 
 - backend API (7 routers, 19 routes) for enrollment, heartbeats, posture snapshots, installer profiles, approval requests/grants, response actions, and source-pack catalog reads
 - frontend dashboard pages for fleet, endpoints, controls, installers, and approvals, each with a live/fixture data-source indicator, weighted endpoint posture score, and endpoint response-action trail
-- deterministic Linux and Windows bootstrap artifact generation for installer profiles, served with `Content-Disposition` and `X-SHA-Artifact-Sha256` integrity headers
-- generated Linux and Windows reporters poll approval-backed response actions; both complete bounded incident-response context/evidence collection and each has a first reversible typed hardening control
+- deterministic Linux, Windows, and macOS bootstrap artifact generation for installer profiles, served with `Content-Disposition` and `X-SHA-Artifact-Sha256` integrity headers
+- generated Linux, Windows, and macOS reporters poll approval-backed response actions; all complete bounded incident-response context/evidence collection, while Linux and Windows each have a first reversible typed hardening control
 - optional API token enforcement for control-plane `/api` routes, with generated reporters carrying the active bearer token when enabled
 - a human-in-the-loop approval workflow with two typed request kinds (`hardening_change`, `elevated_troubleshooting`), bounded grant TTLs (15–240 min), manual emergency grants, append-only audit events, and concurrency-safe state transitions
 - an approval-backed response-action queue for dispatching typed agent work and reporting execution results without arbitrary remote shell access
@@ -42,8 +42,9 @@ The generated installer artifacts are not just stubs — each one installs a sma
 
 - **Linux** — firewall service active (ufw / firewalld / nftables), SSH `PasswordAuthentication`, root password lock, automatic-update units, audit/log-retention signal, bounded hardware summary, process inventory, and listening-port inventory.
 - **Windows** — all firewall profiles enabled, Microsoft Defender real-time protection, BitLocker system-drive protection, Secure Boot, process inventory, TCP listener inventory, recent Security log readability, service status, and current service identity.
+- **macOS** — Application Firewall, FileVault, Gatekeeper, automatic-update check preference, unified-log store signal, bounded hardware summary, process inventory, listening TCP sockets, service status, and console-user identity context.
 
-The reporters avoid arbitrary endpoint control by construction: Windows can apply/rollback firewall all-profiles enablement, while Linux can apply/rollback SSH `PasswordAuthentication no`; both use typed approvals and rollback artifacts. Posture results roll up into a per-endpoint weighted score and a control "drift matrix" on the dashboard.
+The reporters avoid arbitrary endpoint control by construction: Windows can apply/rollback firewall all-profiles enablement, Linux can apply/rollback SSH `PasswordAuthentication no`, and macOS currently stays observe-only for hardening mutations. Typed approvals and rollback artifacts gate the reversible Linux/Windows actions. Posture results roll up into a per-endpoint weighted score and a control "drift matrix" on the dashboard.
 
 ## Safety model
 
