@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-04-18T00:00:00Z",
-  "pack_count": 3,
-  "control_count": 9,
+  "pack_count": 4,
+  "control_count": 17,
   "packs": [
     {
       "pack_id": "pack.public.cisa-nsa-communications-hardening-starter",
@@ -23,6 +23,13 @@
       "source_name": "NIST SP 800-53 Rev. 5 Starter",
       "source_version": "5.2.0",
       "control_count": 3
+    },
+    {
+      "pack_id": "pack.sha.implemented-endpoint-response-starter",
+      "source_family": "sha_builtin",
+      "source_name": "SHA Implemented Endpoint Response Starter",
+      "source_version": "2026.06",
+      "control_count": 8
     }
   ]
 }

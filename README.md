@@ -25,7 +25,7 @@ Implemented:
 - a human-in-the-loop approval workflow with two typed request kinds (`hardening_change`, `elevated_troubleshooting`), bounded grant TTLs (15–240 min), manual emergency grants, append-only audit events, and concurrency-safe state transitions
 - an approval-backed response-action queue for dispatching typed agent work and reporting execution results without arbitrary remote shell access
 - 22 generated JSON Schemas under `schemas/generated/`, exported deterministically from the Pydantic contracts
-- 3 curated starter control packs (9 controls) derived from public-source NIST SP 800-53 Rev. 5, DISA Windows Server 2022 STIG, and CISA/NSA hardening guidance, built by a strict, repo-local, deterministic catalog builder
+- 4 curated starter control packs (17 controls) spanning public-source NIST SP 800-53 Rev. 5, DISA Windows Server 2022 STIG, CISA/NSA hardening guidance, and SHA's implemented endpoint-response controls, built by a strict, repo-local, deterministic catalog builder
 
 Not yet production-ready:
 

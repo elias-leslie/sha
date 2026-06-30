@@ -158,6 +158,7 @@ Checked-in starter packs are limited to public-source material that can be cited
 - NIST SP 800-53 / OSCAL for control-family concepts and stable identifiers
 - DISA STIGs for concrete operating-system hardening requirements
 - CISA/NSA guidance for current defensive hardening practices
+- SHA built-in packs for repo-implemented endpoint-response controls, mapped back to public references where applicable
 
 CIS Benchmarks and Microsoft baselines may be cited externally when operators own the relevant licenses or documentation, but their content is not reproduced in this repository.
 

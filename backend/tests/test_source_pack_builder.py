@@ -46,8 +46,8 @@ def test_builder_generates_expected_catalog_and_ignores_non_json_files(tmp_path:
     catalog = build_source_catalog(root)
 
     assert catalog == expected_catalog()
-    assert catalog.pack_count == 3
-    assert catalog.control_count == 9
+    assert catalog.pack_count == 4
+    assert catalog.control_count == 17
     assert not (root / "control-packs" / "generated").exists()
     assert (root / "control-packs" / "catalog.json").read_text(encoding="utf-8") == (
         json.dumps(catalog.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n"

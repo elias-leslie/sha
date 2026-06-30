@@ -1,0 +1,268 @@
+{
+  "pack_id": "pack.sha.implemented-endpoint-response-starter",
+  "source_family": "sha_builtin",
+  "source_name": "SHA Implemented Endpoint Response Starter",
+  "source_version": "2026.06",
+  "generated_at": "2026-04-18T00:00:00Z",
+  "source_url": "https://www.cisa.gov/sites/default/files/2024-08/Federal_Government_Cybersecurity_Incident_and_Vulnerability_Response_Playbooks_508C.pdf",
+  "platforms": [
+    "windows",
+    "linux",
+    "macos"
+  ],
+  "profiles": [
+    "endpoint",
+    "server"
+  ],
+  "summary": "Curated starter pack for SHA Implemented Endpoint Response Starter.",
+  "controls": [
+    {
+      "control_id": "control.windows.defender-real-time-protection",
+      "title": "Windows Defender real-time protection",
+      "platform": "windows",
+      "profiles": [
+        "endpoint",
+        "server"
+      ],
+      "severity": "critical",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Windows Defender real-time protection.",
+      "detection_summary": "Check state for Windows Defender real-time protection.",
+      "remediation_summary": "Apply desired state for Windows Defender real-time protection.",
+      "rollback_summary": "Rollback desired state for Windows Defender real-time protection.",
+      "provenance": {
+        "source_locator": "SHA Windows bootstrap / Microsoft Defender Antivirus always-on protection",
+        "notes": "Starter control selected for SHA Implemented Endpoint Response Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [
+          "SI-3",
+          "SI-4"
+        ],
+        "stig_ids": [],
+        "cisa_reference_ids": []
+      }
+    },
+    {
+      "control_id": "control.windows.firewall-all-profiles",
+      "title": "Windows firewall all profiles",
+      "platform": "windows",
+      "profiles": [
+        "endpoint",
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Windows firewall all profiles.",
+      "detection_summary": "Check state for Windows firewall all profiles.",
+      "remediation_summary": "Apply desired state for Windows firewall all profiles.",
+      "rollback_summary": "Rollback desired state for Windows firewall all profiles.",
+      "provenance": {
+        "source_locator": "SHA Windows bootstrap / Windows Firewall profile containment",
+        "notes": "Starter control selected for SHA Implemented Endpoint Response Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [
+          "CM-7",
+          "SC-7"
+        ],
+        "stig_ids": [],
+        "cisa_reference_ids": []
+      }
+    },
+    {
+      "control_id": "control.windows.firewall-endpoint-isolated",
+      "title": "Windows endpoint network isolation",
+      "platform": "windows",
+      "profiles": [
+        "endpoint",
+        "server"
+      ],
+      "severity": "critical",
+      "disruption": "disruptive",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Windows endpoint network isolation.",
+      "detection_summary": "Check state for Windows endpoint network isolation.",
+      "remediation_summary": "Apply desired state for Windows endpoint network isolation.",
+      "rollback_summary": "Rollback desired state for Windows endpoint network isolation.",
+      "provenance": {
+        "source_locator": "CISA Incident Response Playbook containment step 7d / SHA Windows firewall isolation",
+        "notes": "Starter control selected for SHA Implemented Endpoint Response Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [
+          "IR-4",
+          "IR-5",
+          "SC-7"
+        ],
+        "stig_ids": [],
+        "cisa_reference_ids": [
+          "incident-playbook-containment-7d"
+        ]
+      }
+    },
+    {
+      "control_id": "linux.network.endpoint-isolated",
+      "title": "Linux endpoint network isolation",
+      "platform": "linux",
+      "profiles": [
+        "server"
+      ],
+      "severity": "critical",
+      "disruption": "disruptive",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Linux endpoint network isolation.",
+      "detection_summary": "Check state for Linux endpoint network isolation.",
+      "remediation_summary": "Apply desired state for Linux endpoint network isolation.",
+      "rollback_summary": "Rollback desired state for Linux endpoint network isolation.",
+      "provenance": {
+        "source_locator": "CISA Incident Response Playbook containment step 7d / SHA Linux iptables isolation",
+        "notes": "Starter control selected for SHA Implemented Endpoint Response Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [
+          "IR-4",
+          "IR-5",
+          "SC-7"
+        ],
+        "stig_ids": [],
+        "cisa_reference_ids": [
+          "incident-playbook-containment-7d"
+        ]
+      }
+    },
+    {
+      "control_id": "linux.ssh.password-authentication-disabled",
+      "title": "Linux SSH password authentication disabled",
+      "platform": "linux",
+      "profiles": [
+        "server"
+      ],
+      "severity": "high",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": true,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for Linux SSH password authentication disabled.",
+      "detection_summary": "Check state for Linux SSH password authentication disabled.",
+      "remediation_summary": "Apply desired state for Linux SSH password authentication disabled.",
+      "rollback_summary": "Rollback desired state for Linux SSH password authentication disabled.",
+      "provenance": {
+        "source_locator": "SHA Linux bootstrap / SSH PasswordAuthentication hardening",
+        "notes": "Starter control selected for SHA Implemented Endpoint Response Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [
+          "AC-17",
+          "IA-2"
+        ],
+        "stig_ids": [],
+        "cisa_reference_ids": []
+      }
+    },
+    {
+      "control_id": "macos.disk.filevault-enabled",
+      "title": "macOS FileVault enabled",
+      "platform": "macos",
+      "profiles": [
+        "endpoint"
+      ],
+      "severity": "high",
+      "disruption": "moderate",
+      "rollback_complexity": "medium",
+      "auto_remediation_candidate": false,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for macOS FileVault enabled.",
+      "detection_summary": "Check state for macOS FileVault enabled.",
+      "remediation_summary": "Apply desired state for macOS FileVault enabled.",
+      "rollback_summary": "Rollback desired state for macOS FileVault enabled.",
+      "provenance": {
+        "source_locator": "SHA macOS bootstrap / FileVault observe-only posture check",
+        "notes": "Starter control selected for SHA Implemented Endpoint Response Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [
+          "SC-28"
+        ],
+        "stig_ids": [],
+        "cisa_reference_ids": []
+      }
+    },
+    {
+      "control_id": "macos.firewall.application-firewall-enabled",
+      "title": "macOS Application Firewall enabled",
+      "platform": "macos",
+      "profiles": [
+        "endpoint"
+      ],
+      "severity": "medium",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": false,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for macOS Application Firewall enabled.",
+      "detection_summary": "Check state for macOS Application Firewall enabled.",
+      "remediation_summary": "Apply desired state for macOS Application Firewall enabled.",
+      "rollback_summary": "Rollback desired state for macOS Application Firewall enabled.",
+      "provenance": {
+        "source_locator": "SHA macOS bootstrap / Application Firewall observe-only posture check",
+        "notes": "Starter control selected for SHA Implemented Endpoint Response Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [
+          "CM-7",
+          "SC-7"
+        ],
+        "stig_ids": [],
+        "cisa_reference_ids": []
+      }
+    },
+    {
+      "control_id": "macos.gatekeeper.assessments-enabled",
+      "title": "macOS Gatekeeper assessments enabled",
+      "platform": "macos",
+      "profiles": [
+        "endpoint"
+      ],
+      "severity": "high",
+      "disruption": "minimal",
+      "rollback_complexity": "low",
+      "auto_remediation_candidate": false,
+      "reboot_required": false,
+      "guidance_summary": "Starter guidance for macOS Gatekeeper assessments enabled.",
+      "detection_summary": "Check state for macOS Gatekeeper assessments enabled.",
+      "remediation_summary": "Apply desired state for macOS Gatekeeper assessments enabled.",
+      "rollback_summary": "Rollback desired state for macOS Gatekeeper assessments enabled.",
+      "provenance": {
+        "source_locator": "SHA macOS bootstrap / Gatekeeper observe-only posture check",
+        "notes": "Starter control selected for SHA Implemented Endpoint Response Starter."
+      },
+      "mappings": {
+        "nist_csf_ids": [],
+        "sp80053_ids": [
+          "CM-7",
+          "SI-3"
+        ],
+        "stig_ids": [],
+        "cisa_reference_ids": []
+      }
+    }
+  ]
+}

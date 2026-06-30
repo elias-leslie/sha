@@ -95,7 +95,7 @@ def pack_payload(
         ]
 
     platforms = []
-    for platform in ("windows", "linux"):
+    for platform in ("windows", "linux", "macos"):
         if any(control["platform"] == platform for control in controls) and platform not in platforms:
             platforms.append(platform)
 
@@ -234,7 +234,7 @@ def test_source_pack_contract_enforces_sorted_controls_union_and_pinned_timestam
         SourcePack.model_validate(bad)
 
 
-@pytest.mark.parametrize("source_family", ["nist_800_53", "disa_stig", "cisa_nsa"])
+@pytest.mark.parametrize("source_family", ["nist_800_53", "disa_stig", "cisa_nsa", "sha_builtin"])
 def test_source_pack_contract_accepts_public_source_families(source_family: str) -> None:
     payload = pack_payload(source_family=source_family)
 

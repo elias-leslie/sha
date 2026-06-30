@@ -6,7 +6,7 @@ from typing import Any, Sequence
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 PINNED_GENERATED_AT = "2026-04-18T00:00:00Z"
-CANONICAL_PLATFORM_ORDER = ("windows", "linux")
+CANONICAL_PLATFORM_ORDER = ("windows", "linux", "macos")
 CANONICAL_PROFILE_ORDER = ("domain_controller", "endpoint", "server")
 
 
@@ -14,11 +14,13 @@ class SourceFamily(str, Enum):
     nist_800_53 = "nist_800_53"
     disa_stig = "disa_stig"
     cisa_nsa = "cisa_nsa"
+    sha_builtin = "sha_builtin"
 
 
 class SourcePlatform(str, Enum):
     windows = "windows"
     linux = "linux"
+    macos = "macos"
 
 
 class SourceProfile(str, Enum):
