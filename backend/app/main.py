@@ -11,11 +11,12 @@ from app.api.endpoints.installers import router as installers_router
 from app.api.endpoints.posture import router as posture_router
 from app.api.endpoints.response_actions import router as response_actions_router
 from app.api.endpoints.source_packs import router as source_packs_router
+from app.auth import api_token_middleware
 from app.config import get_settings
 from app.db import DatabaseStore
 
 
-def create_app(database_url: str | None = None) -> FastAPI:
+def create_app(database_url: str | None = None, api_token: str | None = None) -> FastAPI:
     settings = get_settings()
     store = DatabaseStore(database_url or settings.database_url)
 
@@ -29,6 +30,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
 
     app = FastAPI(title=settings.service_name, version=settings.version, lifespan=lifespan)
     app.state.store = store
+    app.state.api_token = api_token if api_token is not None else settings.api_token
+    app.middleware("http")(api_token_middleware)
     app.include_router(health_router)
     app.include_router(endpoints_router)
     app.include_router(posture_router)

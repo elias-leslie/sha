@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
     database_url: str = "sqlite:///data/sha.sqlite3"
     port: int = 8010
+    api_token: str | None = None
 
 
 @lru_cache
