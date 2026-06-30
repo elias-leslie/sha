@@ -124,6 +124,7 @@ def _linux_reporter_script() -> str:
         SSH_HARDENING_PATH = Path(
             os.environ.get("SHA_SSH_HARDENING_PATH", "/etc/ssh/sshd_config.d/99-sha-hardening.conf")
         )
+        SSHD_RUNTIME_DIR = Path(os.environ.get("SHA_SSHD_RUNTIME_DIR", "/run/sshd"))
         NETWORK_ISOLATION_STATE_PATH = Path(
             os.environ.get("SHA_NETWORK_ISOLATION_STATE_PATH", "/etc/sha/network-isolation.json")
         )
@@ -639,6 +640,7 @@ def _linux_reporter_script() -> str:
                 backup_path.chmod(0o600)
             path.write_text("# Managed by SHA. Remove or rollback through SHA.\\nPasswordAuthentication no\\n", encoding="utf-8")
             path.chmod(0o644)
+            SSHD_RUNTIME_DIR.mkdir(mode=0o755, parents=True, exist_ok=True)
             ok, output = run_command("sshd", "-t")
             if not ok and output != "command missing":
                 if original is None:

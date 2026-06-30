@@ -131,9 +131,11 @@ def test_linux_reporter_executes_bounded_context_response_action():
 
 def test_linux_reporter_applies_and_rolls_back_ssh_password_hardening(tmp_path: Path, monkeypatch):
     hardening_path = tmp_path / "sshd_config.d" / "99-sha-hardening.conf"
+    runtime_path = tmp_path / "run" / "sshd"
     hardening_path.parent.mkdir()
     hardening_path.write_text("PasswordAuthentication yes\n", encoding="utf-8")
     monkeypatch.setenv("SHA_SSH_HARDENING_PATH", str(hardening_path))
+    monkeypatch.setenv("SHA_SSHD_RUNTIME_DIR", str(runtime_path))
     namespace: dict[str, object] = {"__name__": "sha_reporter_test"}
     exec(_linux_reporter_script(), namespace)  # noqa: S102 - exercises the generated bootstrap script
     commands: list[tuple[str, ...]] = []
@@ -150,6 +152,7 @@ def test_linux_reporter_applies_and_rolls_back_ssh_password_hardening(tmp_path: 
         f"Set PasswordAuthentication no in {hardening_path}; reloaded sshd.",
     )
     assert hardening_path.read_text(encoding="utf-8").endswith("PasswordAuthentication no\n")
+    assert runtime_path.is_dir()
     assert hardening_path.with_name("99-sha-hardening.conf.rollback").exists()
 
     assert reporter["rollback_linux_ssh_password_authentication_disabled"]() == (
