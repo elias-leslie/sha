@@ -195,6 +195,12 @@ Linux installer/systemd endpoint E2E fallback when Proxmox is unavailable:
 scripts/test-linux-installer-docker.sh
 ```
 
+HA compose deployment E2E:
+
+```bash
+scripts/test-ha-compose.sh
+```
+
 ## Runtime smoke test
 
 With the backend running:
