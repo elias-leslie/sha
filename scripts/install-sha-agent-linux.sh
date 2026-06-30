@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ROOT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 DESTDIR=${DESTDIR:-}
 BINARY_PATH=${BINARY_PATH:-/usr/local/sbin/sha-agent}
 CONFIG_PATH=${CONFIG_PATH:-/etc/sha/agent-config.json}
@@ -9,10 +10,17 @@ SYSTEMD_DIR=${SYSTEMD_DIR:-/etc/systemd/system}
 SKIP_SYSTEMD=${SKIP_SYSTEMD:-0}
 
 install -d "${DESTDIR}${BINARY_PATH%/*}" "${DESTDIR}${CONFIG_PATH%/*}" "${DESTDIR}${SYSTEMD_DIR}"
-(
-  cd "$ROOT_DIR/agent"
-  go build -o "${DESTDIR}${BINARY_PATH}" ./cmd/sha-agent
-)
+if [[ -d "$ROOT_DIR/agent" ]]; then
+  (
+    cd "$ROOT_DIR/agent"
+    go build -o "${DESTDIR}${BINARY_PATH}" ./cmd/sha-agent
+  )
+elif [[ -x "$SCRIPT_DIR/sha-agent" ]]; then
+  install -m 0755 "$SCRIPT_DIR/sha-agent" "${DESTDIR}${BINARY_PATH}"
+else
+  echo "missing agent source or bundled sha-agent binary" >&2
+  exit 1
+fi
 chmod 0755 "${DESTDIR}${BINARY_PATH}"
 
 if [[ ! -f "${DESTDIR}${CONFIG_PATH}" ]]; then
@@ -28,10 +36,15 @@ JSON
   chmod 0600 "${DESTDIR}${CONFIG_PATH}"
 fi
 
+SERVICE_TEMPLATE="$SCRIPT_DIR/sha-agent.service"
+if [[ ! -f "$SERVICE_TEMPLATE" ]]; then
+  SERVICE_TEMPLATE="$ROOT_DIR/scripts/systemd/sha-agent.service"
+fi
+
 sed \
   -e "s#/usr/local/sbin/sha-agent#${BINARY_PATH}#g" \
   -e "s#/etc/sha/agent-config.json#${CONFIG_PATH}#g" \
-  "$ROOT_DIR/scripts/systemd/sha-agent.service" > "${DESTDIR}${SYSTEMD_DIR}/sha-agent.service"
+  "$SERVICE_TEMPLATE" > "${DESTDIR}${SYSTEMD_DIR}/sha-agent.service"
 chmod 0644 "${DESTDIR}${SYSTEMD_DIR}/sha-agent.service"
 
 if [[ "$SKIP_SYSTEMD" != "1" && -z "$DESTDIR" ]] && command -v systemctl >/dev/null 2>&1; then

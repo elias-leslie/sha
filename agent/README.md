@@ -20,6 +20,12 @@ sudoedit /etc/sha/agent-config.json
 sudo systemctl restart sha-agent
 ```
 
+Build release bundles:
+
+```bash
+scripts/build-sha-agent-release.sh
+```
+
 Build and run once:
 
 ```bash
