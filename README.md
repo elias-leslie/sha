@@ -37,7 +37,7 @@ Do not expose the backend or dashboard to an untrusted network without adding au
 
 The generated installer artifacts are not just stubs — each one installs a small read-only reporter (a systemd timer on Linux, a scheduled task on Windows, both on a 15-minute cadence) that runs a concrete posture check and reports back through the full `enroll → heartbeat → posture-snapshot` cycle:
 
-- **Linux** — firewall service active (ufw / firewalld / nftables), SSH `PasswordAuthentication`, root password lock, and automatic-update units.
+- **Linux** — firewall service active (ufw / firewalld / nftables), SSH `PasswordAuthentication`, root password lock, automatic-update units, audit/log-retention signal, bounded hardware summary, process inventory, and listening-port inventory.
 - **Windows** — all firewall profiles enabled, Microsoft Defender real-time protection, BitLocker system-drive protection, and Secure Boot.
 
 The reporters are read-only by construction: their execution hooks for remediation, rollback, and dry-run are hard-coded off. Posture results roll up into a per-endpoint weighted score and a control "drift matrix" on the dashboard.

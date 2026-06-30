@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import cast
+
+from app.installer_artifacts import _linux_reporter_script
+
 
 def create_installer_profile(client, **overrides):
     payload = {
@@ -44,6 +49,33 @@ def test_linux_installer_artifact_is_deterministic_and_contains_systemd_reporter
     assert "linux.ssh.password-authentication-disabled" in first.text
     assert "linux.root.password-locked" in first.text
     assert "linux.updates.automatic-enabled" in first.text
+    assert "linux.telemetry.hardware-summary" in first.text
+    assert "linux.telemetry.security-logging" in first.text
+    assert "linux.telemetry.process-inventory" in first.text
+    assert "linux.telemetry.network-listeners" in first.text
+
+
+
+def test_linux_reporter_collects_bounded_local_telemetry_without_network():
+    namespace = {"__name__": "sha_reporter_test"}
+    exec(_linux_reporter_script(), namespace)  # noqa: S102 - exercises the generated bootstrap script
+    reporter = cast(dict[str, Callable[[], dict[str, object]]], namespace)
+
+    results = [
+        reporter["linux_hardware_summary_result"](),
+        reporter["linux_process_inventory_result"](),
+        reporter["linux_network_listeners_result"](),
+    ]
+
+    assert {result["control_key"] for result in results} == {
+        "linux.telemetry.hardware-summary",
+        "linux.telemetry.process-inventory",
+        "linux.telemetry.network-listeners",
+    }
+    for result in results:
+        assert result["status"] in {"pass", "warn", "not_applicable"}
+        assert result["evidence_summary"]
+        assert result["reboot_required"] is False
 
 
 

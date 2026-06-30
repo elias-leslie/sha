@@ -80,10 +80,12 @@ def _linux_reporter_script() -> str:
         #!/usr/bin/env python3
         from __future__ import annotations
 
+        from collections import Counter
         import datetime as dt
         import glob
         import hashlib
         import json
+        import os
         import platform
         import socket
         import subprocess
@@ -154,6 +156,29 @@ def _linux_reporter_script() -> str:
                 if pretty_name:
                     return pretty_name
             return platform.platform()
+
+
+        def linux_hardware_summary_result() -> dict[str, object]:
+            memory_mb = "unknown"
+            meminfo = Path("/proc/meminfo")
+            if meminfo.exists():
+                for line in meminfo.read_text(encoding="utf-8", errors="ignore").splitlines():
+                    if line.startswith("MemTotal:"):
+                        parts = line.split()
+                        if len(parts) >= 2 and parts[1].isdigit():
+                            memory_mb = str(int(parts[1]) // 1024)
+                        break
+            cpu_count = os.cpu_count()
+            current = f"arch={platform.machine() or 'unknown'}; cpus={cpu_count or 'unknown'}; mem_mb={memory_mb}"
+            return {
+                "control_key": "linux.telemetry.hardware-summary",
+                "status": "pass",
+                "current_value": current,
+                "recommended_value": "hardware inventory collected",
+                "severity": None,
+                "evidence_summary": "Collected bounded CPU, architecture, and memory inventory for incident response context.",
+                "reboot_required": False,
+            }
 
 
         def linux_firewall_result() -> dict[str, object]:
@@ -301,12 +326,134 @@ def _linux_reporter_script() -> str:
             }
 
 
+        def linux_security_logging_result() -> dict[str, object]:
+            auditd_active, _ = run_command("systemctl", "is-active", "--quiet", "auditd")
+            journald_persistent = Path("/var/log/journal").exists()
+            current = f"auditd={'active' if auditd_active else 'inactive'}; journald_persistent={journald_persistent}"
+            status = "pass" if auditd_active or journald_persistent else "warn"
+            return {
+                "control_key": "linux.telemetry.security-logging",
+                "status": status,
+                "current_value": current,
+                "recommended_value": "auditd active or persistent journald storage",
+                "severity": None if status == "pass" else "medium",
+                "evidence_summary": "Checked local audit/log retention signals needed for post-incident evidence.",
+                "reboot_required": False,
+            }
+
+
+        def linux_process_inventory_result() -> dict[str, object]:
+            proc = Path("/proc")
+            if not proc.exists():
+                return {
+                    "control_key": "linux.telemetry.process-inventory",
+                    "status": "not_applicable",
+                    "current_value": "procfs missing",
+                    "recommended_value": "bounded process inventory collected",
+                    "severity": None,
+                    "evidence_summary": "Process inventory is unavailable because /proc is missing.",
+                    "reboot_required": False,
+                }
+
+            names: list[str] = []
+            for entry in proc.iterdir():
+                if not entry.name.isdigit():
+                    continue
+                try:
+                    name = (entry / "comm").read_text(encoding="utf-8", errors="ignore").strip()
+                except OSError:
+                    continue
+                if name:
+                    names.append(name[:64])
+
+            if not names:
+                return {
+                    "control_key": "linux.telemetry.process-inventory",
+                    "status": "warn",
+                    "current_value": "no readable processes",
+                    "recommended_value": "bounded process inventory collected",
+                    "severity": "medium",
+                    "evidence_summary": "No process names could be read from /proc.",
+                    "reboot_required": False,
+                }
+
+            top_names = ", ".join(f"{name}:{count}" for name, count in Counter(names).most_common(8))
+            return {
+                "control_key": "linux.telemetry.process-inventory",
+                "status": "pass",
+                "current_value": f"processes={len(names)}; top={top_names}",
+                "recommended_value": "bounded process inventory collected",
+                "severity": None,
+                "evidence_summary": "Collected process count and top process names without command execution.",
+                "reboot_required": False,
+            }
+
+
+        def proc_net_listeners(path: Path, protocol: str) -> list[str]:
+            try:
+                lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()[1:]
+            except OSError:
+                return []
+
+            listeners: set[str] = set()
+            for line in lines:
+                parts = line.split()
+                if len(parts) < 4:
+                    continue
+                state = parts[3].upper()
+                if protocol.startswith("tcp") and state != "0A":
+                    continue
+                if protocol.startswith("udp") and state not in {"07", "0A"}:
+                    continue
+                try:
+                    port = int(parts[1].rsplit(":", 1)[1], 16)
+                except (IndexError, ValueError):
+                    continue
+                if port:
+                    listeners.add(f"{protocol}/{port}")
+            return sorted(listeners, key=lambda item: (item.split("/", 1)[0], int(item.rsplit("/", 1)[1])))
+
+
+        def linux_network_listeners_result() -> dict[str, object]:
+            listeners = (
+                proc_net_listeners(Path("/proc/net/tcp"), "tcp4")
+                + proc_net_listeners(Path("/proc/net/tcp6"), "tcp6")
+                + proc_net_listeners(Path("/proc/net/udp"), "udp4")
+                + proc_net_listeners(Path("/proc/net/udp6"), "udp6")
+            )
+            if not listeners and not Path("/proc/net").exists():
+                return {
+                    "control_key": "linux.telemetry.network-listeners",
+                    "status": "not_applicable",
+                    "current_value": "proc net missing",
+                    "recommended_value": "bounded listener inventory collected",
+                    "severity": None,
+                    "evidence_summary": "Network listener inventory is unavailable because /proc/net is missing.",
+                    "reboot_required": False,
+                }
+
+            sample = ",".join(listeners[:50]) if listeners else "none observed"
+            return {
+                "control_key": "linux.telemetry.network-listeners",
+                "status": "pass",
+                "current_value": f"listeners={len(listeners)}; sample={sample}",
+                "recommended_value": "bounded listener inventory collected",
+                "severity": None,
+                "evidence_summary": "Collected listening TCP/UDP ports from procfs for containment triage.",
+                "reboot_required": False,
+            }
+
+
         def collect_results() -> list[dict[str, object]]:
             return [
+                linux_hardware_summary_result(),
                 linux_firewall_result(),
                 linux_ssh_password_authentication_result(),
                 linux_root_password_locked_result(),
                 linux_automatic_updates_result(),
+                linux_security_logging_result(),
+                linux_process_inventory_result(),
+                linux_network_listeners_result(),
             ]
 
 

@@ -156,7 +156,7 @@ Important rules:
 Bootstrap artifact behavior in this slice:
 - the generated reporter computes a stable per-host fingerprint from local machine identity + installer profile ID
 - each run performs `POST /api/endpoints/enroll`, `POST /api/endpoints/{endpoint_id}/heartbeat`, and `POST /api/posture-snapshots`
-- Linux posture checks stay read-only and bounded to firewall service state, SSH password-auth configuration, root-password lock state, and automatic update enablement
+- Linux posture checks stay read-only and bounded to firewall service state, SSH password-auth configuration, root-password lock state, automatic update enablement, audit/log-retention signal, hardware summary, process inventory, and listening-port inventory
 - Windows posture checks stay read-only and bounded to firewall profile state, Defender real-time protection, BitLocker system-drive protection, and Secure Boot state
 - the bootstrap path does not expose arbitrary shell execution, filesystem browsing, or generic remote command hooks
 
