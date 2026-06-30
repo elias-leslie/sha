@@ -52,6 +52,11 @@ export const HARDENING_CONTROL_OPTIONS: readonly HardeningControlOption[] = [
     label: "Windows endpoint network isolation",
     platforms: ["windows"],
   },
+  {
+    control_id: "control.windows.defender-real-time-protection",
+    label: "Windows Defender real-time protection",
+    platforms: ["windows"],
+  },
 ];
 
 export function hardeningControlOptionsForPlatform(platform: Platform | null | undefined) {

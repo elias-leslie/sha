@@ -1692,6 +1692,7 @@ def _windows_reporter_script() -> str:
         $ConfigPath = 'C:\ProgramData\SHA\reporter-config.json'
         $FirewallRollbackPath = 'C:\ProgramData\SHA\firewall-profile-rollback.json'
         $FirewallIsolationRollbackPath = 'C:\ProgramData\SHA\firewall-isolation-rollback.json'
+        $DefenderRollbackPath = 'C:\ProgramData\SHA\defender-real-time-rollback.json'
 
         function Get-Config {
             return Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
@@ -1955,6 +1956,36 @@ def _windows_reporter_script() -> str:
             }
         }
 
+        function Invoke-ApplyWindowsDefenderRealTimeProtection {
+            if (-not (Get-Command Get-MpPreference -ErrorAction SilentlyContinue) -or -not (Get-Command Set-MpPreference -ErrorAction SilentlyContinue)) {
+                return @('failed', 'Microsoft Defender preference cmdlets are unavailable.')
+            }
+            try {
+                $preference = Get-MpPreference
+                if (-not (Test-Path -LiteralPath $DefenderRollbackPath)) {
+                    [ordered]@{ DisableRealtimeMonitoring = [bool]$preference.DisableRealtimeMonitoring } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $DefenderRollbackPath -Encoding UTF8
+                }
+                Set-MpPreference -DisableRealtimeMonitoring $false
+                return @('succeeded', "Enabled Microsoft Defender real-time protection; rollback saved to $DefenderRollbackPath.")
+            }
+            catch {
+                return @('failed', "Microsoft Defender real-time protection apply failed: $($_.Exception.Message)")
+            }
+        }
+
+        function Invoke-RollbackWindowsDefenderRealTimeProtection {
+            if (-not (Get-Command Set-MpPreference -ErrorAction SilentlyContinue)) {
+                return @('failed', 'Set-MpPreference is unavailable.')
+            }
+            if (-not (Test-Path -LiteralPath $DefenderRollbackPath)) {
+                return @('failed', "No SHA Defender rollback artifact found at $DefenderRollbackPath.")
+            }
+            $state = Get-Content -LiteralPath $DefenderRollbackPath -Raw | ConvertFrom-Json
+            Set-MpPreference -DisableRealtimeMonitoring ([bool]$state.DisableRealtimeMonitoring)
+            Remove-Item -LiteralPath $DefenderRollbackPath -Force
+            return @('succeeded', 'Restored Microsoft Defender real-time monitoring preference from SHA rollback artifact.')
+        }
+
         function Invoke-HardeningAction([string]$ActionName, [string]$ControlId) {
             if ($ControlId -eq 'control.windows.firewall-all-profiles') {
                 if ($ActionName -eq 'apply_control') {
@@ -1973,6 +2004,15 @@ def _windows_reporter_script() -> str:
                     return Invoke-RollbackWindowsFirewallEndpointIsolation
                 }
                 return @('failed', "Unsupported Windows containment action: $ActionName.")
+            }
+            if ($ControlId -eq 'control.windows.defender-real-time-protection') {
+                if ($ActionName -eq 'apply_control') {
+                    return Invoke-ApplyWindowsDefenderRealTimeProtection
+                }
+                if ($ActionName -eq 'rollback_control') {
+                    return Invoke-RollbackWindowsDefenderRealTimeProtection
+                }
+                return @('failed', "Unsupported Windows Defender action: $ActionName.")
             }
             return @('failed', "Unsupported Windows hardening control: $ControlId.")
         }
