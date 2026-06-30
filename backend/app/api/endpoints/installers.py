@@ -69,7 +69,7 @@ def get_installer_artifact(
 
     filename, media_type, content = render_installer_artifact(
         profile,
-        api_token=getattr(request.app.state, "api_token", None),
+        api_token=getattr(request.app.state, "agent_api_token", None) or getattr(request.app.state, "api_token", None),
     )
     sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
     return Response(

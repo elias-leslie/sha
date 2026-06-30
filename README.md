@@ -21,7 +21,7 @@ Implemented:
 - frontend dashboard pages for fleet, endpoints, controls, installers, and approvals, each with a live/fixture data-source indicator, weighted endpoint posture score, and endpoint response-action trail
 - deterministic Linux, Windows, and macOS bootstrap artifact generation for installer profiles, served with `Content-Disposition` and `X-SHA-Artifact-Sha256` integrity headers
 - generated Linux, Windows, and macOS reporters poll approval-backed response actions; all complete bounded incident-response context/evidence collection, while Linux and Windows each have a first reversible typed hardening control
-- optional API token enforcement for control-plane `/api` routes, with generated reporters carrying the active bearer token when enabled
+- optional API token enforcement for control-plane `/api` routes, with generated reporters carrying a least-privilege agent token when configured
 - a human-in-the-loop approval workflow with two typed request kinds (`hardening_change`, `elevated_troubleshooting`), bounded grant TTLs (15–240 min), manual emergency grants, append-only audit events, and concurrency-safe state transitions
 - an approval-backed response-action queue for dispatching typed agent work and reporting execution results without arbitrary remote shell access
 - 22 generated JSON Schemas under `schemas/generated/`, exported deterministically from the Pydantic contracts
@@ -29,7 +29,7 @@ Implemented:
 
 Not yet production-ready:
 
-- no built-in multi-user authentication, RBAC, or SSO layer
+- no full multi-user authentication or SSO layer; built-in auth is limited to operator and least-privilege agent API tokens
 - no completed privileged Go endpoint agent
 - no production migrations or HA deployment path
 - no live AI/operator integration is required or bundled
@@ -131,6 +131,7 @@ Backend settings use the `SHA_` prefix:
 - `SHA_DATABASE_URL` — defaults to `sqlite:///data/sha.sqlite3` when run from `backend/`
 - `SHA_PORT` — documented local backend port, default `8010`
 - `SHA_API_TOKEN` — optional bearer/API token; when set, all `/api/*` routes require `Authorization: Bearer <token>` or `X-SHA-API-Token`
+- `SHA_AGENT_API_TOKEN` — optional least-privilege token embedded in generated reporters; it can only enroll, heartbeat, post posture, fetch assigned response actions, and report action results
 
 Frontend settings:
 
