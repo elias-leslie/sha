@@ -1,0 +1,8 @@
+services:
+  sha-lb:
+    volumes:
+      - ./nginx.tls.conf:/etc/nginx/nginx.conf:ro
+      - ${SHA_TLS_CERT_DIR:?set SHA_TLS_CERT_DIR to a directory containing tls.crt and tls.key}:/etc/nginx/certs:ro
+    ports:
+      - "${SHA_PUBLIC_PORT:-8080}:8080"
+      - "${SHA_TLS_PORT:-8443}:8443"

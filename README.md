@@ -209,6 +209,12 @@ PROJECT=ha scripts/backup-ha-postgres.sh
 CONFIRM_RESTORE=sha-restore PROJECT=ha scripts/restore-ha-postgres.sh backups/sha-postgres-YYYYmmddHHMMSS.dump
 ```
 
+HA TLS E2E:
+
+```bash
+scripts/test-ha-compose-tls.sh
+```
+
 ## Runtime smoke test
 
 With the backend running:
