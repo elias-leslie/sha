@@ -1737,9 +1737,9 @@ def _windows_reporter_script() -> str:
         function New-Result(
             [string]$ControlKey,
             [string]$Status,
-            [string]$CurrentValue,
-            [string]$RecommendedValue,
-            [string]$Severity,
+            $CurrentValue,
+            $RecommendedValue,
+            $Severity,
             [string]$EvidenceSummary,
             [bool]$RebootRequired
         ) {
@@ -1800,7 +1800,7 @@ def _windows_reporter_script() -> str:
                     'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
                     'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
                 )
-                $software = @(Get-ItemProperty -Path $paths -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName } | Select-Object -ExpandProperty DisplayName -Unique)
+                $software = @(Get-ItemProperty -Path $paths -ErrorAction SilentlyContinue | Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName } | Select-Object -ExpandProperty DisplayName -Unique)
             }
             catch {
                 return New-Result 'windows.telemetry.software-inventory' 'warn' 'software inventory failed' 'bounded software inventory collected' 'medium' "Software inventory failed: $($_.Exception.Message)" $false
@@ -1892,7 +1892,12 @@ def _windows_reporter_script() -> str:
             }
             $profiles = @(Get-Content -LiteralPath $FirewallRollbackPath -Raw | ConvertFrom-Json)
             foreach ($profile in $profiles) {
-                Set-NetFirewallProfile -Profile ([string]$profile.Name) -Enabled ([bool]$profile.Enabled)
+                $names = @($profile.Name)
+                $enabledStates = @($profile.Enabled)
+                for ($i = 0; $i -lt $names.Count; $i++) {
+                    $enabled = if ([bool]$enabledStates[$i]) { 'True' } else { 'False' }
+                    Set-NetFirewallProfile -Profile ([string]$names[$i]) -Enabled $enabled
+                }
             }
             Remove-Item -LiteralPath $FirewallRollbackPath -Force
             return @('succeeded', 'Restored Windows firewall profile enabled states from SHA rollback artifact.')
@@ -1925,7 +1930,14 @@ def _windows_reporter_script() -> str:
             }
             $profiles = @(Get-Content -LiteralPath $FirewallIsolationRollbackPath -Raw | ConvertFrom-Json)
             foreach ($profile in $profiles) {
-                Set-NetFirewallProfile -Profile ([string]$profile.Name) -Enabled ([bool]$profile.Enabled) -DefaultInboundAction ([string]$profile.DefaultInboundAction) -DefaultOutboundAction ([string]$profile.DefaultOutboundAction)
+                $names = @($profile.Name)
+                $enabledStates = @($profile.Enabled)
+                $inboundActions = @($profile.DefaultInboundAction)
+                $outboundActions = @($profile.DefaultOutboundAction)
+                for ($i = 0; $i -lt $names.Count; $i++) {
+                    $enabled = if ([bool]$enabledStates[$i]) { 'True' } else { 'False' }
+                    Set-NetFirewallProfile -Profile ([string]$names[$i]) -Enabled $enabled -DefaultInboundAction ([string]$inboundActions[$i]) -DefaultOutboundAction ([string]$outboundActions[$i])
+                }
             }
             Remove-NetFirewallRule -Group 'SHA Endpoint Isolation' -ErrorAction SilentlyContinue
             Remove-Item -LiteralPath $FirewallIsolationRollbackPath -Force

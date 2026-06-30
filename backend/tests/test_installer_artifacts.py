@@ -268,6 +268,12 @@ def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task
     assert '"rollback_control"' in first.text
     assert '"captures_rollback_artifacts": true' in first.text
     assert '"reports_execution_results": true' in first.text
+    assert "[string]$CurrentValue" not in first.text
+    assert "[string]$RecommendedValue" not in first.text
+    assert "[string]$Severity" not in first.text
+    assert "$_.PSObject.Properties['DisplayName']" in first.text
+    assert "Set-NetFirewallProfile -Profile ([string]$profile.Name) -Enabled ([bool]$profile.Enabled)" not in first.text
+    assert "$enabled = if ([bool]$enabledStates[$i]) { 'True' } else { 'False' }" in first.text
 
 def test_macos_installer_artifact_is_deterministic_and_contains_launchd_reporter(db_path, make_client):
     client = make_client(db_path)

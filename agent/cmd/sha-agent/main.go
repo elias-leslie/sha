@@ -417,7 +417,8 @@ func (a Agent) rollbackWindowsFirewallAllProfiles() (string, string) {
 	script := "$rollback = '" + path + "'; " +
 		"if (-not (Test-Path -LiteralPath $rollback)) { throw \"No SHA firewall rollback artifact found at $rollback\" }; " +
 		"$profiles = @(Get-Content -LiteralPath $rollback -Raw | ConvertFrom-Json); " +
-		"foreach ($profile in $profiles) { Set-NetFirewallProfile -Profile ([string]$profile.Name) -Enabled ([bool]$profile.Enabled) }; " +
+		"foreach ($profile in $profiles) { $names = @($profile.Name); $enabledStates = @($profile.Enabled); " +
+		"for ($i = 0; $i -lt $names.Count; $i++) { $enabled = if ([bool]$enabledStates[$i]) { 'True' } else { 'False' }; Set-NetFirewallProfile -Profile ([string]$names[$i]) -Enabled $enabled } }; " +
 		"Remove-Item -LiteralPath $rollback -Force"
 	if output, err := runPowerShell(script); err != nil {
 		return "failed", strings.TrimSpace(output + " " + err.Error())

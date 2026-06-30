@@ -95,7 +95,7 @@ func TestAgentCompletesWindowsFirewallAction(t *testing.T) {
 	if status != "succeeded" {
 		t.Fatalf("unexpected rollback status %q: %s", status, summary)
 	}
-	if len(commands) != 2 || !strings.Contains(commands[1], "Set-NetFirewallProfile -Profile ([string]$profile.Name) -Enabled ([bool]$profile.Enabled)") {
+	if len(commands) != 2 || !strings.Contains(commands[1], "$enabled = if ([bool]$enabledStates[$i]) { 'True' } else { 'False' }") {
 		t.Fatalf("unexpected rollback command: %#v", commands)
 	}
 }

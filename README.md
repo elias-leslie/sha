@@ -201,6 +201,12 @@ Linux installer/systemd endpoint E2E fallback when Proxmox is unavailable:
 scripts/test-linux-installer-docker.sh
 ```
 
+Windows installer/firewall rollback E2E fallback when Proxmox is unavailable:
+
+```bash
+scripts/test-windows-installer-qemu.sh
+```
+
 HA compose deployment E2E:
 
 ```bash
