@@ -92,10 +92,7 @@ describe("SHA installer workspace", () => {
       expect(screen.getByRole("heading", { level: 2, name: /preview for vm100 linux e2e/i })).toBeInTheDocument()
     })
 
-    expect(screen.getByRole("link", { name: /download shell/i })).toHaveAttribute(
-      "href",
-      "/api/installer-profiles/ip_live_linux/artifact",
-    )
+    expect(screen.getByRole("button", { name: /download shell/i })).toBeInTheDocument()
     expect(screen.queryByText(/ip_windows_workstation/i)).not.toBeInTheDocument()
   })
 
@@ -225,7 +222,7 @@ describe("SHA installer workspace", () => {
     expect(screen.queryByRole("heading", { level: 2, name: /select an installer profile/i })).not.toBeInTheDocument()
   })
 
-  it("previews a generated installer artifact and exposes its download link", async () => {
+  it("previews a generated installer artifact and downloads it through the API client", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
 
@@ -267,16 +264,46 @@ describe("SHA installer workspace", () => {
     })
 
     vi.stubGlobal("fetch", fetchMock)
+    const previousToken = process.env.NEXT_PUBLIC_SHA_API_TOKEN
+    process.env.NEXT_PUBLIC_SHA_API_TOKEN = "ui-token"
+    const createObjectURL = vi.fn(() => "blob:sha-installer")
+    const revokeObjectURL = vi.fn()
+    const originalCreateObjectURL = URL.createObjectURL
+    const originalRevokeObjectURL = URL.revokeObjectURL
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectURL })
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL })
+    const clickMock = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined)
 
-    render(<InstallersPage />)
+    try {
+      render(<InstallersPage />)
 
-    fireEvent.click(await screen.findByRole("button", { name: /preview artifact/i }))
+      fireEvent.click(await screen.findByRole("button", { name: /preview artifact/i }))
 
-    expect(await screen.findByText(/sha-linux-branch-office-ip_linux\.sh/i)).toBeInTheDocument()
-    expect(await screen.findByText(/echo install/i)).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /download shell/i })).toHaveAttribute(
-      "href",
-      "/api/installer-profiles/ip_linux/artifact",
-    )
+      expect(await screen.findByText(/sha-linux-branch-office-ip_linux\.sh/i)).toBeInTheDocument()
+      expect(await screen.findByText(/echo install/i)).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: /download shell/i }))
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          expect.stringContaining("/api/installer-profiles/ip_linux/artifact"),
+          expect.objectContaining({
+            headers: expect.objectContaining({ Authorization: "Bearer ui-token" }),
+          }),
+        )
+      })
+      expect(createObjectURL).toHaveBeenCalledTimes(1)
+      expect(clickMock).toHaveBeenCalledTimes(1)
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:sha-installer")
+    } finally {
+      if (previousToken === undefined) {
+        delete process.env.NEXT_PUBLIC_SHA_API_TOKEN
+      } else {
+        process.env.NEXT_PUBLIC_SHA_API_TOKEN = previousToken
+      }
+      Object.defineProperty(URL, "createObjectURL", { configurable: true, value: originalCreateObjectURL })
+      Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: originalRevokeObjectURL })
+      clickMock.mockRestore()
+    }
   })
 })

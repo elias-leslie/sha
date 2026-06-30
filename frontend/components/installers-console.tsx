@@ -80,6 +80,31 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
     }
   }
 
+  async function downloadArtifact(profileId: string) {
+    setArtifactPending(true);
+    setError(null);
+    setSelectedProfileId(profileId);
+    try {
+      const rendered = await getInstallerArtifact(profileId);
+      setArtifact({ profileId, artifact: rendered });
+      const url = URL.createObjectURL(new Blob([rendered.content], { type: rendered.mediaType }));
+      try {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = rendered.filename;
+        document.body.append(link);
+        link.click();
+        link.remove();
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to download installer artifact.");
+    } finally {
+      setArtifactPending(false);
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
@@ -130,9 +155,11 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
                     <button className="action-button action-button--secondary" onClick={() => loadArtifact(profile.id)} type="button">
                       {artifactPending && selectedProfileId === profile.id ? "Loading artifact…" : "Preview artifact"}
                     </button>
-                    <a className="action-button action-button--ghost" href={getInstallerArtifactUrl(profile.id)}>
-                      Download {profile.platform === "linux" ? "shell" : "PowerShell"}
-                    </a>
+                    <button className="action-button action-button--ghost" onClick={() => downloadArtifact(profile.id)} type="button">
+                      {artifactPending && selectedProfileId === profile.id
+                        ? "Preparing download…"
+                        : `Download ${profile.platform === "linux" ? "shell" : "PowerShell"}`}
+                    </button>
                   </div>
                 </article>
               ))}
@@ -249,7 +276,7 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
           <SectionHeader
             eyebrow="Bootstrap artifact"
             title={selectedProfile ? `Preview for ${selectedProfile.name}` : "Select an installer profile"}
-            description="Preview the generated bootstrap and use the direct download link for VM or host installation."
+            description="Preview the generated bootstrap and download it through the authenticated console for VM or host installation."
           />
           {selectedArtifact ? (
             <div className="stack-gap">
@@ -279,10 +306,12 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
               <div className="mini-card">
                 <strong>Linux</strong>
                 <p>curl -fsSL {installOrigin}{getInstallerArtifactUrl(selectedProfile.id)} | sudo bash</p>
+                <p>If token protection is enabled, add -H "Authorization: Bearer $SHA_API_TOKEN" before the URL.</p>
               </div>
               <div className="mini-card">
                 <strong>Windows</strong>
                 <p>iwr {installOrigin}{getInstallerArtifactUrl(selectedProfile.id)} -OutFile sha-agent.ps1; powershell -ExecutionPolicy Bypass -File .\sha-agent.ps1</p>
+                <p>If token protection is enabled, pass -Headers @{"{Authorization='Bearer ' + $env:SHA_API_TOKEN}"} to iwr.</p>
               </div>
             </div>
           ) : (
