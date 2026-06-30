@@ -11,13 +11,20 @@ import {
   formatDateTime,
   formatLocalInputValue,
   futureIso,
+  approvalActionDisplay,
   getEndpoint,
   getFixtureEndpoint,
+  getFixtureResponseActions,
+  listEndpointResponseActions,
   platformDisplayName,
   recordPostureSnapshot,
+  responseActionStatusDisplay,
+  responseActionStatusTone,
   sendEndpointHeartbeat,
+  troubleshootingScopeDisplay,
   type EndpointDetail,
   type PostureStatus,
+  type ResponseAction,
 } from "../lib/api";
 import { Badge, EmptyState, Panel, SectionHeader } from "./console-primitives";
 
@@ -99,6 +106,7 @@ export default function EndpointDetailConsole({
   const [snapshotPending, setSnapshotPending] = useState(false);
   const [heartbeatDirty, setHeartbeatDirty] = useState(false);
   const [snapshotDirty, setSnapshotDirty] = useState(false);
+  const [responseActions, setResponseActions] = useState<ResponseAction[]>(() => getFixtureResponseActions(endpointId));
   const [heartbeatForm, setHeartbeatForm] = useState(() => buildHeartbeatForm(initialEndpoint));
   const [snapshotForm, setSnapshotForm] = useState(() => buildSnapshotForm(initialEndpoint));
 
@@ -116,6 +124,7 @@ export default function EndpointDetailConsole({
     const liveEndpoint = await getEndpoint(endpointId);
     setEndpoint(liveEndpoint);
     setSource("live");
+    setResponseActions(await listEndpointResponseActions(endpointId, true));
   }
 
   useEffect(() => {
@@ -123,6 +132,7 @@ export default function EndpointDetailConsole({
     setSource("fixture");
     setHeartbeatDirty(false);
     setSnapshotDirty(false);
+    setResponseActions(getFixtureResponseActions(endpointId));
     setHeartbeatForm(buildHeartbeatForm(initialEndpoint));
     setSnapshotForm(buildSnapshotForm(initialEndpoint));
   }, [endpointId, initialEndpoint]);
@@ -139,6 +149,17 @@ export default function EndpointDetailConsole({
       .catch(() => {
         if (!cancelled) {
           setSource("fixture");
+        }
+      });
+    listEndpointResponseActions(endpointId, true)
+      .then((actions) => {
+        if (!cancelled) {
+          setResponseActions(actions);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResponseActions(getFixtureResponseActions(endpointId));
         }
       });
 
@@ -460,6 +481,35 @@ export default function EndpointDetailConsole({
           <div className="tag-row">
             {executionHooks.length ? executionHooks.map(([hook]) => <Badge key={hook} tone="success">{hook}</Badge>) : <Badge tone="info">No execution hooks</Badge>}
           </div>
+        </Panel>
+
+        <Panel>
+          <SectionHeader
+            eyebrow="Response actions"
+            title="Approved work trail"
+            description="Queued and completed typed actions for incident response, hardening, and rollback."
+          />
+          {responseActions.length ? (
+            <div className="operator-list">
+              {responseActions.map((action) => (
+                <div className="operator-list__item" key={action.response_action_id}>
+                  <div>
+                    <div className="operator-list__title-row">
+                      <strong>{approvalActionDisplay(action.action)}</strong>
+                      <Badge tone={responseActionStatusTone(action.status)}>{responseActionStatusDisplay(action.status)}</Badge>
+                    </div>
+                    <p>{action.reason}</p>
+                    <p>
+                      {action.control_id ?? (action.troubleshooting_scope ? troubleshootingScopeDisplay(action.troubleshooting_scope) : "No scope")} • requested by {action.requested_by} • {formatDateTime(action.created_at)}
+                    </p>
+                    {action.result_summary ? <p>{action.result_summary}</p> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="No response actions" body="Approval-backed hardening and incident-response actions will appear here." />
+          )}
         </Panel>
 
         <Panel>

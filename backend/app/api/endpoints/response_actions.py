@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -169,6 +169,7 @@ def create_response_action(
 @router.get("/api/endpoints/{endpoint_id}/response-actions", response_model=ResponseActionListResponse)
 def list_endpoint_response_actions(
     endpoint_id: str,
+    include_terminal: bool = Query(False),
     store: DatabaseStore = Depends(get_store),
 ) -> dict[str, list[dict[str, object]]]:
     endpoint_id = normalize_endpoint_id(endpoint_id)
@@ -178,17 +179,17 @@ def list_endpoint_response_actions(
             _sync_expired_grants(session, now_str=now_str)
         if session.get(Endpoint, endpoint_id) is None:
             raise HTTPException(status_code=404, detail="endpoint not found")
-        actions = session.scalars(
-            select(ResponseAction)
-            .join(ApprovalGrant, ApprovalGrant.approval_grant_id == ResponseAction.approval_grant_id)
-            .where(
-                ResponseAction.endpoint_id == endpoint_id,
-                ResponseAction.status == "queued",
-                ApprovalGrant.status == "approved",
-                ApprovalGrant.expires_at > now_str,
+        query = select(ResponseAction).where(ResponseAction.endpoint_id == endpoint_id)
+        if not include_terminal:
+            query = (
+                query.join(ApprovalGrant, ApprovalGrant.approval_grant_id == ResponseAction.approval_grant_id)
+                .where(
+                    ResponseAction.status == "queued",
+                    ApprovalGrant.status == "approved",
+                    ApprovalGrant.expires_at > now_str,
+                )
             )
-            .order_by(ResponseAction.created_at.asc(), ResponseAction.response_action_id.asc())
-        ).all()
+        actions = session.scalars(query.order_by(ResponseAction.created_at.asc(), ResponseAction.response_action_id.asc())).all()
     return {"items": [_response_action_payload(action) for action in actions]}
 
 

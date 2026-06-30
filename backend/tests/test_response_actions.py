@@ -112,6 +112,9 @@ def test_response_action_queue_requires_active_grant_and_drives_heartbeat_count(
     assert completed.json()["completed_at"] == "2026-04-18T20:00:00Z"
     assert heartbeat(client, endpoint_id)["pending_action_count"] == 0
     assert client.get(f"/api/endpoints/{endpoint_id}/response-actions").json() == {"items": []}
+    history = client.get(f"/api/endpoints/{endpoint_id}/response-actions?include_terminal=true")
+    assert [item["response_action_id"] for item in history.json()["items"]] == [action["response_action_id"]]
+    assert history.json()["items"][0]["status"] == "succeeded"
 
 
 def test_response_action_rejects_missing_endpoint_capability(db_path, make_client, monkeypatch):

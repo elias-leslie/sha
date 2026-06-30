@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import EndpointDetailPage from "../app/endpoints/[endpointId]/page"
 import EndpointDetailConsole from "../components/endpoint-detail-console"
-import type { EndpointDetail } from "../lib/api"
+import type { EndpointDetail, ResponseAction } from "../lib/api"
 
 describe("SHA endpoint detail route", () => {
   it("hydrates unknown live endpoints into matching shell and form state", async () => {
@@ -207,6 +207,69 @@ describe("SHA endpoint detail route", () => {
     expect(screen.getByLabelText(/agent version/i)).toHaveValue("2.0.0")
     expect(screen.getAllByLabelText(/platform profile/i)[0]).toHaveValue("linux-beta")
     expect(screen.getAllByLabelText(/platform profile/i)[1]).toHaveValue("linux-beta")
+  })
+
+  it("renders response action history for endpoint incident response work", async () => {
+    const endpoint: EndpointDetail = {
+      endpoint_id: "ep_actions",
+      hostname: "linux-actions",
+      platform: "linux",
+      platform_version: "Ubuntu 24.04 LTS",
+      agent_version: "1.0.0",
+      tenant_id: "tenant-a",
+      site_id: "site-a",
+      status: "active",
+      connectivity_status: "online",
+      last_seen_at: "2026-04-21T16:58:00Z",
+      last_heartbeat_at: "2026-04-21T16:58:00Z",
+      created_at: "2026-04-21T16:00:00Z",
+      updated_at: "2026-04-21T16:58:00Z",
+      last_platform_profile: "linux-server",
+      declared_capabilities: ["enroll", "heartbeat", "apply_control"],
+      execution_hooks: {
+        captures_rollback_artifacts: true,
+        reports_execution_results: true,
+        supports_dry_run: false,
+      },
+      latest_posture_summary: null,
+      latest_results: [],
+    }
+    const actions: ResponseAction[] = [
+      {
+        response_action_id: "act_apply_ssh",
+        endpoint_id: endpoint.endpoint_id,
+        approval_grant_id: "grant_ssh",
+        action: "apply_control",
+        control_id: "linux.ssh.password-authentication-disabled",
+        troubleshooting_scope: null,
+        requested_by: "SHAna",
+        reason: "Disable SSH password authentication",
+        status: "succeeded",
+        result_summary: "Set PasswordAuthentication no in SHA-managed sshd drop-in.",
+        created_at: "2026-04-21T16:59:00Z",
+        updated_at: "2026-04-21T17:00:00Z",
+        completed_at: "2026-04-21T17:00:00Z",
+      },
+    ]
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith(`/api/endpoints/${endpoint.endpoint_id}`)) {
+        return { ok: true, json: async () => endpoint } as Response
+      }
+      if (url.endsWith(`/api/endpoints/${endpoint.endpoint_id}/response-actions?include_terminal=true`)) {
+        return { ok: true, json: async () => ({ items: actions }) } as Response
+      }
+      return { ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<EndpointDetailConsole endpointId={endpoint.endpoint_id} initialEndpoint={endpoint} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /approved work trail/i })).toBeInTheDocument()
+      expect(screen.getByText(/disable ssh password authentication/i)).toBeInTheDocument()
+      expect(screen.getByText(/set passwordauthentication no/i)).toBeInTheDocument()
+    })
   })
 
   it("submits fixture heartbeat payloads using the current bounded capability and execution-hook names", async () => {

@@ -283,7 +283,7 @@ Important rules:
 - queued actions require an active, unexpired approval grant
 - the grant must include the endpoint, action, and requested control or troubleshooting scope
 - the endpoint must have declared the action capability in heartbeat before the action can be queued
-- endpoint fetches only return queued actions whose grant is still active
+- endpoint fetches return only queued actions whose grant is still active by default; `include_terminal=true` returns queued and terminal action history for operators
 - result reporting only accepts `succeeded` or `failed`; completed actions are terminal
 - heartbeat `pending_action_count` reflects queued actions backed by active grants
 - actions remain typed (`apply_control`, `rollback_control`, bounded troubleshooting actions); no arbitrary shell payload exists

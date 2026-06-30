@@ -9,6 +9,7 @@ export type ApprovalRisk = "low" | "medium" | "high" | "critical";
 export type ApprovalRequestKind = "hardening_change" | "elevated_troubleshooting";
 export type ApprovalRequestStatus = "pending" | "approved" | "denied" | "expired" | "revoked";
 export type ApprovalGrantStatus = "approved" | "expired" | "revoked";
+export type ResponseActionStatus = "queued" | "succeeded" | "failed" | "cancelled";
 export type ApprovalAction =
   | "collect_security_context"
   | "collect_remediation_evidence"
@@ -113,6 +114,22 @@ export interface ApprovalGrant {
   status: ApprovalGrantStatus;
   created_at: string;
   updated_at: string;
+}
+
+export interface ResponseAction {
+  response_action_id: string;
+  endpoint_id: string;
+  approval_grant_id: string;
+  action: ApprovalAction;
+  control_id: string | null;
+  troubleshooting_scope: TroubleshootingScope | null;
+  requested_by: string;
+  reason: string;
+  status: ResponseActionStatus;
+  result_summary: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
 }
 
 export interface InstallerProfile {
@@ -719,6 +736,39 @@ const FIXTURE_APPROVAL_GRANTS = [
   },
 ] satisfies readonly ApprovalGrant[];
 
+const FIXTURE_RESPONSE_ACTIONS = [
+  {
+    response_action_id: "act_linux_ssh_apply",
+    endpoint_id: "ep_demo_linux_01",
+    approval_grant_id: "grant_linux_manual_context",
+    action: "apply_control",
+    control_id: "linux.ssh.password-authentication-disabled",
+    troubleshooting_scope: null,
+    requested_by: "SHAna",
+    reason: "Disable SSH password authentication after approval.",
+    status: "succeeded",
+    result_summary: "Set PasswordAuthentication no in SHA-managed sshd drop-in; reloaded sshd.",
+    created_at: "2026-04-18T20:48:00Z",
+    updated_at: "2026-04-18T20:49:00Z",
+    completed_at: "2026-04-18T20:49:00Z",
+  },
+  {
+    response_action_id: "act_linux_context_network",
+    endpoint_id: "ep_demo_linux_01",
+    approval_grant_id: "grant_linux_manual_context",
+    action: "collect_security_context",
+    control_id: null,
+    troubleshooting_scope: "network_bindings",
+    requested_by: "ops",
+    reason: "Collect network listener context during triage.",
+    status: "queued",
+    result_summary: null,
+    created_at: "2026-04-18T20:50:00Z",
+    updated_at: "2026-04-18T20:50:00Z",
+    completed_at: null,
+  },
+] satisfies readonly ResponseAction[];
+
 const FIXTURE_INSTALLER_PROFILES = [
   {
     id: "ip_windows_workstation",
@@ -860,6 +910,12 @@ export async function listApprovalGrants() {
   return data.items;
 }
 
+export async function listEndpointResponseActions(endpointId: string, includeTerminal = false) {
+  const suffix = includeTerminal ? "?include_terminal=true" : "";
+  const data = await fetchJson<{ items: ResponseAction[] }>(`/api/endpoints/${endpointId}/response-actions${suffix}`);
+  return data.items;
+}
+
 export async function createApprovalGrant(payload: ApprovalGrantCreatePayload) {
   return fetchJson<ApprovalGrant>("/api/approval-grants", {
     method: "POST",
@@ -923,6 +979,10 @@ export function getFixtureApprovalRequests() {
 
 export function getFixtureApprovalGrants() {
   return clone(FIXTURE_APPROVAL_GRANTS);
+}
+
+export function getFixtureResponseActions(endpointId: string) {
+  return clone(FIXTURE_RESPONSE_ACTIONS.filter((action) => action.endpoint_id === endpointId));
 }
 
 export function getFixtureInstallerProfiles() {
@@ -1057,6 +1117,32 @@ export function approvalStatusTone(status: ApprovalRequestStatus | ApprovalGrant
     case "revoked":
       return "danger";
     case "expired":
+      return "info";
+  }
+}
+
+export function responseActionStatusDisplay(status: ResponseActionStatus) {
+  switch (status) {
+    case "queued":
+      return "Queued";
+    case "succeeded":
+      return "Succeeded";
+    case "failed":
+      return "Failed";
+    case "cancelled":
+      return "Cancelled";
+  }
+}
+
+export function responseActionStatusTone(status: ResponseActionStatus): Tone {
+  switch (status) {
+    case "queued":
+      return "warning";
+    case "succeeded":
+      return "success";
+    case "failed":
+      return "danger";
+    case "cancelled":
       return "info";
   }
 }
