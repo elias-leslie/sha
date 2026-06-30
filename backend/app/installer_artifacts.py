@@ -1619,6 +1619,11 @@ def _render_macos_bootstrap(profile: InstallerProfile, *, api_token: str | None 
             <string>python3</string>
             <string>/Library/Application Support/SHA/reporter.py</string>
           </array>
+          <key>EnvironmentVariables</key>
+          <dict>
+            <key>PATH</key>
+            <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+          </dict>
           <key>RunAtLoad</key>
           <true/>
           <key>StartInterval</key>

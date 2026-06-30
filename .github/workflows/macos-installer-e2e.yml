@@ -1,0 +1,26 @@
+name: macOS Installer E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/macos-installer-e2e.yml"
+      - "backend/**"
+      - "scripts/test-macos-installer-local.sh"
+
+jobs:
+  macos-installer-e2e:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Run macOS installer E2E
+        run: scripts/test-macos-installer-local.sh

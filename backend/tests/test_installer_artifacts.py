@@ -300,6 +300,7 @@ def test_macos_installer_artifact_is_deterministic_and_contains_launchd_reporter
     assert '"platform_profile": "macos-bootstrap-v1"' in first.text
     assert "com.sha.reporter" in first.text
     assert "launchctl bootstrap" in first.text
+    assert "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" in first.text
     assert "/api/endpoints/enroll" in first.text
     assert "/response-actions" in first.text
     assert "/api/posture-snapshots" in first.text

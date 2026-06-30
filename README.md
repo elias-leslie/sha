@@ -207,6 +207,12 @@ Windows installer/firewall rollback E2E fallback when Proxmox is unavailable:
 scripts/test-windows-installer-qemu.sh
 ```
 
+macOS installer/observe-only E2E on a disposable macOS host or GitHub-hosted macOS runner:
+
+```bash
+scripts/test-macos-installer-local.sh
+```
+
 HA compose deployment E2E:
 
 ```bash
