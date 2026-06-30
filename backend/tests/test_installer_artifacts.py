@@ -58,6 +58,9 @@ def test_linux_installer_artifact_is_deterministic_and_contains_systemd_reporter
     assert "linux.telemetry.hardware-summary" in first.text
     assert "linux.telemetry.security-logging" in first.text
     assert "linux.telemetry.process-inventory" in first.text
+    assert "linux.telemetry.package-inventory" in first.text
+    assert "linux.telemetry.startup-services" in first.text
+    assert "linux.telemetry.login-sessions" in first.text
     assert "linux.telemetry.network-listeners" in first.text
 
 
@@ -70,12 +73,18 @@ def test_linux_reporter_collects_bounded_local_telemetry_without_network():
     results = [
         reporter["linux_hardware_summary_result"](),
         reporter["linux_process_inventory_result"](),
+        reporter["linux_package_inventory_result"](),
+        reporter["linux_startup_services_result"](),
+        reporter["linux_login_sessions_result"](),
         reporter["linux_network_listeners_result"](),
     ]
 
     assert {result["control_key"] for result in results} == {
         "linux.telemetry.hardware-summary",
         "linux.telemetry.process-inventory",
+        "linux.telemetry.package-inventory",
+        "linux.telemetry.startup-services",
+        "linux.telemetry.login-sessions",
         "linux.telemetry.network-listeners",
     }
     for result in results:

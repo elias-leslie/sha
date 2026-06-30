@@ -40,7 +40,7 @@ Do not expose the backend or dashboard to an untrusted network without enabling 
 
 The generated installer artifacts are not just stubs — each one installs a small read-only reporter (a systemd timer on Linux, a scheduled task on Windows, both on a 15-minute cadence) that runs a concrete posture check and reports back through the full `enroll → heartbeat → posture-snapshot` cycle:
 
-- **Linux** — firewall service active (ufw / firewalld / nftables), SSH `PasswordAuthentication`, root password lock, automatic-update units, audit/log-retention signal, bounded hardware summary, process inventory, and listening-port inventory.
+- **Linux** — firewall service active (ufw / firewalld / nftables), SSH `PasswordAuthentication`, root password lock, automatic-update units, audit/log-retention signal, bounded hardware summary, process inventory, package inventory, enabled startup services, active login sessions, and listening-port inventory.
 - **Windows** — all firewall profiles enabled, Microsoft Defender real-time protection, BitLocker system-drive protection, Secure Boot, process inventory, TCP listener inventory, recent Security log readability, service status, and current service identity.
 - **macOS** — Application Firewall, FileVault, Gatekeeper, automatic-update check preference, unified-log store signal, bounded hardware summary, process inventory, listening TCP sockets, service status, and console-user identity context.
 

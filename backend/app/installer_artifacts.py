@@ -434,6 +434,115 @@ def _linux_reporter_script() -> str:
             }
 
 
+        def linux_package_inventory_result() -> dict[str, object]:
+            package_names: list[str] = []
+            dpkg_status = Path("/var/lib/dpkg/status")
+            if dpkg_status.exists():
+                for line in dpkg_status.read_text(encoding="utf-8", errors="ignore").splitlines():
+                    if line.startswith("Package: "):
+                        package_names.append(line.split(": ", 1)[1][:80])
+            else:
+                for command in (("rpm", "-qa"), ("apk", "info")):
+                    ok, output = run_command(*command)
+                    if ok and output:
+                        package_names = [line.strip()[:80] for line in output.splitlines() if line.strip()]
+                        break
+                    if output != "command missing":
+                        break
+
+            if not package_names:
+                return {
+                    "control_key": "linux.telemetry.package-inventory",
+                    "status": "warn",
+                    "current_value": "no package inventory source readable",
+                    "recommended_value": "bounded package inventory collected",
+                    "severity": "medium",
+                    "evidence_summary": "No dpkg, rpm, or apk package inventory could be collected.",
+                    "reboot_required": False,
+                }
+
+            sample = ",".join(sorted(package_names)[:40])
+            return {
+                "control_key": "linux.telemetry.package-inventory",
+                "status": "pass",
+                "current_value": f"packages={len(package_names)}; sample={sample}",
+                "recommended_value": "bounded package inventory collected",
+                "severity": None,
+                "evidence_summary": "Collected installed package names for vulnerability and incident-response triage.",
+                "reboot_required": False,
+            }
+
+
+        def linux_startup_services_result() -> dict[str, object]:
+            ok, output = run_command(
+                "systemctl",
+                "list-unit-files",
+                "--type=service",
+                "--state=enabled",
+                "--no-legend",
+                "--no-pager",
+            )
+            if not ok and output == "command missing":
+                return {
+                    "control_key": "linux.telemetry.startup-services",
+                    "status": "not_applicable",
+                    "current_value": "systemctl missing",
+                    "recommended_value": "bounded startup service inventory collected",
+                    "severity": None,
+                    "evidence_summary": "Startup service inventory is unavailable because systemctl is missing.",
+                    "reboot_required": False,
+                }
+
+            services = [line.split()[0][:120] for line in output.splitlines() if line.strip() and not line.startswith("UNIT FILE")]
+            if not services:
+                return {
+                    "control_key": "linux.telemetry.startup-services",
+                    "status": "warn",
+                    "current_value": "no enabled services observed",
+                    "recommended_value": "bounded startup service inventory collected",
+                    "severity": "medium",
+                    "evidence_summary": "No enabled systemd service inventory could be collected.",
+                    "reboot_required": False,
+                }
+
+            sample = ",".join(sorted(services)[:40])
+            return {
+                "control_key": "linux.telemetry.startup-services",
+                "status": "pass",
+                "current_value": f"enabled_services={len(services)}; sample={sample}",
+                "recommended_value": "bounded startup service inventory collected",
+                "severity": None,
+                "evidence_summary": "Collected enabled systemd services to help identify persistence mechanisms.",
+                "reboot_required": False,
+            }
+
+
+        def linux_login_sessions_result() -> dict[str, object]:
+            ok, output = run_command("who", "-u")
+            if not ok and output == "command missing":
+                return {
+                    "control_key": "linux.telemetry.login-sessions",
+                    "status": "not_applicable",
+                    "current_value": "who missing",
+                    "recommended_value": "bounded login session inventory collected",
+                    "severity": None,
+                    "evidence_summary": "Login session inventory is unavailable because who is missing.",
+                    "reboot_required": False,
+                }
+
+            sessions = [line for line in output.splitlines() if line.strip()]
+            users = sorted({line.split()[0][:64] for line in sessions if line.split()})
+            return {
+                "control_key": "linux.telemetry.login-sessions",
+                "status": "pass" if ok else "warn",
+                "current_value": f"sessions={len(sessions)}; users={','.join(users[:20]) if users else 'none'}",
+                "recommended_value": "bounded login session inventory collected",
+                "severity": None if ok else "medium",
+                "evidence_summary": "Collected active login-session count and bounded user list for volatile incident evidence.",
+                "reboot_required": False,
+            }
+
+
         def proc_net_listeners(path: Path, protocol: str) -> list[str]:
             try:
                 lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()[1:]
@@ -498,6 +607,9 @@ def _linux_reporter_script() -> str:
                 linux_automatic_updates_result(),
                 linux_security_logging_result(),
                 linux_process_inventory_result(),
+                linux_package_inventory_result(),
+                linux_startup_services_result(),
+                linux_login_sessions_result(),
                 linux_network_listeners_result(),
             ]
 
