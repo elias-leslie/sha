@@ -195,8 +195,12 @@ def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task
     assert "windows.secure-boot.enabled" in first.text
     assert "windows.telemetry.process-inventory" in first.text
     assert "windows.telemetry.network-bindings" in first.text
+    assert "windows.telemetry.software-inventory" in first.text
+    assert "windows.telemetry.startup-services" in first.text
     assert "Get-NetTCPConnection" in first.text
     assert "Get-ProcessInventoryResult" in first.text
+    assert "Get-SoftwareInventoryResult" in first.text
+    assert "Get-StartupServiceInventoryResult" in first.text
     assert "Invoke-PendingResponseActions" in first.text
     assert "Invoke-ApplyWindowsFirewallAllProfiles" in first.text
     assert "Invoke-RollbackWindowsFirewallAllProfiles" in first.text

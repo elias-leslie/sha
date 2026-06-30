@@ -1583,6 +1583,41 @@ def _windows_reporter_script() -> str:
             return New-Result 'windows.telemetry.network-bindings' 'pass' "listeners=$($listeners.Count); sample=$sample" 'bounded TCP listener inventory collected' $null 'Collected listening TCP ports for containment triage.' $false
         }
 
+        function Get-SoftwareInventoryResult {
+            try {
+                $paths = @(
+                    'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+                    'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+                )
+                $software = @(Get-ItemProperty -Path $paths -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName } | Select-Object -ExpandProperty DisplayName -Unique)
+            }
+            catch {
+                return New-Result 'windows.telemetry.software-inventory' 'warn' 'software inventory failed' 'bounded software inventory collected' 'medium' "Software inventory failed: $($_.Exception.Message)" $false
+            }
+            if ($software.Count -eq 0) {
+                return New-Result 'windows.telemetry.software-inventory' 'warn' 'no software observed' 'bounded software inventory collected' 'medium' 'No installed software names were readable from uninstall registry keys.' $false
+            }
+            $sample = (($software | Sort-Object | Select-Object -First 40) -join ',')
+            return New-Result 'windows.telemetry.software-inventory' 'pass' "software=$($software.Count); sample=$sample" 'bounded software inventory collected' $null 'Collected installed software names for vulnerability and incident-response triage.' $false
+        }
+
+        function Get-StartupServiceInventoryResult {
+            if (-not (Get-Command Get-CimInstance -ErrorAction SilentlyContinue)) {
+                return New-Result 'windows.telemetry.startup-services' 'not_applicable' 'Get-CimInstance missing' 'bounded startup service inventory collected' $null 'Startup service inspection cmdlet is unavailable.' $false
+            }
+            try {
+                $services = @(Get-CimInstance Win32_Service -ErrorAction Stop | Where-Object { $_.StartMode -eq 'Auto' })
+            }
+            catch {
+                return New-Result 'windows.telemetry.startup-services' 'warn' 'startup service inventory failed' 'bounded startup service inventory collected' 'medium' "Startup service inventory failed: $($_.Exception.Message)" $false
+            }
+            $sample = (($services | Sort-Object Name | Select-Object -First 40 | ForEach-Object { $_.Name }) -join ',')
+            if (-not $sample) {
+                $sample = 'none observed'
+            }
+            return New-Result 'windows.telemetry.startup-services' 'pass' "auto_services=$($services.Count); sample=$sample" 'bounded startup service inventory collected' $null 'Collected automatic-start Windows services to help identify persistence mechanisms.' $false
+        }
+
         function Get-SecurityLogResult {
             if (-not (Get-Command Get-WinEvent -ErrorAction SilentlyContinue)) {
                 return New-Result 'windows.telemetry.security-logs' 'not_applicable' 'Get-WinEvent missing' 'recent Security log readable' $null 'Security event inspection cmdlet is unavailable.' $false
@@ -1749,7 +1784,11 @@ def _windows_reporter_script() -> str:
                     Get-SecureBootResult
                     Get-ProcessInventoryResult
                     Get-NetworkBindingsResult
+                    Get-SoftwareInventoryResult
+                    Get-StartupServiceInventoryResult
                     Get-SecurityLogResult
+                    Get-ServiceStatusResult
+                    Get-IdentityStateResult
                 )
                 Complete-ResponseAction $ControlPlaneUrl $Action 'succeeded' (ConvertTo-ResultSummary $results)
                 return
@@ -1802,6 +1841,13 @@ def _windows_reporter_script() -> str:
                 Get-DefenderRealTimeProtectionResult
                 Get-BitLockerSystemDriveResult
                 Get-SecureBootResult
+                Get-ProcessInventoryResult
+                Get-NetworkBindingsResult
+                Get-SoftwareInventoryResult
+                Get-StartupServiceInventoryResult
+                Get-SecurityLogResult
+                Get-ServiceStatusResult
+                Get-IdentityStateResult
             )
             Invoke-JsonPost "$controlPlaneUrl/api/posture-snapshots" ([ordered]@{
                 endpoint_id = $endpointId
