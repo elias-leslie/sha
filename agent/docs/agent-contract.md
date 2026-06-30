@@ -154,15 +154,17 @@ Important rules:
 - `GET /api/installer-profiles/{profile_id}/artifact` returns a deterministic text artifact for that profile
 - Linux profiles return a shell bootstrap that installs `/opt/sha/reporter.py`, `/etc/sha/reporter-config.json`, and a `sha-reporter.service` + `sha-reporter.timer`
 - Windows profiles return a PowerShell bootstrap that installs `C:\ProgramData\SHA\reporter.ps1`, `C:\ProgramData\SHA\reporter-config.json`, and a `SHA Reporter` scheduled task
+- macOS profiles return a shell bootstrap that installs `/usr/local/lib/sha/reporter.py`, `/Library/Application Support/SHA/reporter-config.json`, and a `com.sha.reporter` launchd daemon
 - repeated artifact downloads for the same profile are byte-identical until the profile itself changes
 - artifact responses set `Content-Disposition` and `X-SHA-Artifact-Sha256` headers for download and verification
 
 Bootstrap artifact behavior in this slice:
 - the generated reporter computes a stable per-host fingerprint from local machine identity + installer profile ID
 - each run performs `POST /api/endpoints/enroll`, `POST /api/endpoints/{endpoint_id}/heartbeat`, `POST /api/posture-snapshots`, `GET /api/endpoints/{endpoint_id}/response-actions`, and `POST /api/response-actions/{response_action_id}/result`
-- Linux posture checks stay read-only and bounded to firewall service state, SSH password-auth configuration, root-password lock state, automatic update enablement, audit/log-retention signal, hardware summary, process inventory, and listening-port inventory
+- Linux posture checks stay read-only and bounded to firewall service state, SSH password-auth configuration, root-password lock state, automatic update enablement, audit/log-retention signal, hardware summary, process inventory, package inventory, startup services, login sessions, and listening-port inventory
 - Linux response-action execution is bounded to context/evidence collection for the approved troubleshooting scope plus apply/rollback for `linux.ssh.password-authentication-disabled` and `linux.network.endpoint-isolated`
-- Windows posture checks and context/evidence actions stay read-only and bounded to firewall profile state, Defender real-time protection, BitLocker system-drive protection, Secure Boot state, process inventory, TCP listener inventory, recent Security log readability, service status, and current service identity; Windows hardening execution is bounded to apply/rollback for `control.windows.firewall-all-profiles` and `control.windows.firewall-endpoint-isolated`
+- Windows posture checks and context/evidence actions stay read-only and bounded to firewall profile state, Defender real-time protection, BitLocker system-drive protection, Secure Boot state, process inventory, TCP listener inventory, installed software, automatic-start services, recent Security log readability, service status, and current service identity; Windows hardening execution is bounded to apply/rollback for `control.windows.firewall-all-profiles` and `control.windows.firewall-endpoint-isolated`
+- macOS posture checks and context/evidence actions stay read-only and bounded to Application Firewall, FileVault, Gatekeeper, automatic-update check state, unified-log availability, hardware summary, process inventory, application inventory, launchd startup items, login sessions, TCP listener inventory, service status, and console-user identity
 - the bootstrap path does not expose arbitrary shell execution, filesystem browsing, or generic remote command hooks
 
 ## Approval request contract

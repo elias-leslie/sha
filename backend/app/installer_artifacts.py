@@ -1284,6 +1284,102 @@ def _macos_reporter_script() -> str:
             }
 
 
+        def bundle_names(paths: list[str], suffix: str) -> list[str]:
+            names: set[str] = set()
+            for raw_path in paths:
+                root = Path(raw_path).expanduser()
+                if not root.exists():
+                    continue
+                try:
+                    for child in root.iterdir():
+                        if child.name.endswith(suffix):
+                            names.add(child.name.removesuffix(suffix)[:80])
+                except OSError:
+                    continue
+            return sorted(names)
+
+
+        def macos_software_inventory_result() -> dict[str, object]:
+            applications = bundle_names(["/Applications", "/System/Applications"], ".app")
+            if not applications:
+                return {
+                    "control_key": "macos.telemetry.software-inventory",
+                    "status": "warn",
+                    "current_value": "no application bundles observed",
+                    "recommended_value": "bounded software inventory collected",
+                    "severity": "medium",
+                    "evidence_summary": "No application bundles were readable from standard macOS application directories.",
+                    "reboot_required": False,
+                }
+            sample = ", ".join(applications[:20])
+            return {
+                "control_key": "macos.telemetry.software-inventory",
+                "status": "pass",
+                "current_value": f"applications={len(applications)}; sample={sample}",
+                "recommended_value": "bounded software inventory collected",
+                "severity": None,
+                "evidence_summary": "Collected installed application bundle names for vulnerability and incident-response triage.",
+                "reboot_required": False,
+            }
+
+
+        def macos_startup_services_result() -> dict[str, object]:
+            plists = bundle_names(
+                [
+                    "/Library/LaunchDaemons",
+                    "/Library/LaunchAgents",
+                    "/System/Library/LaunchDaemons",
+                    "/System/Library/LaunchAgents",
+                    "~/Library/LaunchAgents",
+                ],
+                ".plist",
+            )
+            if not plists:
+                return {
+                    "control_key": "macos.telemetry.startup-services",
+                    "status": "warn",
+                    "current_value": "no launchd plists observed",
+                    "recommended_value": "bounded startup service inventory collected",
+                    "severity": "medium",
+                    "evidence_summary": "No launchd property lists were readable from standard startup directories.",
+                    "reboot_required": False,
+                }
+            sample = ", ".join(plists[:20])
+            return {
+                "control_key": "macos.telemetry.startup-services",
+                "status": "pass",
+                "current_value": f"launchd_plists={len(plists)}; sample={sample}",
+                "recommended_value": "bounded startup service inventory collected",
+                "severity": None,
+                "evidence_summary": "Collected launchd startup property-list names to help identify persistence mechanisms.",
+                "reboot_required": False,
+            }
+
+
+        def macos_login_sessions_result() -> dict[str, object]:
+            ok, output = run_command("who")
+            if not ok and output == "command missing":
+                return {
+                    "control_key": "macos.telemetry.login-sessions",
+                    "status": "not_applicable",
+                    "current_value": "who missing",
+                    "recommended_value": "login sessions collected",
+                    "severity": None,
+                    "evidence_summary": "Login-session inventory is unavailable because who is missing.",
+                    "reboot_required": False,
+                }
+            users = [line.split()[0][:64] for line in output.splitlines() if line.split()]
+            return {
+                "control_key": "macos.telemetry.login-sessions",
+                "status": "pass" if ok else "warn",
+                "current_value": f"sessions={len(users)}; users={','.join(sorted(set(users))[:20]) or 'none observed'}",
+                "recommended_value": "login sessions collected",
+                "severity": None if ok else "medium",
+                "evidence_summary": "Collected active login session users for incident-response triage.",
+                "reboot_required": False,
+            }
+
+
         def macos_network_bindings_result() -> dict[str, object]:
             ok, output = run_command("lsof", "-nP", "-iTCP", "-sTCP:LISTEN")
             if not ok and output == "command missing":
@@ -1359,6 +1455,9 @@ def _macos_reporter_script() -> str:
                 macos_automatic_updates_result(),
                 macos_security_logging_result(),
                 macos_process_inventory_result(),
+                macos_software_inventory_result(),
+                macos_startup_services_result(),
+                macos_login_sessions_result(),
                 macos_network_bindings_result(),
             ]
 

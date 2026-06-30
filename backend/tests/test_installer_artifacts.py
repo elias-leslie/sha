@@ -292,6 +292,9 @@ def test_macos_installer_artifact_is_deterministic_and_contains_launchd_reporter
     assert "macos.disk.filevault-enabled" in first.text
     assert "macos.gatekeeper.assessments-enabled" in first.text
     assert "macos.telemetry.process-inventory" in first.text
+    assert "macos.telemetry.software-inventory" in first.text
+    assert "macos.telemetry.startup-services" in first.text
+    assert "macos.telemetry.login-sessions" in first.text
     assert "macos.telemetry.network-bindings" in first.text
     assert '"captures_rollback_artifacts": false' in first.text
     assert '"reports_execution_results": true' in first.text
@@ -315,6 +318,8 @@ def test_macos_reporter_collects_bounded_local_telemetry_without_network():
             return True, "/sbin/launchd\n/usr/libexec/runningboardd\n/usr/libexec/runningboardd\n"
         if command.startswith("lsof"):
             return True, "COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\nPython 12 root 4u IPv4 TCP *:8010 (LISTEN)"
+        if command == "who":
+            return True, "alice console Jun 30 09:00\n"
         if command.startswith("sysctl"):
             return True, "8"
         return True, "ok"
@@ -327,6 +332,9 @@ def test_macos_reporter_collects_bounded_local_telemetry_without_network():
         reporter["macos_filevault_result"](),
         reporter["macos_gatekeeper_result"](),
         reporter["macos_process_inventory_result"](),
+        reporter["macos_software_inventory_result"](),
+        reporter["macos_startup_services_result"](),
+        reporter["macos_login_sessions_result"](),
         reporter["macos_network_bindings_result"](),
     ]
 
@@ -335,9 +343,19 @@ def test_macos_reporter_collects_bounded_local_telemetry_without_network():
         "macos.disk.filevault-enabled",
         "macos.gatekeeper.assessments-enabled",
         "macos.telemetry.process-inventory",
+        "macos.telemetry.software-inventory",
+        "macos.telemetry.startup-services",
+        "macos.telemetry.login-sessions",
         "macos.telemetry.network-bindings",
     }
-    assert all(result["status"] == "pass" for result in results)
+    statuses = {result["control_key"]: result["status"] for result in results}
+    assert statuses["macos.telemetry.software-inventory"] in {"pass", "warn"}
+    assert statuses["macos.telemetry.startup-services"] in {"pass", "warn"}
+    assert all(
+        result["status"] == "pass"
+        for result in results
+        if result["control_key"] not in {"macos.telemetry.software-inventory", "macos.telemetry.startup-services"}
+    )
     assert all(result["reboot_required"] is False for result in results)
 
 
