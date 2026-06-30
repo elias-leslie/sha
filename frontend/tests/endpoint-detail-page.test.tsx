@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import EndpointDetailPage from "../app/endpoints/[endpointId]/page"
 import EndpointDetailConsole from "../components/endpoint-detail-console"
-import type { EndpointDetail, ResponseAction } from "../lib/api"
+import { getFixtureEndpoint, type EndpointDetail, type ResponseAction } from "../lib/api"
 
 describe("SHA endpoint detail route", () => {
   it("hydrates unknown live endpoints into matching shell and form state", async () => {
@@ -352,6 +352,10 @@ describe("SHA endpoint detail route", () => {
   })
 
   it("submits fixture heartbeat payloads using the current bounded capability and execution-hook names", async () => {
+    const endpoint = getFixtureEndpoint("ep_demo_linux_01")
+    if (!endpoint) {
+      throw new Error("missing ep_demo_linux_01 fixture")
+    }
     const pendingEndpoint = new Promise<Response>(() => {})
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -365,7 +369,7 @@ describe("SHA endpoint detail route", () => {
             connectivity_status: "online",
             last_seen_at: "2026-04-21T16:58:00Z",
             last_heartbeat_at: "2026-04-21T16:58:00Z",
-            accepted_capability_count: 4,
+            accepted_capability_count: endpoint.declared_capabilities.length,
             pending_action_count: 0,
             created_at: "2026-04-21T16:00:00Z",
             updated_at: "2026-04-21T16:58:00Z",
@@ -398,11 +402,7 @@ describe("SHA endpoint detail route", () => {
     )
     const payload = JSON.parse(String(heartbeatCall?.[1]?.body ?? "{}"))
 
-    expect(payload.declared_capabilities).toEqual(["enroll", "heartbeat", "collect_posture_snapshot", "inspect_control"])
-    expect(payload.execution_hooks).toEqual({
-      captures_rollback_artifacts: false,
-      reports_execution_results: false,
-      supports_dry_run: false,
-    })
+    expect(payload.declared_capabilities).toEqual(endpoint.declared_capabilities)
+    expect(payload.execution_hooks).toEqual(endpoint.execution_hooks)
   })
 })
