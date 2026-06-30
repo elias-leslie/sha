@@ -128,7 +128,6 @@ printf 'profile_id=%s\n' "$PROFILE_ID"
 
 INSTALLED=1
 as_root bash "$WORK_DIR/installer.sh"
-as_root "$PYTHON3" "$REPORTER_PATH"
 
 ENDPOINT_ID=$(python3 - "$BASE_URL" "$OPERATOR_TOKEN" "$SITE_ID" <<'PY'
 import json
