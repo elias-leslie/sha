@@ -1591,6 +1591,7 @@ def _windows_reporter_script() -> str:
         $ErrorActionPreference = 'Stop'
         $ConfigPath = 'C:\ProgramData\SHA\reporter-config.json'
         $FirewallRollbackPath = 'C:\ProgramData\SHA\firewall-profile-rollback.json'
+        $FirewallIsolationRollbackPath = 'C:\ProgramData\SHA\firewall-isolation-rollback.json'
 
         function Get-Config {
             return Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
@@ -1794,17 +1795,86 @@ def _windows_reporter_script() -> str:
             return @('succeeded', 'Restored Windows firewall profile enabled states from SHA rollback artifact.')
         }
 
+        function Get-ControlPlaneTargets {
+            $config = Get-Config
+            $uri = [uri]([string]$config.control_plane_url)
+            $port = if ($uri.IsDefaultPort) {
+                if ($uri.Scheme -eq 'https') { 443 } else { 80 }
+            }
+            else {
+                $uri.Port
+            }
+            $addresses = @(
+                [System.Net.Dns]::GetHostAddresses($uri.Host) |
+                    Where-Object { $_.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork } |
+                    ForEach-Object { $_.IPAddressToString } |
+                    Sort-Object -Unique
+            )
+            return @($addresses | ForEach-Object { [ordered]@{ Address = $_; Port = $port } })
+        }
+
+        function Invoke-RollbackWindowsFirewallEndpointIsolation {
+            if (-not (Get-Command Set-NetFirewallProfile -ErrorAction SilentlyContinue) -or -not (Get-Command Remove-NetFirewallRule -ErrorAction SilentlyContinue)) {
+                return @('failed', 'Windows firewall rollback cmdlets are unavailable.')
+            }
+            if (-not (Test-Path -LiteralPath $FirewallIsolationRollbackPath)) {
+                return @('failed', "No SHA firewall isolation rollback artifact found at $FirewallIsolationRollbackPath.")
+            }
+            $profiles = @(Get-Content -LiteralPath $FirewallIsolationRollbackPath -Raw | ConvertFrom-Json)
+            foreach ($profile in $profiles) {
+                Set-NetFirewallProfile -Profile ([string]$profile.Name) -Enabled ([bool]$profile.Enabled) -DefaultInboundAction ([string]$profile.DefaultInboundAction) -DefaultOutboundAction ([string]$profile.DefaultOutboundAction)
+            }
+            Remove-NetFirewallRule -Group 'SHA Endpoint Isolation' -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $FirewallIsolationRollbackPath -Force
+            return @('succeeded', 'Restored Windows firewall defaults and removed SHA endpoint isolation rules.')
+        }
+
+        function Invoke-ApplyWindowsFirewallEndpointIsolation {
+            if (-not (Get-Command Get-NetFirewallProfile -ErrorAction SilentlyContinue) -or -not (Get-Command Set-NetFirewallProfile -ErrorAction SilentlyContinue) -or -not (Get-Command New-NetFirewallRule -ErrorAction SilentlyContinue) -or -not (Get-Command Remove-NetFirewallRule -ErrorAction SilentlyContinue)) {
+                return @('failed', 'Windows firewall isolation cmdlets are unavailable.')
+            }
+            $targets = @(Get-ControlPlaneTargets)
+            if ($targets.Count -eq 0) {
+                return @('failed', 'No IPv4 control-plane target could be resolved for Windows endpoint isolation.')
+            }
+            try {
+                $profiles = @(Get-NetFirewallProfile -Name Domain,Private,Public)
+                if (-not (Test-Path -LiteralPath $FirewallIsolationRollbackPath)) {
+                    $profiles | Select-Object Name, Enabled, DefaultInboundAction, DefaultOutboundAction | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $FirewallIsolationRollbackPath -Encoding UTF8
+                }
+                Remove-NetFirewallRule -Group 'SHA Endpoint Isolation' -ErrorAction SilentlyContinue
+                foreach ($target in $targets) {
+                    New-NetFirewallRule -DisplayName "SHA Allow Control Plane $($target.Address):$($target.Port)" -Group 'SHA Endpoint Isolation' -Direction Outbound -Action Allow -Protocol TCP -RemoteAddress ([string]$target.Address) -RemotePort ([int]$target.Port) -Profile Any | Out-Null
+                }
+                Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True -DefaultInboundAction Block -DefaultOutboundAction Block
+                return @('succeeded', "Applied SHA-managed Windows endpoint isolation; allowed control plane targets: $($targets | ConvertTo-Json -Compress).")
+            }
+            catch {
+                Invoke-RollbackWindowsFirewallEndpointIsolation | Out-Null
+                return @('failed', "Windows endpoint isolation failed and rollback was attempted: $($_.Exception.Message)")
+            }
+        }
+
         function Invoke-HardeningAction([string]$ActionName, [string]$ControlId) {
-            if ($ControlId -ne 'control.windows.firewall-all-profiles') {
-                return @('failed', "Unsupported Windows hardening control: $ControlId.")
+            if ($ControlId -eq 'control.windows.firewall-all-profiles') {
+                if ($ActionName -eq 'apply_control') {
+                    return Invoke-ApplyWindowsFirewallAllProfiles
+                }
+                if ($ActionName -eq 'rollback_control') {
+                    return Invoke-RollbackWindowsFirewallAllProfiles
+                }
+                return @('failed', "Unsupported Windows hardening action: $ActionName.")
             }
-            if ($ActionName -eq 'apply_control') {
-                return Invoke-ApplyWindowsFirewallAllProfiles
+            if ($ControlId -eq 'control.windows.firewall-endpoint-isolated') {
+                if ($ActionName -eq 'apply_control') {
+                    return Invoke-ApplyWindowsFirewallEndpointIsolation
+                }
+                if ($ActionName -eq 'rollback_control') {
+                    return Invoke-RollbackWindowsFirewallEndpointIsolation
+                }
+                return @('failed', "Unsupported Windows containment action: $ActionName.")
             }
-            if ($ActionName -eq 'rollback_control') {
-                return Invoke-RollbackWindowsFirewallAllProfiles
-            }
-            return @('failed', "Unsupported Windows hardening action: $ActionName.")
+            return @('failed', "Unsupported Windows hardening control: $ControlId.")
         }
 
         function Get-DefenderRealTimeProtectionResult {

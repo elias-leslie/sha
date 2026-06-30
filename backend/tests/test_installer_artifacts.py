@@ -251,6 +251,10 @@ def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task
     assert "Invoke-ApplyWindowsFirewallAllProfiles" in first.text
     assert "Invoke-RollbackWindowsFirewallAllProfiles" in first.text
     assert "control.windows.firewall-all-profiles" in first.text
+    assert "Invoke-ApplyWindowsFirewallEndpointIsolation" in first.text
+    assert "Invoke-RollbackWindowsFirewallEndpointIsolation" in first.text
+    assert "control.windows.firewall-endpoint-isolated" in first.text
+    assert "SHA Endpoint Isolation" in first.text
     assert '"apply_control"' in first.text
     assert '"rollback_control"' in first.text
     assert '"captures_rollback_artifacts": true' in first.text
