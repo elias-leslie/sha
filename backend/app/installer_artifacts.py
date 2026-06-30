@@ -4,7 +4,6 @@ import json
 import re
 from textwrap import dedent
 
-from app.config import get_settings
 from app.models import InstallerProfile
 
 _LINUX_AGENT_VERSION = "bootstrap-linux-v1"
@@ -40,18 +39,18 @@ _WINDOWS_EXECUTION_HOOKS = {
 }
 
 
-def render_installer_artifact(profile: InstallerProfile) -> tuple[str, str, str]:
+def render_installer_artifact(profile: InstallerProfile, *, api_token: str | None = None) -> tuple[str, str, str]:
     if profile.platform == "linux":
         return (
             _artifact_filename(profile, extension="sh"),
             "text/x-shellscript; charset=utf-8",
-            _render_linux_bootstrap(profile),
+            _render_linux_bootstrap(profile, api_token=api_token),
         )
     if profile.platform == "windows":
         return (
             _artifact_filename(profile, extension="ps1"),
             "text/x-powershell; charset=utf-8",
-            _render_windows_bootstrap(profile),
+            _render_windows_bootstrap(profile, api_token=api_token),
         )
     raise ValueError(f"unsupported installer profile platform: {profile.platform}")
 
@@ -68,6 +67,7 @@ def _profile_config(
     *,
     agent_version: str,
     platform_profile: str,
+    api_token: str | None,
     capabilities: list[str],
     execution_hooks: dict[str, bool],
 ) -> str:
@@ -82,7 +82,7 @@ def _profile_config(
         "site_id": profile.site_id,
         "agent_version": agent_version,
         "platform_profile": platform_profile,
-        "api_token": get_settings().api_token,
+        "api_token": api_token,
         "capabilities": capabilities,
         "execution_hooks": execution_hooks,
     }
@@ -700,11 +700,12 @@ def _linux_reporter_script() -> str:
 
 
 
-def _render_linux_bootstrap(profile: InstallerProfile) -> str:
+def _render_linux_bootstrap(profile: InstallerProfile, *, api_token: str | None = None) -> str:
     config_json = _profile_config(
         profile,
         agent_version=_LINUX_AGENT_VERSION,
         platform_profile=_LINUX_PLATFORM_PROFILE,
+        api_token=api_token,
         capabilities=_LINUX_REPORTER_CAPABILITIES,
         execution_hooks=_LINUX_EXECUTION_HOOKS,
     )
@@ -1132,11 +1133,12 @@ def _windows_reporter_script() -> str:
 
 
 
-def _render_windows_bootstrap(profile: InstallerProfile) -> str:
+def _render_windows_bootstrap(profile: InstallerProfile, *, api_token: str | None = None) -> str:
     config_json = _profile_config(
         profile,
         agent_version=_WINDOWS_AGENT_VERSION,
         platform_profile=_WINDOWS_PLATFORM_PROFILE,
+        api_token=api_token,
         capabilities=_WINDOWS_REPORTER_CAPABILITIES,
         execution_hooks=_WINDOWS_EXECUTION_HOOKS,
     )
