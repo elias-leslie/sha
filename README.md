@@ -17,7 +17,7 @@ This repository contains a working control-plane/dashboard slice, not a producti
 
 Implemented:
 
-- backend API (7 routers, 19 routes) for enrollment, heartbeats, posture snapshots, installer profiles, approval requests/grants, response actions, and source-pack catalog reads
+- backend API (8 routers, 17 OpenAPI paths) for enrollment, heartbeats, posture snapshots, installer profiles, approval requests/grants, response actions, source-pack catalog reads, and compliance evidence export
 - frontend dashboard pages for fleet, endpoints, controls, installers, and approvals, each with a live/fixture data-source indicator, weighted endpoint posture score, and endpoint response-action trail
 - deterministic Linux, Windows, and macOS bootstrap artifact generation for installer profiles, served with `Content-Disposition` and `X-SHA-Artifact-Sha256` integrity headers
 - generated Linux, Windows, and macOS reporters poll approval-backed response actions; all complete bounded incident-response context/evidence collection, while Linux and Windows each have a first reversible typed hardening control

@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.endpoints.approvals import router as approvals_router
+from app.api.endpoints.evidence import router as evidence_router
 from app.api.endpoints.endpoints import router as endpoints_router
 from app.api.endpoints.health import router as health_router
 from app.api.endpoints.installers import router as installers_router
@@ -39,6 +40,7 @@ def create_app(database_url: str | None = None, api_token: str | None = None) ->
     app.include_router(approvals_router)
     app.include_router(response_actions_router)
     app.include_router(source_packs_router)
+    app.include_router(evidence_router)
     return app
 
 
