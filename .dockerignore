@@ -1,0 +1,11 @@
+.git
+.dev-tools
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+**/node_modules
+**/.next
+**/*.tsbuildinfo
+backend/data/*.sqlite3
+agent/sha-agent

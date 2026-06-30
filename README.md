@@ -27,12 +27,13 @@ Implemented:
 - an approval-backed response-action queue for dispatching typed agent work and reporting execution results without arbitrary remote shell access
 - 22 generated JSON Schemas under `schemas/generated/`, exported deterministically from the Pydantic contracts
 - 4 curated starter control packs (17 controls) spanning public-source NIST SP 800-53 Rev. 5, DISA Windows Server 2022 STIG, CISA/NSA hardening guidance, and SHA's implemented endpoint-response controls, built by a strict, repo-local, deterministic catalog builder
+- HA-ready self-hosting compose stack with PostgreSQL, two backend replicas, nginx API load balancing, and the dashboard
 
 Not yet production-ready:
 
 - no full multi-user authentication or SSO layer; built-in auth is limited to operator and least-privilege agent API tokens
 - no packaged cross-platform privileged Go endpoint service yet; the checked-in Go agent currently covers the Linux SSH-hardening path
-- no HA deployment path; SQLite schema migrations are tracked but still intentionally small
+- no fully managed production HA offering; a starter PostgreSQL/nginx compose path is checked in for HA-ready self-hosting
 - no live AI/operator integration is required or bundled
 
 Do not expose the backend or dashboard to an untrusted network without enabling token protection or stronger external authentication, authorization, TLS, and deployment hardening appropriate for your environment.

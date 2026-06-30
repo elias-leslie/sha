@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sha
+      POSTGRES_USER: sha
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sha-dev-password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sha -d sha"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend-a: &backend
+    build:
+      context: ../..
+      dockerfile: deploy/backend.Dockerfile
+    environment:
+      SHA_DATABASE_URL: postgresql+psycopg://sha:${POSTGRES_PASSWORD:-sha-dev-password}@postgres:5432/sha
+      SHA_API_TOKEN: ${SHA_API_TOKEN:-operator-token}
+      SHA_AGENT_API_TOKEN: ${SHA_AGENT_API_TOKEN:-agent-token}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "8010"
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health', timeout=5).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  backend-b:
+    <<: *backend
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: deploy/frontend.Dockerfile
+    environment:
+      API_URL: http://backend-a:8010
+      NEXT_PUBLIC_SHA_API_TOKEN: ${SHA_API_TOKEN:-operator-token}
+    depends_on:
+      backend-a:
+        condition: service_healthy
+    expose:
+      - "3010"
+
+  sha-lb:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "${SHA_PUBLIC_PORT:-8080}:8080"
+    depends_on:
+      backend-a:
+        condition: service_healthy
+      backend-b:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+
+volumes:
+  postgres-data:

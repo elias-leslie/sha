@@ -14,17 +14,22 @@ from sqlalchemy.pool import NullPool
 from app.migrations import run_sqlite_migrations
 from app.models import Base
 
+_POSTGRES_DDL_LOCK_ID = 918502781
+
 
 class DatabaseStore:
     def __init__(self, database_url: str) -> None:
         self.database_url = database_url
+        url = make_url(database_url)
+        connect_args = {"check_same_thread": False} if url.drivername.startswith("sqlite") else {}
         self.engine = create_engine(
             database_url,
             future=True,
             poolclass=NullPool,
-            connect_args={"check_same_thread": False},
+            connect_args=connect_args,
         )
-        event.listen(self.engine, "connect", _enable_sqlite_foreign_keys)
+        if url.drivername.startswith("sqlite"):
+            event.listen(self.engine, "connect", _enable_sqlite_foreign_keys)
         self.session_factory = sessionmaker(
             bind=self.engine,
             class_=Session,
@@ -35,7 +40,15 @@ class DatabaseStore:
 
     def prepare(self) -> None:
         self._ensure_sqlite_parent_directory()
-        Base.metadata.create_all(self.engine)
+        if make_url(self.database_url).drivername.startswith("postgresql"):
+            with self.engine.begin() as connection:
+                connection.exec_driver_sql(f"SELECT pg_advisory_lock({_POSTGRES_DDL_LOCK_ID})")
+                try:
+                    Base.metadata.create_all(connection)
+                finally:
+                    connection.exec_driver_sql(f"SELECT pg_advisory_unlock({_POSTGRES_DDL_LOCK_ID})")
+        else:
+            Base.metadata.create_all(self.engine)
         run_sqlite_migrations(self.database_url)
 
     def dispose(self) -> None:
