@@ -223,6 +223,9 @@ func (a Agent) postureResults() []postureResult {
 	if currentPlatformName() == "windows" {
 		return a.windowsPostureResults()
 	}
+	if currentPlatformName() == "macos" {
+		return a.macosPostureResults()
+	}
 	if currentPlatformName() != "linux" {
 		return []postureResult{{
 			ControlKey:      currentPlatformName() + ".agent.present",
@@ -264,6 +267,74 @@ func (a Agent) postureResults() []postureResult {
 			Severity:        &severity,
 			EvidenceSummary: "Agent effective user determines whether privileged hardening actions can run.",
 		},
+	}
+}
+
+func (a Agent) macosPostureResults() []postureResult {
+	return []postureResult{
+		macosCommandPosture(
+			"macos.firewall.application-firewall-enabled",
+			"/usr/libexec/ApplicationFirewall/socketfilterfw",
+			[]string{"--getglobalstate"},
+			"enabled",
+			"enabled",
+			"macOS Application Firewall is enabled.",
+			"macOS Application Firewall is not enabled.",
+		),
+		macosCommandPosture(
+			"macos.disk.filevault-enabled",
+			"fdesetup",
+			[]string{"status"},
+			"filevault is on",
+			"on",
+			"FileVault is enabled.",
+			"FileVault is not enabled.",
+		),
+		macosCommandPosture(
+			"macos.gatekeeper.assessments-enabled",
+			"spctl",
+			[]string{"--status"},
+			"assessments enabled",
+			"enabled",
+			"Gatekeeper assessments are enabled.",
+			"Gatekeeper assessments are not enabled.",
+		),
+		{
+			ControlKey:      "macos.agent.present",
+			Status:          "pass",
+			EvidenceSummary: "SHA Go agent reported successfully.",
+		},
+	}
+}
+
+func macosCommandPosture(controlKey, command string, args []string, passNeedle, recommended, passEvidence, failEvidence string) postureResult {
+	output, err := runCommand(command, args...)
+	current := strings.TrimSpace(output)
+	severity := "high"
+	if err != nil {
+		current = "unknown"
+		return postureResult{
+			ControlKey:       controlKey,
+			Status:           "warn",
+			CurrentValue:     &current,
+			RecommendedValue: &recommended,
+			Severity:         &severity,
+			EvidenceSummary:  "macOS posture command failed or is unavailable: " + command + ".",
+		}
+	}
+	status := "fail"
+	evidence := failEvidence + " Command output: " + current
+	if strings.Contains(strings.ToLower(current), passNeedle) {
+		status = "pass"
+		evidence = passEvidence
+	}
+	return postureResult{
+		ControlKey:       controlKey,
+		Status:           status,
+		CurrentValue:     &current,
+		RecommendedValue: &recommended,
+		Severity:         &severity,
+		EvidenceSummary:  evidence,
 	}
 }
 

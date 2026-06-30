@@ -133,6 +133,45 @@ func TestMacOSAgentDeclaresObserveOnlyCapabilities(t *testing.T) {
 	}
 }
 
+func TestMacOSPostureReportsCoreObserveChecks(t *testing.T) {
+	restorePlatform := currentPlatformName
+	restoreRunCommand := runCommand
+	currentPlatformName = func() string { return "macos" }
+	runCommand = func(name string, args ...string) (string, error) {
+		switch name {
+		case "/usr/libexec/ApplicationFirewall/socketfilterfw":
+			return "Firewall is enabled. (State = 1)\n", nil
+		case "fdesetup":
+			return "FileVault is On.\n", nil
+		case "spctl":
+			return "assessments enabled\n", nil
+		default:
+			t.Fatalf("unexpected command %s %#v", name, args)
+			return "", nil
+		}
+	}
+	t.Cleanup(func() {
+		currentPlatformName = restorePlatform
+		runCommand = restoreRunCommand
+	})
+
+	results := (Agent{}).postureResults()
+	want := []string{
+		"macos.firewall.application-firewall-enabled",
+		"macos.disk.filevault-enabled",
+		"macos.gatekeeper.assessments-enabled",
+		"macos.agent.present",
+	}
+	if len(results) != len(want) {
+		t.Fatalf("unexpected macOS result count: %#v", results)
+	}
+	for i, controlKey := range want {
+		if results[i].ControlKey != controlKey || results[i].Status != "pass" {
+			t.Fatalf("unexpected macOS result %d: %#v", i, results[i])
+		}
+	}
+}
+
 func writeJSON(w http.ResponseWriter, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(value); err != nil {

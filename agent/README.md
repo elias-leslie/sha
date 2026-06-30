@@ -12,6 +12,7 @@ Current implementation:
 - bounded evidence actions for `collect_security_context`, `collect_remediation_evidence`, and `inspect_control`
 - apply/rollback for `linux.ssh.password-authentication-disabled`
 - Windows Firewall all-profile posture plus apply/rollback for `control.windows.firewall-all-profiles`
+- macOS observe-only posture for Application Firewall, FileVault, and Gatekeeper
 
 Install as a Linux systemd service:
 
