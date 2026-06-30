@@ -12,6 +12,7 @@ import {
   formatLocalInputValue,
   futureIso,
   approvalActionDisplay,
+  createResponseAction,
   getEndpoint,
   getFixtureEndpoint,
   getFixtureResponseActions,
@@ -22,9 +23,11 @@ import {
   responseActionStatusTone,
   sendEndpointHeartbeat,
   troubleshootingScopeDisplay,
+  type ApprovalAction,
   type EndpointDetail,
   type PostureStatus,
   type ResponseAction,
+  type TroubleshootingScope,
 } from "../lib/api";
 import { Badge, EmptyState, Panel, SectionHeader } from "./console-primitives";
 
@@ -38,6 +41,24 @@ const EXECUTION_HOOK_NAMES = [
   "reports_execution_results",
   "supports_dry_run",
 ] as const;
+
+const RESPONSE_ACTION_OPTIONS: ApprovalAction[] = [
+  "collect_security_context",
+  "collect_remediation_evidence",
+  "inspect_control",
+  "apply_control",
+  "rollback_control",
+  "request_elevated_troubleshooting",
+];
+
+const RESPONSE_ACTION_SCOPE_OPTIONS: TroubleshootingScope[] = [
+  "security_logs",
+  "service_status",
+  "firewall_state",
+  "identity_state",
+  "process_inventory",
+  "network_bindings",
+];
 
 function buildHeartbeatForm(endpoint: EndpointDetail) {
   return {
@@ -104,11 +125,20 @@ export default function EndpointDetailConsole({
   const [error, setError] = useState<string | null>(null);
   const [heartbeatPending, setHeartbeatPending] = useState(false);
   const [snapshotPending, setSnapshotPending] = useState(false);
+  const [responseActionPending, setResponseActionPending] = useState(false);
   const [heartbeatDirty, setHeartbeatDirty] = useState(false);
   const [snapshotDirty, setSnapshotDirty] = useState(false);
   const [responseActions, setResponseActions] = useState<ResponseAction[]>(() => getFixtureResponseActions(endpointId));
   const [heartbeatForm, setHeartbeatForm] = useState(() => buildHeartbeatForm(initialEndpoint));
   const [snapshotForm, setSnapshotForm] = useState(() => buildSnapshotForm(initialEndpoint));
+  const [responseActionForm, setResponseActionForm] = useState({
+    approval_grant_id: "",
+    action: "collect_security_context" as ApprovalAction,
+    control_id: "linux.ssh.password-authentication-disabled",
+    troubleshooting_scope: "process_inventory" as TroubleshootingScope,
+    requested_by: "ops-console",
+    reason: "Queue approved bounded endpoint response action.",
+  });
 
   const updateHeartbeatForm = (updater: (current: typeof heartbeatForm) => typeof heartbeatForm) => {
     setHeartbeatDirty(true);
@@ -135,6 +165,7 @@ export default function EndpointDetailConsole({
     setResponseActions(getFixtureResponseActions(endpointId));
     setHeartbeatForm(buildHeartbeatForm(initialEndpoint));
     setSnapshotForm(buildSnapshotForm(initialEndpoint));
+    setResponseActionForm((current) => ({ ...current, approval_grant_id: "" }));
   }, [endpointId, initialEndpoint]);
 
   useEffect(() => {
@@ -245,6 +276,35 @@ export default function EndpointDetailConsole({
       setError(caught instanceof Error ? caught.message : "Unable to record posture snapshot.");
     } finally {
       setSnapshotPending(false);
+    }
+  }
+
+  async function handleCreateResponseAction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setResponseActionPending(true);
+    setFeedback(null);
+    setError(null);
+
+    const needsControl = responseActionForm.action === "apply_control" || responseActionForm.action === "rollback_control";
+    const needsScope = responseActionForm.action !== "collect_remediation_evidence" && !needsControl;
+
+    try {
+      const created = await createResponseAction({
+        endpoint_id: endpointId,
+        approval_grant_id: responseActionForm.approval_grant_id,
+        action: responseActionForm.action,
+        control_id: needsControl ? responseActionForm.control_id : null,
+        troubleshooting_scope: needsScope ? responseActionForm.troubleshooting_scope : null,
+        requested_by: responseActionForm.requested_by,
+        reason: responseActionForm.reason,
+      });
+      setResponseActions((current) => [...current.filter((item) => item.response_action_id !== created.response_action_id), created]);
+      setSource("live");
+      setFeedback(`Queued response action ${created.response_action_id}.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to queue response action.");
+    } finally {
+      setResponseActionPending(false);
     }
   }
 
@@ -489,6 +549,90 @@ export default function EndpointDetailConsole({
             title="Approved work trail"
             description="Queued and completed typed actions for incident response, hardening, and rollback."
           />
+          <form className="form-grid" onSubmit={handleCreateResponseAction}>
+            <label className="field field--span-2" htmlFor="response-action-grant">
+              <span className="field__label">Approval grant id</span>
+              <input
+                className="field__control"
+                id="response-action-grant"
+                onChange={(event) => setResponseActionForm((current) => ({ ...current, approval_grant_id: event.target.value }))}
+                required
+                value={responseActionForm.approval_grant_id}
+              />
+            </label>
+            <label className="field" htmlFor="response-action-kind">
+              <span className="field__label">Action</span>
+              <select
+                className="field__control"
+                id="response-action-kind"
+                onChange={(event) =>
+                  setResponseActionForm((current) => ({ ...current, action: event.target.value as ApprovalAction }))
+                }
+                value={responseActionForm.action}
+              >
+                {RESPONSE_ACTION_OPTIONS.map((action) => (
+                  <option key={action} value={action}>
+                    {approvalActionDisplay(action)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {responseActionForm.action === "apply_control" || responseActionForm.action === "rollback_control" ? (
+              <label className="field" htmlFor="response-action-control">
+                <span className="field__label">Control id</span>
+                <input
+                  className="field__control"
+                  id="response-action-control"
+                  onChange={(event) => setResponseActionForm((current) => ({ ...current, control_id: event.target.value }))}
+                  value={responseActionForm.control_id}
+                />
+              </label>
+            ) : responseActionForm.action === "collect_remediation_evidence" ? null : (
+              <label className="field" htmlFor="response-action-scope">
+                <span className="field__label">Troubleshooting scope</span>
+                <select
+                  className="field__control"
+                  id="response-action-scope"
+                  onChange={(event) =>
+                    setResponseActionForm((current) => ({
+                      ...current,
+                      troubleshooting_scope: event.target.value as TroubleshootingScope,
+                    }))
+                  }
+                  value={responseActionForm.troubleshooting_scope}
+                >
+                  {RESPONSE_ACTION_SCOPE_OPTIONS.map((scope) => (
+                    <option key={scope} value={scope}>
+                      {troubleshootingScopeDisplay(scope)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="field" htmlFor="response-action-requested-by">
+              <span className="field__label">Requested by</span>
+              <input
+                className="field__control"
+                id="response-action-requested-by"
+                onChange={(event) => setResponseActionForm((current) => ({ ...current, requested_by: event.target.value }))}
+                value={responseActionForm.requested_by}
+              />
+            </label>
+            <label className="field field--span-2" htmlFor="response-action-reason">
+              <span className="field__label">Reason</span>
+              <textarea
+                className="field__control field__control--textarea"
+                id="response-action-reason"
+                onChange={(event) => setResponseActionForm((current) => ({ ...current, reason: event.target.value }))}
+                value={responseActionForm.reason}
+              />
+            </label>
+            <div className="form-actions">
+              <button className="action-button action-button--primary" disabled={responseActionPending} type="submit">
+                {responseActionPending ? "Queueing…" : "Queue response action"}
+              </button>
+            </div>
+          </form>
           {responseActions.length ? (
             <div className="operator-list">
               {responseActions.map((action) => (

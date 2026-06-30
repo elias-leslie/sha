@@ -132,6 +132,16 @@ export interface ResponseAction {
   completed_at: string | null;
 }
 
+export interface ResponseActionCreatePayload {
+  endpoint_id: string;
+  approval_grant_id: string;
+  action: ApprovalAction;
+  control_id?: string | null;
+  troubleshooting_scope?: TroubleshootingScope | null;
+  requested_by: string;
+  reason: string;
+}
+
 export interface InstallerProfile {
   id: string;
   name: string;
@@ -935,6 +945,13 @@ export async function listEndpointResponseActions(endpointId: string, includeTer
   const suffix = includeTerminal ? "?include_terminal=true" : "";
   const data = await fetchJson<{ items: ResponseAction[] }>(`/api/endpoints/${endpointId}/response-actions${suffix}`);
   return data.items;
+}
+
+export async function createResponseAction(payload: ResponseActionCreatePayload) {
+  return fetchJson<ResponseAction>("/api/response-actions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function createApprovalGrant(payload: ApprovalGrantCreatePayload) {

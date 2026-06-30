@@ -272,6 +272,85 @@ describe("SHA endpoint detail route", () => {
     })
   })
 
+  it("queues approved response actions from the endpoint detail route", async () => {
+    const endpoint: EndpointDetail = {
+      endpoint_id: "ep_dispatch",
+      hostname: "linux-dispatch",
+      platform: "linux",
+      platform_version: "Ubuntu 24.04 LTS",
+      agent_version: "1.0.0",
+      tenant_id: "tenant-a",
+      site_id: "site-a",
+      status: "active",
+      connectivity_status: "online",
+      last_seen_at: "2026-04-21T16:58:00Z",
+      last_heartbeat_at: "2026-04-21T16:58:00Z",
+      created_at: "2026-04-21T16:00:00Z",
+      updated_at: "2026-04-21T16:58:00Z",
+      last_platform_profile: "linux-server",
+      declared_capabilities: ["enroll", "heartbeat", "collect_security_context"],
+      execution_hooks: {
+        captures_rollback_artifacts: false,
+        reports_execution_results: true,
+        supports_dry_run: false,
+      },
+      latest_posture_summary: null,
+      latest_results: [],
+    }
+    const queuedAction: ResponseAction = {
+      response_action_id: "act_collect_context",
+      endpoint_id: endpoint.endpoint_id,
+      approval_grant_id: "grant_context",
+      action: "collect_security_context",
+      control_id: null,
+      troubleshooting_scope: "process_inventory",
+      requested_by: "ops-console",
+      reason: "Queue approved bounded endpoint response action.",
+      status: "queued",
+      result_summary: null,
+      created_at: "2026-04-21T16:59:00Z",
+      updated_at: "2026-04-21T16:59:00Z",
+      completed_at: null,
+    }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith("/api/response-actions") && init?.method === "POST") {
+        return { ok: true, json: async () => queuedAction } as Response
+      }
+      if (url.endsWith(`/api/endpoints/${endpoint.endpoint_id}`)) {
+        return { ok: true, json: async () => endpoint } as Response
+      }
+      if (url.endsWith(`/api/endpoints/${endpoint.endpoint_id}/response-actions?include_terminal=true`)) {
+        return { ok: true, json: async () => ({ items: [] }) } as Response
+      }
+      return { ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<EndpointDetailConsole endpointId={endpoint.endpoint_id} initialEndpoint={endpoint} />)
+
+    fireEvent.change(screen.getByLabelText(/approval grant id/i), { target: { value: "grant_context" } })
+    fireEvent.click(screen.getByRole("button", { name: /queue response action/i }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/response-actions"),
+        expect.objectContaining({ method: "POST" }),
+      )
+    })
+    const actionCall = fetchMock.mock.calls.find(
+      ([input, init]) => String(input).endsWith("/api/response-actions") && init?.method === "POST",
+    )
+    expect(JSON.parse(String(actionCall?.[1]?.body))).toMatchObject({
+      endpoint_id: endpoint.endpoint_id,
+      approval_grant_id: "grant_context",
+      action: "collect_security_context",
+      troubleshooting_scope: "process_inventory",
+      requested_by: "ops-console",
+    })
+    expect(await screen.findByText(/queued response action act_collect_context/i)).toBeInTheDocument()
+  })
+
   it("submits fixture heartbeat payloads using the current bounded capability and execution-hook names", async () => {
     const pendingEndpoint = new Promise<Response>(() => {})
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

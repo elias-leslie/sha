@@ -31,7 +31,7 @@ def enroll_endpoint(client) -> str:
     return response.json()["endpoint_id"]
 
 
-def heartbeat(client, endpoint_id: str) -> dict[str, object]:
+def heartbeat(client, endpoint_id: str, capabilities: list[str] | None = None) -> dict[str, object]:
     response = client.post(
         f"/api/endpoints/{endpoint_id}/heartbeat",
         json={
@@ -39,7 +39,7 @@ def heartbeat(client, endpoint_id: str) -> dict[str, object]:
             "platform_version": "Ubuntu 24.04",
             "platform_profile": "linux-test",
             "connectivity_status": "online",
-            "declared_capabilities": ["heartbeat", "apply_control", "rollback_control"],
+            "declared_capabilities": capabilities or ["heartbeat", "apply_control", "rollback_control"],
             "execution_hooks": {
                 "captures_rollback_artifacts": True,
                 "reports_execution_results": True,
@@ -137,3 +137,40 @@ def test_response_action_rejects_missing_endpoint_capability(db_path, make_clien
 
     assert response.status_code == 422
     assert response.json() == {"detail": "endpoint has not declared action capability"}
+
+
+def test_collect_remediation_evidence_action_does_not_require_scope(db_path, make_client, monkeypatch):
+    client = make_client(db_path)
+    set_now(monkeypatch, "2026-04-18T20:00:00Z")
+    endpoint_id = enroll_endpoint(client)
+    heartbeat(client, endpoint_id, capabilities=["heartbeat", "collect_remediation_evidence"])
+    grant = client.post(
+        "/api/approval-grants",
+        json={
+            "endpoint_ids": [endpoint_id],
+            "allowed_actions": ["request_elevated_troubleshooting", "collect_remediation_evidence"],
+            "control_ids": [],
+            "troubleshooting_scopes": ["process_inventory"],
+            "requested_by": "SHAna",
+            "approved_by": "secops",
+            "reason": "Collect bounded remediation evidence",
+            "expires_at": "2026-04-18T20:45:00Z",
+        },
+    )
+    assert grant.status_code == 201
+
+    queued = client.post(
+        "/api/response-actions",
+        json={
+            "endpoint_id": endpoint_id,
+            "approval_grant_id": grant.json()["approval_grant_id"],
+            "action": "collect_remediation_evidence",
+            "requested_by": "SHAna",
+            "reason": "Collect post-change evidence",
+        },
+    )
+
+    assert queued.status_code == 201
+    assert queued.json()["action"] == "collect_remediation_evidence"
+    assert queued.json()["troubleshooting_scope"] is None
+    assert queued.json()["control_id"] is None

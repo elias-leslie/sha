@@ -28,6 +28,7 @@ from app.utils import (
 router = APIRouter(tags=["response-actions"])
 
 _HARDENING_ACTIONS = {"apply_control", "rollback_control"}
+_UNSCOPED_RESPONSE_ACTIONS = {"collect_remediation_evidence"}
 
 
 def pending_response_action_count(session: Session, endpoint_id: str, now_str: str) -> int:
@@ -83,6 +84,12 @@ def _normalize_action_shape(
         if troubleshooting_scope:
             raise HTTPException(status_code=422, detail="hardening actions must not include troubleshooting_scope")
         return action, control_id, None
+    if action in _UNSCOPED_RESPONSE_ACTIONS:
+        if control_id:
+            raise HTTPException(status_code=422, detail="unscoped response actions must not include control_id")
+        if troubleshooting_scope:
+            raise HTTPException(status_code=422, detail="unscoped response actions must not include troubleshooting_scope")
+        return action, None, None
     if control_id:
         raise HTTPException(status_code=422, detail="troubleshooting actions must not include control_id")
     if not troubleshooting_scope:
