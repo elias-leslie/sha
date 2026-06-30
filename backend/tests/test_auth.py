@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app.config import get_settings
 from app.main import create_app
 
 
@@ -205,3 +206,33 @@ def test_protected_installer_artifact_prefers_agent_api_token(db_path):
         assert artifact.status_code == 200
         assert '"api_token": "agent-token"' in artifact.text
         assert '"api_token": "operator-token"' not in artifact.text
+
+
+def test_api_tokens_can_be_loaded_from_secret_files(db_path, tmp_path, monkeypatch):
+    api_token_file = tmp_path / "api-token"
+    api_token_file.write_text("file-operator-token\n", encoding="utf-8")
+    readonly_token_file = tmp_path / "readonly-token"
+    readonly_token_file.write_text("file-readonly-token\n", encoding="utf-8")
+    monkeypatch.setenv("SHA_API_TOKEN_FILE", str(api_token_file))
+    monkeypatch.setenv("SHA_READONLY_API_TOKEN_FILE", str(readonly_token_file))
+    get_settings.cache_clear()
+    try:
+        with TestClient(create_app(database_url=f"sqlite:///{db_path}")) as client:
+            assert client.get("/api/endpoints").status_code == 401
+            assert client.get(
+                "/api/endpoints",
+                headers={"Authorization": "Bearer file-readonly-token"},
+            ).status_code == 200
+            assert client.post(
+                "/api/installer-profiles",
+                headers={"Authorization": "Bearer file-operator-token"},
+                json={
+                    "name": "Linux Secret File",
+                    "platform": "linux",
+                    "channel": "stable",
+                    "control_plane_url": "https://sha.example.test/control",
+                    "policy_mode": "observe",
+                },
+            ).status_code == 201
+    finally:
+        get_settings.cache_clear()

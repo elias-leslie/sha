@@ -25,7 +25,7 @@ def create_app(
     external_auth_trusted_token: str | None = None,
 ) -> FastAPI:
     settings = get_settings()
-    store = DatabaseStore(database_url or settings.database_url)
+    store = DatabaseStore(database_url or settings.resolved_database_url())
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -37,15 +37,15 @@ def create_app(
 
     app = FastAPI(title=settings.service_name, version=settings.version, lifespan=lifespan)
     app.state.store = store
-    app.state.api_token = api_token if api_token is not None else settings.api_token
-    app.state.agent_api_token = agent_api_token if agent_api_token is not None else settings.agent_api_token
+    app.state.api_token = api_token if api_token is not None else settings.resolved_api_token()
+    app.state.agent_api_token = agent_api_token if agent_api_token is not None else settings.resolved_agent_api_token()
     app.state.readonly_api_token = (
-        readonly_api_token if readonly_api_token is not None else settings.readonly_api_token
+        readonly_api_token if readonly_api_token is not None else settings.resolved_readonly_api_token()
     )
     app.state.external_auth_trusted_token = (
         external_auth_trusted_token
         if external_auth_trusted_token is not None
-        else settings.external_auth_trusted_token
+        else settings.resolved_external_auth_trusted_token()
     )
     app.middleware("http")(api_token_middleware)
     app.include_router(health_router)

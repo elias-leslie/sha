@@ -131,11 +131,16 @@ set -a; . ./.env; set +a
 Backend settings use the `SHA_` prefix:
 
 - `SHA_DATABASE_URL` — defaults to `sqlite:///data/sha.sqlite3` when run from `backend/`
+- `SHA_DATABASE_URL_FILE` — optional file-mounted secret alternative to `SHA_DATABASE_URL`
 - `SHA_PORT` — documented local backend port, default `8010`
 - `SHA_API_TOKEN` — optional bearer/API token; when set, all `/api/*` routes require `Authorization: Bearer <token>` or `X-SHA-API-Token`
+- `SHA_API_TOKEN_FILE` — optional file-mounted secret alternative to `SHA_API_TOKEN`
 - `SHA_READONLY_API_TOKEN` — optional read-only token for dashboards/auditors; GET-only and blocked from installer artifact downloads
+- `SHA_READONLY_API_TOKEN_FILE` — optional file-mounted secret alternative to `SHA_READONLY_API_TOKEN`
 - `SHA_AGENT_API_TOKEN` — optional least-privilege token embedded in generated reporters; it can only enroll, heartbeat, post posture, fetch assigned response actions, and report action results
+- `SHA_AGENT_API_TOKEN_FILE` — optional file-mounted secret alternative to `SHA_AGENT_API_TOKEN`
 - `SHA_EXTERNAL_AUTH_TRUSTED_TOKEN` — optional shared secret for a trusted SSO/identity proxy; requests with `X-SHA-External-Auth: <secret>` and `X-SHA-External-Role: operator|readonly` are mapped to the same operator/read-only authorization gates. Only use this when the backend is reachable solely through that proxy.
+- `SHA_EXTERNAL_AUTH_TRUSTED_TOKEN_FILE` — optional file-mounted secret alternative to `SHA_EXTERNAL_AUTH_TRUSTED_TOKEN`
 
 Frontend settings:
 
@@ -213,6 +218,12 @@ HA TLS E2E:
 
 ```bash
 scripts/test-ha-compose-tls.sh
+```
+
+HA file-secret E2E:
+
+```bash
+scripts/test-ha-compose-secrets.sh
 ```
 
 ## Runtime smoke test

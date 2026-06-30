@@ -18,6 +18,19 @@ SHA_TLS_CERT_DIR="$PWD/certs" SHA_TLS_PORT=8443 docker compose -f docker-compose
 curl -k -H 'Authorization: Bearer operator-token' https://127.0.0.1:8443/api/compliance/evidence
 ```
 
+Use file-mounted Docker secrets for backend tokens and database URL:
+
+```bash
+cd deploy/ha
+POSTGRES_PASSWORD_SECRET_FILE="$PWD/secrets/postgres_password" \
+SHA_DATABASE_URL_SECRET_FILE="$PWD/secrets/sha_database_url" \
+SHA_API_TOKEN_SECRET_FILE="$PWD/secrets/sha_api_token" \
+SHA_READONLY_API_TOKEN_SECRET_FILE="$PWD/secrets/sha_readonly_api_token" \
+SHA_AGENT_API_TOKEN_SECRET_FILE="$PWD/secrets/sha_agent_api_token" \
+SHA_EXTERNAL_AUTH_TRUSTED_TOKEN_SECRET_FILE="$PWD/secrets/sha_external_auth_trusted_token" \
+docker compose -f docker-compose.yml -f docker-compose.secrets.yml up -d --build
+```
+
 Backup and restore PostgreSQL:
 
 ```bash
