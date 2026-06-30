@@ -189,6 +189,12 @@ pnpm exec tsc --noEmit
 pnpm build
 ```
 
+Linux installer/systemd endpoint E2E fallback when Proxmox is unavailable:
+
+```bash
+scripts/test-linux-installer-docker.sh
+```
+
 ## Runtime smoke test
 
 With the backend running:
