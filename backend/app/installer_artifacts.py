@@ -673,7 +673,7 @@ def _linux_reporter_script() -> str:
 
 
         def control_plane_ipv4_targets() -> list[tuple[str, int]]:
-            # ponytail: IPv4 iptables first; add ip6tables/nft when managed hosts need IPv6 containment.
+            # IPv4 iptables first; add ip6tables/nft when managed hosts need IPv6 containment.
             config = load_config()
             parsed = parse.urlparse(str(config["control_plane_url"]))
             host = parsed.hostname
