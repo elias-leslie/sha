@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -11,8 +12,10 @@ class Settings(BaseSettings):
 
     service_name: str = "sha-backend"
     version: str = "0.1.0"
+    auth_mode: Literal["development_open", "protected"] = "development_open"
     database_url: str = "sqlite:///data/sha.sqlite3"
     database_url_file: str | None = None
+    database_migration_mode: Literal["upgrade", "check"] = "upgrade"
     port: int = 8010
     api_token: str | None = None
     api_token_file: str | None = None

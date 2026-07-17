@@ -9,7 +9,7 @@ export type ApprovalRisk = "low" | "medium" | "high" | "critical";
 export type ApprovalRequestKind = "hardening_change" | "elevated_troubleshooting";
 export type ApprovalRequestStatus = "pending" | "approved" | "denied" | "expired" | "revoked";
 export type ApprovalGrantStatus = "approved" | "expired" | "revoked";
-export type ResponseActionStatus = "queued" | "succeeded" | "failed" | "cancelled";
+export type ResponseActionStatus = "queued" | "leased" | "succeeded" | "failed" | "cancelled";
 export type ApprovalAction =
   | "collect_security_context"
   | "collect_remediation_evidence"
@@ -25,42 +25,85 @@ export type TroubleshootingScope =
   | "process_inventory"
   | "network_bindings";
 
-export interface HardeningControlOption {
+export type ControlRegistryAction = Extract<ApprovalAction, "apply_control" | "rollback_control">;
+export type ControlRegistryKind = "benchmark_control" | "operational_observation";
+
+export interface ControlRegistryItem {
   control_id: string;
-  label: string;
-  platforms: readonly Platform[];
+  title: string;
+  platform: Platform;
+  kind: ControlRegistryKind;
+  observation_aliases: readonly string[];
+  supported_actions: readonly ControlRegistryAction[];
 }
 
-export const HARDENING_CONTROL_OPTIONS: readonly HardeningControlOption[] = [
+const FIXTURE_CONTROL_REGISTRY: readonly ControlRegistryItem[] = [
   {
     control_id: "linux.ssh.password-authentication-disabled",
-    label: "Linux SSH password authentication",
-    platforms: ["linux"],
+    title: "Linux SSH password authentication disabled",
+    platform: "linux",
+    kind: "benchmark_control",
+    observation_aliases: [],
+    supported_actions: ["apply_control", "rollback_control"],
   },
   {
     control_id: "linux.network.endpoint-isolated",
-    label: "Linux endpoint network isolation",
-    platforms: ["linux"],
+    title: "Linux endpoint network isolation",
+    platform: "linux",
+    kind: "benchmark_control",
+    observation_aliases: [],
+    supported_actions: ["apply_control", "rollback_control"],
   },
   {
     control_id: "control.windows.firewall-all-profiles",
-    label: "Windows firewall all profiles",
-    platforms: ["windows"],
+    title: "Windows firewall all profiles",
+    platform: "windows",
+    kind: "benchmark_control",
+    observation_aliases: ["windows.firewall.all-profiles-enabled"],
+    supported_actions: ["apply_control", "rollback_control"],
   },
   {
     control_id: "control.windows.firewall-endpoint-isolated",
-    label: "Windows endpoint network isolation",
-    platforms: ["windows"],
+    title: "Windows endpoint network isolation",
+    platform: "windows",
+    kind: "benchmark_control",
+    observation_aliases: [],
+    supported_actions: ["apply_control", "rollback_control"],
   },
   {
     control_id: "control.windows.defender-real-time-protection",
-    label: "Windows Defender real-time protection",
-    platforms: ["windows"],
+    title: "Windows Defender real-time protection",
+    platform: "windows",
+    kind: "benchmark_control",
+    observation_aliases: ["windows.defender.real-time-protection"],
+    supported_actions: ["apply_control", "rollback_control"],
   },
 ];
 
-export function hardeningControlOptionsForPlatform(platform: Platform | null | undefined) {
-  return HARDENING_CONTROL_OPTIONS.filter((control) => !platform || control.platforms.includes(platform));
+export function actionableControlsForEndpoint(
+  controls: readonly ControlRegistryItem[],
+  platform: Platform | null | undefined,
+  action: ControlRegistryAction,
+  declaredCapabilities: readonly string[],
+) {
+  if (!platform) {
+    return [];
+  }
+  return controls.filter(
+    (control) =>
+      control.kind === "benchmark_control" &&
+      control.platform === platform &&
+      control.supported_actions.includes(action) &&
+      declaresActionCapability(declaredCapabilities, action, control.control_id),
+  );
+}
+
+export function declaresActionCapability(
+  declaredCapabilities: readonly string[],
+  action: ApprovalAction,
+  controlId?: string | null,
+) {
+  return declaredCapabilities.includes(action) || Boolean(controlId && declaredCapabilities.includes(`${action}:${controlId}`));
 }
 
 export interface EndpointLatestPostureSummary {
@@ -161,9 +204,13 @@ export interface ResponseAction {
   action: ApprovalAction;
   control_id: string | null;
   troubleshooting_scope: TroubleshootingScope | null;
+  idempotency_key: string;
   requested_by: string;
   reason: string;
   status: ResponseActionStatus;
+  lease_expires_at: string | null;
+  leased_at: string | null;
+  attempt_count: number;
   result_summary: string | null;
   created_at: string;
   updated_at: string;
@@ -176,7 +223,7 @@ export interface ResponseActionCreatePayload {
   action: ApprovalAction;
   control_id?: string | null;
   troubleshooting_scope?: TroubleshootingScope | null;
-  requested_by: string;
+  idempotency_key: string;
   reason: string;
 }
 
@@ -210,7 +257,6 @@ export interface ApprovalRequestCreatePayload {
   control_ids: string[];
   troubleshooting_scopes: TroubleshootingScope[];
   requested_ttl_minutes: number;
-  requested_by: string;
   reason: string;
   risk: ApprovalRisk;
 }
@@ -220,15 +266,12 @@ export interface ApprovalGrantCreatePayload {
   allowed_actions: ApprovalAction[];
   control_ids: string[];
   troubleshooting_scopes: TroubleshootingScope[];
-  requested_by: string;
-  approved_by: string;
   reason: string;
   expires_at: string;
 }
 
 export interface ApprovalDecisionPayload {
   decision: "approve" | "deny" | "revoke";
-  decided_by: string;
   decision_comment: string;
   expires_at?: string | null;
 }
@@ -837,9 +880,13 @@ const FIXTURE_RESPONSE_ACTIONS = [
     action: "apply_control",
     control_id: "linux.ssh.password-authentication-disabled",
     troubleshooting_scope: null,
+    idempotency_key: "demo-linux-ssh-apply",
     requested_by: "SHAna",
     reason: "Disable SSH password authentication after approval.",
     status: "succeeded",
+    lease_expires_at: "2026-04-18T20:50:00Z",
+    leased_at: "2026-04-18T20:48:00Z",
+    attempt_count: 1,
     result_summary: "Set PasswordAuthentication no in SHA-managed sshd drop-in; reloaded sshd.",
     created_at: "2026-04-18T20:48:00Z",
     updated_at: "2026-04-18T20:49:00Z",
@@ -852,9 +899,13 @@ const FIXTURE_RESPONSE_ACTIONS = [
     action: "collect_security_context",
     control_id: null,
     troubleshooting_scope: "network_bindings",
+    idempotency_key: "demo-linux-context-network",
     requested_by: "ops",
     reason: "Collect network listener context during triage.",
     status: "queued",
+    lease_expires_at: null,
+    leased_at: null,
+    attempt_count: 0,
     result_summary: null,
     created_at: "2026-04-18T20:50:00Z",
     updated_at: "2026-04-18T20:50:00Z",
@@ -925,6 +976,10 @@ const CONTROL_LIBRARY = [
   },
 ] satisfies readonly ControlLibraryEntry[];
 
+export function isDemoMode() {
+  return process.env.NEXT_PUBLIC_SHA_DEMO_MODE === "true";
+}
+
 async function parseApiError(response: Response) {
   try {
     const body = (await response.json()) as { detail?: string };
@@ -935,12 +990,10 @@ async function parseApiError(response: Response) {
 }
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const apiToken = process.env.NEXT_PUBLIC_SHA_API_TOKEN;
   const response = await fetch(path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
@@ -953,11 +1006,9 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
 }
 
 export async function fetchText(path: string, init?: RequestInit): Promise<{ content: string; response: Response }> {
-  const apiToken = process.env.NEXT_PUBLIC_SHA_API_TOKEN;
   const response = await fetch(path, {
     ...init,
     headers: {
-      ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
@@ -972,6 +1023,11 @@ export async function fetchText(path: string, init?: RequestInit): Promise<{ con
 
 export async function listEndpoints() {
   const data = await fetchJson<{ items: EndpointInventoryItem[] }>("/api/endpoints");
+  return data.items;
+}
+
+export async function listControlRegistry() {
+  const data = await fetchJson<{ items: ControlRegistryItem[] }>("/api/control-registry");
   return data.items;
 }
 
@@ -1050,7 +1106,10 @@ export async function listInstallerProfiles() {
 }
 
 export async function getInstallerArtifact(profileId: string) {
-  const { content, response } = await fetchText(`/api/installer-profiles/${profileId}/artifact`);
+  const { content, response } = await fetchText(`/api/installer-profiles/${profileId}/artifact`, {
+    cache: "no-store",
+    referrerPolicy: "no-referrer",
+  });
   const disposition = response.headers.get("content-disposition") ?? "";
   const filenameMatch = disposition.match(/filename="?([^\"]+)"?/i);
   return {
@@ -1059,10 +1118,6 @@ export async function getInstallerArtifact(profileId: string) {
     sha256: response.headers.get("x-sha-artifact-sha256") ?? "",
     content,
   } satisfies InstallerArtifact;
-}
-
-export function getInstallerArtifactUrl(profileId: string) {
-  return `/api/installer-profiles/${profileId}/artifact`;
 }
 
 export async function listSourcePacks() {
@@ -1104,6 +1159,10 @@ export function getFixtureApprovalGrants() {
 
 export function getFixtureResponseActions(endpointId: string) {
   return clone(FIXTURE_RESPONSE_ACTIONS.filter((action) => action.endpoint_id === endpointId));
+}
+
+export function getFixtureControlRegistry() {
+  return clone([...FIXTURE_CONTROL_REGISTRY]);
 }
 
 export function getFixtureInstallerProfiles() {
@@ -1253,6 +1312,8 @@ export function responseActionStatusDisplay(status: ResponseActionStatus) {
   switch (status) {
     case "queued":
       return "Queued";
+    case "leased":
+      return "In progress";
     case "succeeded":
       return "Succeeded";
     case "failed":
@@ -1266,6 +1327,8 @@ export function responseActionStatusTone(status: ResponseActionStatus): Tone {
   switch (status) {
     case "queued":
       return "warning";
+    case "leased":
+      return "info";
     case "succeeded":
       return "success";
     case "failed":
@@ -1436,6 +1499,11 @@ export function formatLocalInputValue(value: string) {
 
 export function futureIso(minutes: number) {
   return new Date(Date.now() + minutes * 60_000).toISOString();
+}
+
+export function futureLocalInput(minutes: number) {
+  const target = Date.now() + minutes * 60_000;
+  return formatLocalInputValue(new Date(Math.ceil(target / 60_000) * 60_000).toISOString());
 }
 
 export function localInputToIso(value: string) {

@@ -7,13 +7,12 @@ import {
   formatDateTime,
   getFixtureInstallerProfiles,
   getInstallerArtifact,
-  getInstallerArtifactUrl,
   installerChannelDisplay,
+  isDemoMode,
   listInstallerProfiles,
   platformDisplayName,
   policyModeDisplay,
   policyModeTone,
-  type InstallerArtifact,
   type InstallerPolicyMode,
   type InstallerProfile,
   type Platform,
@@ -22,15 +21,25 @@ import { Badge, EmptyState, Panel, SectionHeader } from "./console-primitives";
 
 type InstallersConsoleProps = {
   initialProfiles?: InstallerProfile[];
+  demoMode?: boolean;
 };
 
-export default function InstallersConsole({ initialProfiles = getFixtureInstallerProfiles() }: InstallersConsoleProps) {
-  const [profiles, setProfiles] = useState(initialProfiles);
-  const [source, setSource] = useState<"fixture" | "live">("fixture");
+export default function InstallersConsole({ initialProfiles, demoMode = isDemoMode() }: InstallersConsoleProps) {
+  const [profiles, setProfiles] = useState(() => initialProfiles ?? (demoMode ? getFixtureInstallerProfiles() : []));
+  const [source, setSource] = useState<"loading" | "demo" | "live" | "error">(
+    demoMode ? "demo" : initialProfiles ? "live" : "loading",
+  );
   const [pending, setPending] = useState(false);
   const [artifactPending, setArtifactPending] = useState(false);
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(initialProfiles[0]?.id ?? null);
-  const [artifact, setArtifact] = useState<{ profileId: string; artifact: InstallerArtifact } | null>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
+    (initialProfiles ?? (demoMode ? getFixtureInstallerProfiles() : []))[0]?.id ?? null,
+  );
+  const [lastDownload, setLastDownload] = useState<{
+    profileId: string;
+    filename: string;
+    mediaType: string;
+    sha256: string;
+  } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -42,10 +51,20 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
     tenant_id: "tenant-branch",
     site_id: "site-demo-branch",
   });
-  const installOrigin = typeof window === "undefined" ? "https://sha.example.test" : window.location.origin;
 
   useEffect(() => {
+    if (demoMode) {
+      const demoProfiles = initialProfiles ?? getFixtureInstallerProfiles();
+      setProfiles(demoProfiles);
+      setSelectedProfileId(demoProfiles[0]?.id ?? null);
+      setSource("demo");
+      setError(null);
+      return;
+    }
+
     let cancelled = false;
+    setSource("loading");
+    setError(null);
     listInstallerProfiles()
       .then((items) => {
         if (cancelled) {
@@ -55,38 +74,29 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
         setSelectedProfileId((current) => (current && items.some((item) => item.id === current) ? current : items[0]?.id ?? null));
         setSource("live");
       })
-      .catch(() => {
+      .catch((caught) => {
         if (!cancelled) {
-          setSource("fixture");
+          setProfiles([]);
+          setSelectedProfileId(null);
+          setSource("error");
+          setError(caught instanceof Error ? caught.message : "Unable to load live installer profiles.");
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  async function loadArtifact(profileId: string) {
-    setArtifactPending(true);
-    setError(null);
-    setSelectedProfileId(profileId);
-    try {
-      const rendered = await getInstallerArtifact(profileId);
-      setArtifact({ profileId, artifact: rendered });
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to fetch installer artifact.");
-    } finally {
-      setArtifactPending(false);
-    }
-  }
+  }, [demoMode, initialProfiles]);
 
   async function downloadArtifact(profileId: string) {
+    if (source !== "live") {
+      return;
+    }
     setArtifactPending(true);
     setError(null);
     setSelectedProfileId(profileId);
     try {
       const rendered = await getInstallerArtifact(profileId);
-      setArtifact({ profileId, artifact: rendered });
       const url = URL.createObjectURL(new Blob([rendered.content], { type: rendered.mediaType }));
       try {
         const link = document.createElement("a");
@@ -98,6 +108,13 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
       } finally {
         URL.revokeObjectURL(url);
       }
+      setLastDownload({
+        profileId,
+        filename: rendered.filename,
+        mediaType: rendered.mediaType,
+        sha256: rendered.sha256,
+      });
+      setMessage(`Downloaded ${rendered.filename}. Verify its SHA-256 before running the local file.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to download installer artifact.");
     } finally {
@@ -107,6 +124,9 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (source !== "live") {
+      return;
+    }
     setPending(true);
     setMessage(null);
     setError(null);
@@ -115,7 +135,7 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
       const created = await createInstallerProfile(form);
       setProfiles((current) => [created, ...current.filter((item) => item.id !== created.id)]);
       setSelectedProfileId(created.id);
-      setArtifact(null);
+      setLastDownload(null);
       setSource("live");
       setMessage(`Created installer profile ${created.name}.`);
     } catch (caught) {
@@ -126,7 +146,8 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
   }
 
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId) ?? null;
-  const selectedArtifact = artifact && selectedProfile && artifact.profileId === selectedProfile.id ? artifact.artifact : null;
+  const selectedDownload =
+    lastDownload && selectedProfile && lastDownload.profileId === selectedProfile.id ? lastDownload : null;
 
   return (
     <>
@@ -152,13 +173,10 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
                     scope {profile.tenant_id ?? "global"}/{profile.site_id ?? "all-sites"} • updated {formatDateTime(profile.updated_at)}
                   </p>
                   <div className="button-row button-row--wrap">
-                    <button className="action-button action-button--secondary" onClick={() => loadArtifact(profile.id)} type="button">
-                      {artifactPending && selectedProfileId === profile.id ? "Loading artifact…" : "Preview artifact"}
-                    </button>
-                    <button className="action-button action-button--ghost" onClick={() => downloadArtifact(profile.id)} type="button">
+                    <button className="action-button action-button--secondary" disabled={source !== "live" || artifactPending} onClick={() => downloadArtifact(profile.id)} type="button">
                       {artifactPending && selectedProfileId === profile.id
                         ? "Preparing download…"
-                        : `Download ${profile.platform === "windows" ? "PowerShell" : "shell"}`}
+                        : `Download compatibility ${profile.platform === "windows" ? "PowerShell" : "shell"} reporter`}
                     </button>
                   </div>
                 </article>
@@ -166,8 +184,8 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
             </div>
           ) : (
             <EmptyState
-              title="No live installer profiles"
-              body="Create a profile to define how new endpoints should enroll into the control plane."
+              title={source === "loading" ? "Loading live installer profiles" : source === "error" ? "Installer registry unavailable" : "No live installer profiles"}
+              body={source === "loading" ? "Waiting for the installer profile API." : source === "error" ? "Resolve the API or authentication failure before managing installer profiles." : "Create a profile to define how new endpoints should enroll into the control plane."}
             />
           )}
         </Panel>
@@ -261,10 +279,12 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
               />
             </label>
             <div className="form-actions">
-              <button className="action-button action-button--primary" disabled={pending} type="submit">
-                {pending ? "Creating…" : "Create installer profile"}
+              <button className="action-button action-button--primary" disabled={pending || source !== "live"} type="submit">
+                {pending ? "Creating…" : source === "demo" ? "Creation disabled in demo" : source === "live" ? "Create installer profile" : "Waiting for live registry"}
               </button>
-              <Badge tone={source === "live" ? "success" : "warning"}>{source === "live" ? "Live registry" : "Fixture registry"}</Badge>
+              <Badge tone={source === "live" ? "success" : source === "error" ? "danger" : "warning"}>
+                {source === "live" ? "Live registry" : source === "demo" ? "Demo fixtures" : source === "loading" ? "Loading live registry" : "Live registry unavailable"}
+              </Badge>
               {message ? <span className="inline-feedback inline-feedback--success">{message}</span> : null}
               {error ? <span className="inline-feedback inline-feedback--danger">{error}</span> : null}
             </div>
@@ -275,23 +295,23 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
       <section className="dashboard-grid dashboard-grid--two-up">
         <Panel>
           <SectionHeader
-            eyebrow="Bootstrap artifact"
-            title={selectedProfile ? `Preview for ${selectedProfile.name}` : "Select an installer profile"}
-            description="Preview the generated bootstrap and download it through the authenticated console for VM or host installation."
+            eyebrow="Protected artifact"
+            title={selectedProfile ? `Download for ${selectedProfile.name}` : "Select an installer profile"}
+            description="Compatibility reporters can contain an agent credential. SHA never previews or retains their body in the page."
           />
-          {selectedArtifact ? (
+          {selectedDownload ? (
             <div className="stack-gap">
               <div className="tag-row">
-                <Badge tone="success">{selectedArtifact.filename}</Badge>
-                <Badge tone="info">{selectedArtifact.mediaType}</Badge>
-                <Badge tone="warning">sha256 {selectedArtifact.sha256.slice(0, 12)}</Badge>
+                <Badge tone="success">{selectedDownload.filename}</Badge>
+                <Badge tone="info">{selectedDownload.mediaType}</Badge>
+                <Badge tone="warning">sha256 {selectedDownload.sha256}</Badge>
               </div>
-              <pre className="code-pane">{selectedArtifact.content}</pre>
+              <p>Artifact body downloaded once through the authenticated request. Compare this digest with a local SHA-256 calculation before execution.</p>
             </div>
           ) : (
             <EmptyState
-              title="No artifact preview loaded"
-              body="Choose a profile above to inspect the generated shell or PowerShell bootstrap before you install it on a host."
+              title="No artifact downloaded"
+              body="Choose a live profile and download its compatibility reporter. Token-bearing bodies are not rendered in the browser."
             />
           )}
         </Panel>
@@ -299,22 +319,22 @@ export default function InstallersConsole({ initialProfiles = getFixtureInstalle
         <Panel>
           <SectionHeader
             eyebrow="Operator runbooks"
-            title="Install commands"
-            description="Use the generated artifact directly or curl it into a host-specific install flow."
+            title="Verify, then install"
+            description="Save the artifact first. Never pipe a network response directly into a privileged shell."
           />
           {selectedProfile ? (
             <div className="stack-gap">
               {selectedProfile.platform === "windows" ? (
                 <div className="mini-card">
                   <strong>Windows</strong>
-                  <p>iwr {installOrigin}{getInstallerArtifactUrl(selectedProfile.id)} -OutFile sha-agent.ps1; powershell -ExecutionPolicy Bypass -File .\sha-agent.ps1</p>
-                  <p>If token protection is enabled, pass -Headers @{"{Authorization='Bearer ' + $env:SHA_API_TOKEN}"} to iwr.</p>
+                  <p>Download above, run Get-FileHash .\sha-*.ps1 -Algorithm SHA256, and compare the full digest shown here.</p>
+                  <p>Then run the saved file from an elevated PowerShell session using your approved execution-policy process.</p>
                 </div>
               ) : (
                 <div className="mini-card">
                   <strong>{selectedProfile.platform === "macos" ? "macOS" : "Linux"}</strong>
-                  <p>curl -fsSL {installOrigin}{getInstallerArtifactUrl(selectedProfile.id)} | sudo bash</p>
-                  <p>If token protection is enabled, add -H "Authorization: Bearer $SHA_API_TOKEN" before the URL.</p>
+                  <p>Download above, run sha256sum ./sha-*.sh, and compare the full digest shown here.</p>
+                  <p>Then inspect the saved file and run sudo bash ./sha-*.sh.</p>
                 </div>
               )}
             </div>

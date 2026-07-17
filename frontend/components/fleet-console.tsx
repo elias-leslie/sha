@@ -12,6 +12,7 @@ import {
   fleetSummary,
   formatDateTime,
   getFixtureEndpoints,
+  isDemoMode,
   listEndpoints,
   platformDisplayName,
   type EndpointInventoryItem,
@@ -21,6 +22,7 @@ import { Badge, EmptyState, Panel, SectionHeader, StatCard } from "./console-pri
 
 type FleetConsoleProps = {
   initialEndpoints?: EndpointInventoryItem[];
+  demoMode?: boolean;
 };
 
 const FILTERS = [
@@ -31,9 +33,11 @@ const FILTERS = [
   { key: "attention", label: "Needs attention" },
 ] as const;
 
-export default function FleetConsole({ initialEndpoints = getFixtureEndpoints() }: FleetConsoleProps) {
-  const [endpoints, setEndpoints] = useState(initialEndpoints);
-  const [source, setSource] = useState<"fixture" | "live">("fixture");
+export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode() }: FleetConsoleProps) {
+  const [endpoints, setEndpoints] = useState(() => initialEndpoints ?? (demoMode ? getFixtureEndpoints() : []));
+  const [source, setSource] = useState<"loading" | "demo" | "live" | "error">(
+    demoMode ? "demo" : initialEndpoints ? "live" : "loading",
+  );
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
   const [message, setMessage] = useState<string | null>(null);
@@ -50,7 +54,16 @@ export default function FleetConsole({ initialEndpoints = getFixtureEndpoints() 
   });
 
   useEffect(() => {
+    if (demoMode) {
+      setEndpoints(initialEndpoints ?? getFixtureEndpoints());
+      setSource("demo");
+      setError(null);
+      return;
+    }
+
     let cancelled = false;
+    setSource("loading");
+    setError(null);
     listEndpoints()
       .then((items) => {
         if (cancelled) {
@@ -59,16 +72,18 @@ export default function FleetConsole({ initialEndpoints = getFixtureEndpoints() 
         setEndpoints(items);
         setSource("live");
       })
-      .catch(() => {
+      .catch((caught) => {
         if (!cancelled) {
-          setSource("fixture");
+          setEndpoints([]);
+          setSource("error");
+          setError(caught instanceof Error ? caught.message : "Unable to load live endpoint inventory.");
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [demoMode, initialEndpoints]);
 
   const summary = useMemo(() => fleetSummary(endpoints), [endpoints]);
 
@@ -108,6 +123,9 @@ export default function FleetConsole({ initialEndpoints = getFixtureEndpoints() 
 
   async function handleEnroll(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (source !== "live") {
+      return;
+    }
     setPending(true);
     setMessage(null);
     setError(null);
@@ -172,7 +190,9 @@ export default function FleetConsole({ initialEndpoints = getFixtureEndpoints() 
                 </button>
               ))}
             </div>
-            <Badge tone={source === "live" ? "success" : "warning"}>{source === "live" ? "Live inventory" : "Fixture inventory"}</Badge>
+            <Badge tone={source === "live" ? "success" : source === "error" ? "danger" : "warning"}>
+              {source === "live" ? "Live inventory" : source === "demo" ? "Demo fixtures" : source === "loading" ? "Loading live inventory" : "Live inventory unavailable"}
+            </Badge>
           </div>
         </Panel>
       </section>
@@ -184,6 +204,7 @@ export default function FleetConsole({ initialEndpoints = getFixtureEndpoints() 
             title="Reachable endpoint routes"
             description="Every row exposes a direct endpoint route with posture, connectivity, and package metadata."
           />
+          {error ? <p className="inline-feedback inline-feedback--danger" role="alert">Endpoint inventory load failed: {error}</p> : null}
           {visibleEndpoints.length ? (
             <div className="table-card">
               <div className="table-card__header table-card__row">
@@ -226,8 +247,8 @@ export default function FleetConsole({ initialEndpoints = getFixtureEndpoints() 
             </div>
           ) : (
             <EmptyState
-              title="No endpoints match this filter"
-              body="Broaden the search or enroll a new endpoint to repopulate the fleet board."
+              title={source === "loading" ? "Loading live endpoint inventory" : source === "error" ? "Endpoint inventory unavailable" : "No endpoints match this filter"}
+              body={source === "loading" ? "Waiting for the endpoint API." : source === "error" ? "Resolve the API or authentication failure before managing endpoints." : "Broaden the search or enroll a new endpoint to repopulate the fleet board."}
             />
           )}
         </Panel>
@@ -312,8 +333,8 @@ export default function FleetConsole({ initialEndpoints = getFixtureEndpoints() 
               />
             </label>
             <div className="form-actions">
-              <button className="action-button action-button--primary" disabled={pending} type="submit">
-                {pending ? "Enrolling…" : "Enroll endpoint"}
+              <button className="action-button action-button--primary" disabled={pending || source !== "live"} type="submit">
+                {pending ? "Enrolling…" : source === "demo" ? "Enrollment disabled in demo" : source === "live" ? "Enroll endpoint" : "Waiting for live inventory"}
               </button>
               {message ? <span className="inline-feedback inline-feedback--success">{message}</span> : null}
               {error ? <span className="inline-feedback inline-feedback--danger">{error}</span> : null}

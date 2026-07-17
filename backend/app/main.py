@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from typing import Literal
 
 from fastapi import FastAPI
 
 from app.api.endpoints.approvals import router as approvals_router
+from app.api.endpoints.control_registry import router as control_registry_router
 from app.api.endpoints.evidence import router as evidence_router
 from app.api.endpoints.endpoints import router as endpoints_router
 from app.api.endpoints.health import router as health_router
@@ -23,9 +25,14 @@ def create_app(
     agent_api_token: str | None = None,
     readonly_api_token: str | None = None,
     external_auth_trusted_token: str | None = None,
+    auth_mode: Literal["development_open", "protected"] | None = None,
+    database_migration_mode: Literal["upgrade", "check"] | None = None,
 ) -> FastAPI:
     settings = get_settings()
-    store = DatabaseStore(database_url or settings.resolved_database_url())
+    store = DatabaseStore(
+        database_url or settings.resolved_database_url(),
+        migration_mode=database_migration_mode or settings.database_migration_mode,
+    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -47,6 +54,13 @@ def create_app(
         if external_auth_trusted_token is not None
         else settings.resolved_external_auth_trusted_token()
     )
+    authentication_configured = bool(
+        app.state.api_token
+        or app.state.agent_api_token
+        or app.state.readonly_api_token
+        or app.state.external_auth_trusted_token
+    )
+    app.state.auth_mode = auth_mode or ("protected" if authentication_configured else settings.auth_mode)
     app.middleware("http")(api_token_middleware)
     app.include_router(health_router)
     app.include_router(endpoints_router)
@@ -54,6 +68,7 @@ def create_app(
     app.include_router(installers_router)
     app.include_router(approvals_router)
     app.include_router(response_actions_router)
+    app.include_router(control_registry_router)
     app.include_router(source_packs_router)
     app.include_router(evidence_router)
     return app

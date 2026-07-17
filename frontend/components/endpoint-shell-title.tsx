@@ -2,36 +2,47 @@
 
 import { useEffect, useState } from "react";
 
-import { getEndpoint } from "../lib/api";
+import { getEndpoint, getFixtureEndpoint, isDemoMode } from "../lib/api";
 
 type EndpointShellTitleProps = {
   endpointId: string;
   initialHostname?: string;
+  demoMode?: boolean;
 };
 
-export default function EndpointShellTitle({ endpointId, initialHostname }: EndpointShellTitleProps) {
-  const [hostname, setHostname] = useState(initialHostname ?? endpointId);
+export default function EndpointShellTitle({ endpointId, initialHostname, demoMode = isDemoMode() }: EndpointShellTitleProps) {
+  const demoEndpoint = demoMode ? getFixtureEndpoint(endpointId) : undefined;
+  const [hostname, setHostname] = useState(initialHostname ?? demoEndpoint?.hostname ?? null);
+  const [failed, setFailed] = useState(demoMode && !demoEndpoint);
 
   useEffect(() => {
     let cancelled = false;
+    const fixture = demoMode ? getFixtureEndpoint(endpointId) : undefined;
+    setHostname(initialHostname ?? fixture?.hostname ?? null);
+    setFailed(demoMode && !fixture);
 
-    setHostname(initialHostname ?? endpointId);
+    if (demoMode) {
+      return;
+    }
+
     getEndpoint(endpointId)
       .then((endpoint) => {
         if (!cancelled) {
           setHostname(endpoint.hostname);
+          setFailed(false);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setHostname(initialHostname ?? endpointId);
+          setHostname(null);
+          setFailed(true);
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [endpointId, initialHostname]);
+  }, [demoMode, endpointId, initialHostname]);
 
-  return <>Endpoint {hostname}</>;
+  return <>{failed ? "Endpoint unavailable" : hostname ? `Endpoint ${hostname}` : `Loading endpoint ${endpointId}`}</>;
 }

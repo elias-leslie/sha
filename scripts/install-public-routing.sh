@@ -67,6 +67,6 @@ systemctl --no-pager --lines=20 status caddy
 printf '\n---\n'
 systemctl --no-pager --lines=20 status cloudflared
 printf '\n--- verify local host routing ---\n'
-curl -k -I --max-time 15 --resolve "$PUBLIC_HOST:443:127.0.0.1" "https://$PUBLIC_HOST/" | sed -n '1,20p'
+curl -I --max-time 15 --resolve "$PUBLIC_HOST:443:127.0.0.1" "https://$PUBLIC_HOST/" | sed -n '1,20p'
 printf '\n--- verify local health routing ---\n'
-curl -k -I --max-time 15 --resolve "$PUBLIC_HOST:443:127.0.0.1" "https://$PUBLIC_HOST/health" | sed -n '1,20p'
+curl -I --max-time 15 --resolve "$PUBLIC_HOST:443:127.0.0.1" "https://$PUBLIC_HOST/health" | sed -n '1,20p'

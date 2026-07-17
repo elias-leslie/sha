@@ -105,9 +105,17 @@ def test_compliance_evidence_export_links_posture_approvals_and_actions(db_path,
             "reason": "Run approved SSH hardening",
         },
     ).json()
+    claimed = client.post(
+        f"/api/endpoints/{endpoint_id}/response-actions/claim",
+        json={},
+    ).json()["items"][0]
     assert client.post(
         f"/api/response-actions/{action['response_action_id']}/result",
-        json={"status": "succeeded", "result_summary": "SSH password authentication disabled."},
+        json={
+            "status": "succeeded",
+            "result_summary": "SSH password authentication disabled.",
+            "lease_token": claimed["lease_token"],
+        },
     ).status_code == 200
 
     export = client.get("/api/compliance/evidence")

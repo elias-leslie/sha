@@ -17,4 +17,4 @@ pnpm exec tsc --noEmit
 pnpm build
 ```
 
-The dashboard includes typed fixture fallbacks for most read-only views, so it can render during frontend-only development. API-backed actions require the backend.
+Normal mode uses the live backend and shows loading/error/empty state when it is unavailable. Fixture data appears only when the frontend is built with `NEXT_PUBLIC_SHA_DEMO_MODE=true`; demo mode is visibly labeled and mutations are disabled.

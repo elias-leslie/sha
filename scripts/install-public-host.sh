@@ -48,7 +48,7 @@ systemctl --no-pager --lines=20 status caddy
 
 echo
 echo "Verification:"
-curl -k -I --max-time 15 "https://${PUBLIC_HOST}/" | sed -n '1,20p'
+curl -I --max-time 15 "https://${PUBLIC_HOST}/" | sed -n '1,20p'
 echo
 echo "Health:"
-curl -k -I --max-time 15 "https://${PUBLIC_HOST}/health" | sed -n '1,20p'
+curl -I --max-time 15 "https://${PUBLIC_HOST}/health" | sed -n '1,20p'

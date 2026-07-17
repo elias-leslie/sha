@@ -1,49 +1,82 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import EndpointDetailPage from "../app/endpoints/[endpointId]/page"
 import EndpointDetailConsole from "../components/endpoint-detail-console"
-import { getFixtureEndpoint, type EndpointDetail, type ResponseAction } from "../lib/api"
+import {
+  declaresActionCapability,
+  getFixtureControlRegistry,
+  responseActionStatusDisplay,
+  responseActionStatusTone,
+  type EndpointDetail,
+} from "../lib/api"
+
+const liveEndpoint: EndpointDetail = {
+  endpoint_id: "ep_live_windows_01",
+  hostname: "cf-test-win",
+  platform: "windows",
+  platform_version: "Windows 11 24H2",
+  agent_version: "1.0.7",
+  tenant_id: "tenant-a",
+  site_id: "site-a",
+  status: "active",
+  connectivity_status: "degraded",
+  last_seen_at: "2026-04-21T16:58:00Z",
+  last_heartbeat_at: "2026-04-21T16:58:00Z",
+  created_at: "2026-04-21T16:00:00Z",
+  updated_at: "2026-04-21T16:58:00Z",
+  last_platform_profile: "windows-workstation",
+  declared_capabilities: ["enroll", "heartbeat"],
+  execution_hooks: {
+    captures_rollback_artifacts: true,
+    reports_execution_results: true,
+    supports_dry_run: false,
+  },
+  latest_posture_summary: null,
+  latest_results: [],
+}
+
+function liveFetch(endpoint = liveEndpoint) {
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.endsWith(`/api/endpoints/${endpoint.endpoint_id}`)) {
+      return { ok: true, json: async () => endpoint } as Response
+    }
+    if (url.endsWith("/api/control-registry")) {
+      return { ok: true, json: async () => ({ items: getFixtureControlRegistry() }) } as Response
+    }
+    if (url.endsWith("/api/approval-grants") || url.includes("/response-actions")) {
+      return { ok: true, json: async () => ({ items: [] }) } as Response
+    }
+    return { ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response
+  })
+}
 
 describe("SHA endpoint detail route", () => {
-  it("hydrates unknown live endpoints into matching shell and form state", async () => {
-    const liveEndpoint: EndpointDetail = {
-      endpoint_id: "ep_live_windows_01",
-      hostname: "cf-test-win",
-      platform: "windows",
-      platform_version: "Windows 11 24H2",
-      agent_version: "1.0.7",
-      tenant_id: "tenant-a",
-      site_id: "site-a",
-      status: "active",
-      connectivity_status: "degraded",
-      last_seen_at: "2026-04-21T16:58:00Z",
-      last_heartbeat_at: "2026-04-21T16:58:00Z",
-      created_at: "2026-04-21T16:00:00Z",
-      updated_at: "2026-04-21T16:58:00Z",
-      last_platform_profile: "windows-workstation",
-      declared_capabilities: ["enroll", "heartbeat"],
-      execution_hooks: {
-        captures_rollback_artifacts: true,
-        reports_execution_results: true,
-        supports_dry_run: false,
-      },
-      latest_posture_summary: null,
-      latest_results: [],
-    }
+  it("checks generic and per-control action capabilities", () => {
+    expect(declaresActionCapability(["apply_control"], "apply_control", "control.windows.any")).toBe(true)
+    expect(
+      declaresActionCapability(
+        ["rollback_control:control.windows.firewall-all-profiles"],
+        "rollback_control",
+        "control.windows.firewall-all-profiles",
+      ),
+    ).toBe(true)
+    expect(
+      declaresActionCapability(
+        ["rollback_control:control.windows.firewall-all-profiles"],
+        "rollback_control",
+        "control.windows.defender-real-time-protection",
+      ),
+    ).toBe(false)
+  })
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.endsWith(`/api/endpoints/${liveEndpoint.endpoint_id}`)) {
-        return {
-          ok: true,
-          json: async () => liveEndpoint,
-        } as Response
-      }
+  it("renders a claimed response action as in progress", () => {
+    expect(responseActionStatusDisplay("leased")).toBe("In progress")
+    expect(responseActionStatusTone("leased")).toBe("info")
+  })
 
-      return { ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response
-    })
-
-    vi.stubGlobal("fetch", fetchMock)
+  it("hydrates valid live endpoints absent from static fixtures", async () => {
+    vi.stubGlobal("fetch", liveFetch())
 
     render(<EndpointDetailPage params={{ endpointId: liveEndpoint.endpoint_id }} />)
 
@@ -51,358 +84,291 @@ describe("SHA endpoint detail route", () => {
       expect(screen.getByRole("heading", { level: 1, name: /endpoint cf-test-win/i })).toBeInTheDocument()
       expect(screen.getByRole("heading", { level: 2, name: /endpoint cf-test-win/i })).toBeInTheDocument()
       expect(screen.getByLabelText(/agent version/i)).toHaveValue("1.0.7")
-      expect(screen.getByLabelText(/platform version/i)).toHaveValue("Windows 11 24H2")
-      expect(screen.getAllByLabelText(/platform profile/i)[0]).toHaveValue("windows-workstation")
-      expect(screen.getByLabelText(/connectivity/i)).toHaveValue("degraded")
     })
+    expect(screen.getByLabelText(/platform version/i)).toHaveValue("Windows 11 24H2")
+    expect(screen.getAllByLabelText(/platform profile/i)[0]).toHaveValue("windows-workstation")
+    expect(screen.getByLabelText(/connectivity/i)).toHaveValue("degraded")
   })
 
-  it("refreshes the shell title when a fixture endpoint has a newer live hostname", async () => {
-    const liveEndpoint: EndpointDetail = {
-      endpoint_id: "ep_demo_linux_01",
-      hostname: "demo-linux-01-live",
-      platform: "linux",
-      platform_version: "Ubuntu 24.04 LTS",
-      agent_version: "1.3.2",
-      tenant_id: "tenant-a",
-      site_id: "site-a",
-      status: "active",
-      connectivity_status: "online",
-      last_seen_at: "2026-04-21T16:58:00Z",
-      last_heartbeat_at: "2026-04-21T16:58:00Z",
-      created_at: "2026-04-21T16:00:00Z",
-      updated_at: "2026-04-21T16:58:00Z",
-      last_platform_profile: "linux-server",
-      declared_capabilities: ["enroll", "heartbeat"],
-      execution_hooks: {
-        captures_rollback_artifacts: false,
-        reports_execution_results: false,
-        supports_dry_run: false,
-      },
-      latest_posture_summary: null,
-      latest_results: [],
-    }
-
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.endsWith(`/api/endpoints/${liveEndpoint.endpoint_id}`)) {
-        return {
-          ok: true,
-          json: async () => liveEndpoint,
-        } as Response
-      }
-
-      return { ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response
-    })
-
-    vi.stubGlobal("fetch", fetchMock)
-
-    render(<EndpointDetailPage params={{ endpointId: liveEndpoint.endpoint_id }} />)
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { level: 1, name: /endpoint demo-linux-01-live/i })).toBeInTheDocument()
-      expect(screen.getByRole("heading", { level: 2, name: /endpoint demo-linux-01-live/i })).toBeInTheDocument()
-    })
-  })
-
-  it("preserves in-progress form edits while the late live endpoint fetch resolves", async () => {
-    const liveEndpoint: EndpointDetail = {
-      endpoint_id: "ep_demo_linux_01",
-      hostname: "demo-linux-01-live",
-      platform: "linux",
-      platform_version: "Ubuntu 24.04.1 LTS",
-      agent_version: "2.0.0",
-      tenant_id: "tenant-a",
-      site_id: "site-a",
-      status: "active",
-      connectivity_status: "online",
-      last_seen_at: "2026-04-21T16:58:00Z",
-      last_heartbeat_at: "2026-04-21T16:58:00Z",
-      created_at: "2026-04-21T16:00:00Z",
-      updated_at: "2026-04-21T16:58:00Z",
-      last_platform_profile: "linux-server-live",
-      declared_capabilities: ["enroll", "heartbeat"],
-      execution_hooks: {
-        captures_rollback_artifacts: false,
-        reports_execution_results: false,
-        supports_dry_run: false,
-      },
-      latest_posture_summary: null,
-      latest_results: [],
-    }
-
-    const endpointResolvers: Array<(value: Response) => void> = []
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.endsWith("/api/endpoints/ep_demo_linux_01")) {
-        return new Promise<Response>((resolve) => {
-          endpointResolvers.push(resolve)
-        })
-      }
-
-      return Promise.resolve({ ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response)
-    })
-
-    vi.stubGlobal("fetch", fetchMock)
-
-    render(<EndpointDetailPage params={{ endpointId: liveEndpoint.endpoint_id }} />)
-
-    fireEvent.change(screen.getByLabelText(/agent version/i), { target: { value: "manual-agent-version" } })
-    fireEvent.change(screen.getAllByLabelText(/platform profile/i)[1], { target: { value: "manual-snapshot-profile" } })
-
-    endpointResolvers.forEach((resolve) => {
-      resolve({ ok: true, json: async () => liveEndpoint } as Response)
-    })
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { level: 1, name: /endpoint demo-linux-01-live/i })).toBeInTheDocument()
-    })
-
-    expect(screen.getByLabelText(/agent version/i)).toHaveValue("manual-agent-version")
-    expect(screen.getAllByLabelText(/platform profile/i)[1]).toHaveValue("manual-snapshot-profile")
-  })
-
-  it("resets dirty form state when navigating to a different endpoint", () => {
-    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})))
-
-    const endpointA: EndpointDetail = {
-      endpoint_id: "ep_a",
-      hostname: "alpha-host",
-      platform: "linux",
-      platform_version: "Ubuntu 24.04 LTS",
-      agent_version: "1.0.0",
-      tenant_id: "tenant-a",
-      site_id: "site-a",
-      status: "active",
-      connectivity_status: "online",
-      last_seen_at: "2026-04-21T16:58:00Z",
-      last_heartbeat_at: "2026-04-21T16:58:00Z",
-      created_at: "2026-04-21T16:00:00Z",
-      updated_at: "2026-04-21T16:58:00Z",
-      last_platform_profile: "linux-alpha",
-      declared_capabilities: ["enroll", "heartbeat"],
-      execution_hooks: {
-        captures_rollback_artifacts: false,
-        reports_execution_results: false,
-        supports_dry_run: false,
-      },
-      latest_posture_summary: null,
-      latest_results: [],
-    }
-    const endpointB: EndpointDetail = {
-      ...endpointA,
-      endpoint_id: "ep_b",
-      hostname: "beta-host",
-      agent_version: "2.0.0",
-      last_platform_profile: "linux-beta",
-    }
-
-    const { rerender } = render(<EndpointDetailConsole endpointId={endpointA.endpoint_id} initialEndpoint={endpointA} />)
-
-    fireEvent.change(screen.getByLabelText(/agent version/i), { target: { value: "manual-edit" } })
-    fireEvent.change(screen.getAllByLabelText(/platform profile/i)[1], { target: { value: "manual-snapshot-profile" } })
-
-    rerender(<EndpointDetailConsole endpointId={endpointB.endpoint_id} initialEndpoint={endpointB} />)
-
-    expect(screen.getByLabelText(/agent version/i)).toHaveValue("2.0.0")
-    expect(screen.getAllByLabelText(/platform profile/i)[0]).toHaveValue("linux-beta")
-    expect(screen.getAllByLabelText(/platform profile/i)[1]).toHaveValue("linux-beta")
-  })
-
-  it("renders response action history for endpoint incident response work", async () => {
-    const endpoint: EndpointDetail = {
-      endpoint_id: "ep_actions",
-      hostname: "linux-actions",
-      platform: "linux",
-      platform_version: "Ubuntu 24.04 LTS",
-      agent_version: "1.0.0",
-      tenant_id: "tenant-a",
-      site_id: "site-a",
-      status: "active",
-      connectivity_status: "online",
-      last_seen_at: "2026-04-21T16:58:00Z",
-      last_heartbeat_at: "2026-04-21T16:58:00Z",
-      created_at: "2026-04-21T16:00:00Z",
-      updated_at: "2026-04-21T16:58:00Z",
-      last_platform_profile: "linux-server",
-      declared_capabilities: ["enroll", "heartbeat", "apply_control"],
-      execution_hooks: {
-        captures_rollback_artifacts: true,
-        reports_execution_results: true,
-        supports_dry_run: false,
-      },
-      latest_posture_summary: null,
-      latest_results: [],
-    }
-    const actions: ResponseAction[] = [
-      {
-        response_action_id: "act_apply_ssh",
-        endpoint_id: endpoint.endpoint_id,
-        approval_grant_id: "grant_ssh",
-        action: "apply_control",
-        control_id: "linux.ssh.password-authentication-disabled",
-        troubleshooting_scope: null,
-        requested_by: "SHAna",
-        reason: "Disable SSH password authentication",
-        status: "succeeded",
-        result_summary: "Set PasswordAuthentication no in SHA-managed sshd drop-in.",
-        created_at: "2026-04-21T16:59:00Z",
-        updated_at: "2026-04-21T17:00:00Z",
-        completed_at: "2026-04-21T17:00:00Z",
-      },
-    ]
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.endsWith(`/api/endpoints/${endpoint.endpoint_id}`)) {
-        return { ok: true, json: async () => endpoint } as Response
-      }
-      if (url.endsWith(`/api/endpoints/${endpoint.endpoint_id}/response-actions?include_terminal=true`)) {
-        return { ok: true, json: async () => ({ items: actions }) } as Response
-      }
-      return { ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response
-    })
-    vi.stubGlobal("fetch", fetchMock)
-
-    render(<EndpointDetailConsole endpointId={endpoint.endpoint_id} initialEndpoint={endpoint} />)
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /approved work trail/i })).toBeInTheDocument()
-      expect(screen.getByText(/disable ssh password authentication/i)).toBeInTheDocument()
-      expect(screen.getByText(/set passwordauthentication no/i)).toBeInTheDocument()
-    })
-  })
-
-  it("queues approved response actions from the endpoint detail route", async () => {
-    const endpoint: EndpointDetail = {
-      endpoint_id: "ep_dispatch",
-      hostname: "linux-dispatch",
-      platform: "linux",
-      platform_version: "Ubuntu 24.04 LTS",
-      agent_version: "1.0.0",
-      tenant_id: "tenant-a",
-      site_id: "site-a",
-      status: "active",
-      connectivity_status: "online",
-      last_seen_at: "2026-04-21T16:58:00Z",
-      last_heartbeat_at: "2026-04-21T16:58:00Z",
-      created_at: "2026-04-21T16:00:00Z",
-      updated_at: "2026-04-21T16:58:00Z",
-      last_platform_profile: "linux-server",
-      declared_capabilities: ["enroll", "heartbeat", "collect_security_context"],
-      execution_hooks: {
-        captures_rollback_artifacts: false,
-        reports_execution_results: true,
-        supports_dry_run: false,
-      },
-      latest_posture_summary: null,
-      latest_results: [],
-    }
-    const queuedAction: ResponseAction = {
-      response_action_id: "act_collect_context",
-      endpoint_id: endpoint.endpoint_id,
-      approval_grant_id: "grant_context",
-      action: "collect_security_context",
-      control_id: null,
-      troubleshooting_scope: "process_inventory",
-      requested_by: "ops-console",
-      reason: "Queue approved bounded endpoint response action.",
-      status: "queued",
-      result_summary: null,
-      created_at: "2026-04-21T16:59:00Z",
-      updated_at: "2026-04-21T16:59:00Z",
-      completed_at: null,
-    }
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
-      if (url.endsWith("/api/response-actions") && init?.method === "POST") {
-        return { ok: true, json: async () => queuedAction } as Response
-      }
-      if (url.endsWith(`/api/endpoints/${endpoint.endpoint_id}`)) {
-        return { ok: true, json: async () => endpoint } as Response
-      }
-      if (url.endsWith(`/api/endpoints/${endpoint.endpoint_id}/response-actions?include_terminal=true`)) {
-        return { ok: true, json: async () => ({ items: [] }) } as Response
-      }
-      return { ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response
-    })
-    vi.stubGlobal("fetch", fetchMock)
-
-    render(<EndpointDetailConsole endpointId={endpoint.endpoint_id} initialEndpoint={endpoint} />)
-
-    fireEvent.change(screen.getByLabelText(/approval grant id/i), { target: { value: "grant_context" } })
-    fireEvent.click(screen.getByRole("button", { name: /queue response action/i }))
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/response-actions"),
-        expect.objectContaining({ method: "POST" }),
-      )
-    })
-    const actionCall = fetchMock.mock.calls.find(
-      ([input, init]) => String(input).endsWith("/api/response-actions") && init?.method === "POST",
+  it("mounts no endpoint mutation surfaces while identity is delayed", async () => {
+    const resolvers: Array<(response: Response) => void> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        if (String(input).endsWith(`/api/endpoints/${liveEndpoint.endpoint_id}`)) {
+          return new Promise<Response>((resolve) => resolvers.push(resolve))
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ items: [] }) } as Response)
+      }),
     )
-    expect(JSON.parse(String(actionCall?.[1]?.body))).toMatchObject({
-      endpoint_id: endpoint.endpoint_id,
-      approval_grant_id: "grant_context",
-      action: "collect_security_context",
-      troubleshooting_scope: "process_inventory",
-      requested_by: "ops-console",
+
+    render(<EndpointDetailPage params={{ endpointId: liveEndpoint.endpoint_id }} />)
+
+    expect(screen.getByText(/waiting for live endpoint identity/i)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /send heartbeat/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /record posture snapshot/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /queue response action/i })).not.toBeInTheDocument()
+
+    await act(async () => {
+      for (const resolve of resolvers) {
+        resolve({ ok: true, json: async () => liveEndpoint } as Response)
+      }
     })
-    expect(await screen.findByText(/queued response action act_collect_context/i)).toBeInTheDocument()
+
+    expect(await screen.findByRole("button", { name: /send heartbeat/i })).toBeInTheDocument()
   })
 
-  it("submits fixture heartbeat payloads using the current bounded capability and execution-hook names", async () => {
-    const endpoint = getFixtureEndpoint("ep_demo_linux_01")
-    if (!endpoint) {
-      throw new Error("missing ep_demo_linux_01 fixture")
-    }
-    const pendingEndpoint = new Promise<Response>(() => {})
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+  it.each([
+    [401, "operator token required"],
+    [404, "endpoint not found"],
+    [500, "endpoint service failed"],
+  ])("shows %s endpoint read failures and mounts no mutation forms", async (status, detail) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status, json: async () => ({ detail }) }) as Response),
+    )
 
-      if (url.endsWith("/api/endpoints/ep_demo_linux_01/heartbeat") && init?.method === "POST") {
-        return {
-          ok: true,
-          json: async () => ({
-            endpoint_id: "ep_demo_linux_01",
-            status: "active",
-            connectivity_status: "online",
-            last_seen_at: "2026-04-21T16:58:00Z",
-            last_heartbeat_at: "2026-04-21T16:58:00Z",
-            accepted_capability_count: endpoint.declared_capabilities.length,
-            pending_action_count: 0,
-            created_at: "2026-04-21T16:00:00Z",
-            updated_at: "2026-04-21T16:58:00Z",
-          }),
-        } as Response
-      }
+    render(<EndpointDetailPage params={{ endpointId: "ep_unknown" }} />)
 
-      if (url.endsWith("/api/endpoints/ep_demo_linux_01")) {
-        return pendingEndpoint
-      }
+    expect(await screen.findByText(new RegExp(detail, "i"))).toBeInTheDocument()
+    expect(screen.getByRole("heading", { level: 1, name: /endpoint unavailable/i })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /send heartbeat/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /record posture snapshot/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /queue response action/i })).not.toBeInTheDocument()
+  })
 
-      return { ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response
-    })
-
-    vi.stubGlobal("fetch", fetchMock)
+  it("does not substitute a matching fixture endpoint after a live 404", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 404, json: async () => ({ detail: "live endpoint missing" }) }) as Response),
+    )
 
     render(<EndpointDetailPage params={{ endpointId: "ep_demo_linux_01" }} />)
 
+    expect(await screen.findByText(/live endpoint missing/i)).toBeInTheDocument()
+    expect(screen.queryByText(/demo-linux-01/i)).not.toBeInTheDocument()
+  })
+
+  it("keeps demo endpoint views useful without mounting mutation surfaces", () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+
+    const { unmount } = render(<EndpointDetailConsole demoMode endpointId="ep_demo_linux_01" />)
+
+    expect(screen.getByRole("heading", { name: /endpoint demo-linux-01/i })).toBeInTheDocument()
+    expect(screen.getByText(/fixture-only endpoint preview/i)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /send heartbeat/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /record posture snapshot/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /queue response action/i })).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    unmount()
+    render(<EndpointDetailConsole demoMode endpointId="ep_unknown_demo" />)
+    expect(screen.getByText(/demo endpoint ep_unknown_demo was not found/i)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /send heartbeat/i })).not.toBeInTheDocument()
+  })
+
+  it("retains action history when approval grants fail", async () => {
+    const capableEndpoint = { ...liveEndpoint, declared_capabilities: ["collect_security_context"] }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.endsWith(`/api/endpoints/${liveEndpoint.endpoint_id}`)) {
+          return { ok: true, json: async () => capableEndpoint } as Response
+        }
+        if (url.endsWith("/api/approval-grants")) {
+          return { ok: false, status: 503, json: async () => ({ detail: "grant read failed" }) } as Response
+        }
+        if (url.includes("/response-actions")) {
+          return {
+            ok: true,
+            json: async () => ({
+              items: [
+                {
+                  response_action_id: "act-retained",
+                  endpoint_id: liveEndpoint.endpoint_id,
+                  approval_grant_id: "grant-old",
+                  action: "collect_security_context",
+                  control_id: null,
+                  troubleshooting_scope: "process_inventory",
+                  idempotency_key: "retained-action",
+                  requested_by: "operator",
+                  reason: "Retained action history",
+                  status: "succeeded",
+                  lease_expires_at: "2026-04-21T16:02:00Z",
+                  leased_at: "2026-04-21T16:00:00Z",
+                  attempt_count: 1,
+                  result_summary: "complete",
+                  created_at: "2026-04-21T16:00:00Z",
+                  updated_at: "2026-04-21T16:01:00Z",
+                  completed_at: "2026-04-21T16:01:00Z",
+                },
+              ],
+            }),
+          } as Response
+        }
+        return { ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response
+      }),
+    )
+
+    render(<EndpointDetailConsole endpointId={liveEndpoint.endpoint_id} />)
+
+    expect(await screen.findByText(/retained action history/i)).toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent(/grant read failed/i)
+    expect(screen.getByRole("button", { name: /queue response action/i })).toBeDisabled()
+  })
+
+  it("refreshes only endpoint identity after heartbeat writes", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith(`/api/endpoints/${liveEndpoint.endpoint_id}/heartbeat`) && init?.method === "POST") {
+        return { ok: true, json: async () => ({ accepted: true }) } as Response
+      }
+      if (url.endsWith(`/api/endpoints/${liveEndpoint.endpoint_id}`)) {
+        return { ok: true, json: async () => liveEndpoint } as Response
+      }
+      if (url.endsWith("/api/approval-grants") || url.includes("/response-actions")) {
+        return { ok: false, status: 503, json: async () => ({ detail: "related unavailable" }) } as Response
+      }
+      return { ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<EndpointDetailConsole endpointId={liveEndpoint.endpoint_id} />)
     fireEvent.click(await screen.findByRole("button", { name: /send heartbeat/i }))
 
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/endpoints/ep_demo_linux_01/heartbeat"),
-        expect.objectContaining({ method: "POST" }),
-      )
+    expect(await screen.findByText(/heartbeat accepted/i)).toBeInTheDocument()
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).endsWith("/api/approval-grants"))).toHaveLength(1)
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/response-actions"))).toHaveLength(1)
+  })
+
+  it("adds a unique idempotency key when queueing a response action", async () => {
+    const endpoint = { ...liveEndpoint, declared_capabilities: ["collect_security_context"] }
+    const grant = {
+      approval_grant_id: "grant-response-action",
+      approval_request_id: null,
+      endpoint_ids: [endpoint.endpoint_id],
+      allowed_actions: ["collect_security_context"],
+      control_ids: [],
+      troubleshooting_scopes: ["process_inventory"],
+      requested_by: "operator",
+      approved_by: "security",
+      reason: "Approved response",
+      expires_at: "2099-01-01T00:00:00Z",
+      status: "approved",
+      created_at: "2026-04-21T16:00:00Z",
+      updated_at: "2026-04-21T16:00:00Z",
+    }
+    let createBody: Record<string, unknown> | null = null
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith(`/api/endpoints/${endpoint.endpoint_id}`)) {
+        return { ok: true, json: async () => endpoint } as Response
+      }
+      if (url.endsWith("/api/approval-grants")) {
+        return { ok: true, json: async () => ({ items: [grant] }) } as Response
+      }
+      if (url.endsWith(`/api/endpoints/${endpoint.endpoint_id}/response-actions`)) {
+        return { ok: true, json: async () => ({ items: [] }) } as Response
+      }
+      if (url.endsWith("/api/response-actions") && init?.method === "POST") {
+        createBody = JSON.parse(String(init.body)) as Record<string, unknown>
+        return {
+          ok: true,
+          json: async () => ({
+            response_action_id: "act-created",
+            ...createBody,
+            requested_by: "operator:authenticated",
+            status: "queued",
+            lease_expires_at: null,
+            leased_at: null,
+            attempt_count: 0,
+            result_summary: null,
+            created_at: "2026-04-21T16:01:00Z",
+            updated_at: "2026-04-21T16:01:00Z",
+            completed_at: null,
+          }),
+        } as Response
+      }
+      return { ok: false, status: 404, json: async () => ({ detail: "not found" }) } as Response
     })
+    vi.stubGlobal("fetch", fetchMock)
 
-    const heartbeatCall = fetchMock.mock.calls.find(
-      ([input, init]) => String(input).includes("/api/endpoints/ep_demo_linux_01/heartbeat") && init?.method === "POST",
+    render(<EndpointDetailConsole endpointId={endpoint.endpoint_id} />)
+
+    const queueButton = await screen.findByRole("button", { name: /queue response action/i })
+    await waitFor(() => expect(queueButton).toBeEnabled())
+    expect(screen.queryByLabelText(/^requested by$/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/action attribution comes from the authenticated API principal/i)).toBeInTheDocument()
+    fireEvent.click(queueButton)
+
+    expect(await screen.findByText(/queued response action act-created/i)).toBeInTheDocument()
+    expect(createBody).toMatchObject({
+      endpoint_id: endpoint.endpoint_id,
+      approval_grant_id: grant.approval_grant_id,
+      action: "collect_security_context",
+      idempotency_key: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+    })
+    expect(createBody).not.toHaveProperty("requested_by")
+  })
+
+  it("filters declared actions and controls, then invalidates an expired grant", async () => {
+    vi.useFakeTimers()
+    const endpoint = {
+      ...liveEndpoint,
+      declared_capabilities: [
+        "collect_security_context",
+        "apply_control:control.windows.firewall-all-profiles",
+      ],
+    }
+    const grant = {
+      approval_grant_id: "grant-short",
+      approval_request_id: null,
+      endpoint_ids: [liveEndpoint.endpoint_id],
+      allowed_actions: ["collect_security_context"],
+      control_ids: [],
+      troubleshooting_scopes: ["process_inventory"],
+      requested_by: "operator",
+      approved_by: "security",
+      reason: "Short window",
+      expires_at: new Date(Date.now() + 1_000).toISOString(),
+      status: "approved",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.endsWith(`/api/endpoints/${liveEndpoint.endpoint_id}`)) {
+          return { ok: true, json: async () => endpoint } as Response
+        }
+        if (url.endsWith("/api/approval-grants")) {
+          return { ok: true, json: async () => ({ items: [grant] }) } as Response
+        }
+        if (url.endsWith("/api/control-registry")) {
+          return { ok: true, json: async () => ({ items: getFixtureControlRegistry() }) } as Response
+        }
+        return { ok: true, json: async () => ({ items: [] }) } as Response
+      }),
     )
-    const payload = JSON.parse(String(heartbeatCall?.[1]?.body ?? "{}"))
 
-    expect(payload.declared_capabilities).toEqual(endpoint.declared_capabilities)
-    expect(payload.execution_hooks).toEqual(endpoint.execution_hooks)
+    render(<EndpointDetailConsole endpointId={liveEndpoint.endpoint_id} />)
+    await act(async () => {})
+
+    const actionSelect = screen.getByLabelText(/^action$/i)
+    expect(actionSelect).toHaveTextContent(/collect security context/i)
+    expect(actionSelect).toHaveTextContent(/apply control/i)
+    expect(actionSelect).not.toHaveTextContent(/rollback control/i)
+    fireEvent.change(actionSelect, { target: { value: "apply_control" } })
+    expect(screen.getByLabelText(/control id/i)).toHaveTextContent(/windows firewall all profiles/i)
+    expect(screen.getByLabelText(/control id/i)).not.toHaveTextContent(/defender/i)
+
+    fireEvent.change(actionSelect, { target: { value: "collect_security_context" } })
+    expect(screen.getByRole("button", { name: /queue response action/i })).toBeEnabled()
+    await act(async () => vi.advanceTimersByTime(1_001))
+    expect(screen.getByRole("button", { name: /queue response action/i })).toBeDisabled()
+    vi.useRealTimers()
   })
 })

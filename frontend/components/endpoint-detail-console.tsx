@@ -3,20 +3,26 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import {
+  actionableControlsForEndpoint,
   connectivityDisplay,
   connectivityTone,
+  declaresActionCapability,
   endpointScore,
   endpointStateLabel,
   endpointTone,
   formatDateTime,
   formatLocalInputValue,
   futureIso,
-  hardeningControlOptionsForPlatform,
   approvalActionDisplay,
   createResponseAction,
   getEndpoint,
   getFixtureEndpoint,
+  getFixtureApprovalGrants,
+  getFixtureControlRegistry,
   getFixtureResponseActions,
+  isDemoMode,
+  listApprovalGrants,
+  listControlRegistry,
   listEndpointResponseActions,
   platformDisplayName,
   recordPostureSnapshot,
@@ -25,6 +31,9 @@ import {
   sendEndpointHeartbeat,
   troubleshootingScopeDisplay,
   type ApprovalAction,
+  type ApprovalGrant,
+  type ControlRegistryAction,
+  type ControlRegistryItem,
   type EndpointDetail,
   type PostureStatus,
   type ResponseAction,
@@ -35,6 +44,8 @@ import { Badge, EmptyState, Panel, SectionHeader } from "./console-primitives";
 type EndpointDetailConsoleProps = {
   endpointId: string;
   initialEndpoint?: EndpointDetail;
+  initialControls?: ControlRegistryItem[];
+  demoMode?: boolean;
 };
 
 const EXECUTION_HOOK_NAMES = [
@@ -61,8 +72,13 @@ const RESPONSE_ACTION_SCOPE_OPTIONS: TroubleshootingScope[] = [
   "network_bindings",
 ];
 
-function defaultHardeningControlId(platform: EndpointDetail["platform"]) {
-  return hardeningControlOptionsForPlatform(platform)[0]?.control_id ?? "";
+function defaultHardeningControlId(endpoint: EndpointDetail, controls: readonly ControlRegistryItem[]) {
+  return actionableControlsForEndpoint(
+    controls,
+    endpoint.platform,
+    "apply_control",
+    endpoint.declared_capabilities,
+  )[0]?.control_id ?? "";
 }
 
 function buildHeartbeatForm(endpoint: EndpointDetail) {
@@ -93,55 +109,72 @@ function buildSnapshotForm(endpoint: EndpointDetail) {
   };
 }
 
+function emptyEndpoint(endpointId: string): EndpointDetail {
+  return {
+    endpoint_id: endpointId,
+    hostname: endpointId,
+    platform: "linux",
+    platform_version: null,
+    agent_version: "unknown",
+    tenant_id: null,
+    site_id: null,
+    status: "pending",
+    connectivity_status: null,
+    last_seen_at: new Date().toISOString(),
+    last_heartbeat_at: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    last_platform_profile: null,
+    declared_capabilities: [],
+    execution_hooks: null,
+    latest_posture_summary: null,
+    latest_results: [],
+  };
+}
+
 export default function EndpointDetailConsole({
   endpointId,
   initialEndpoint: providedInitialEndpoint,
+  initialControls,
+  demoMode = isDemoMode(),
 }: EndpointDetailConsoleProps) {
   const initialEndpoint = useMemo<EndpointDetail>(
-    () =>
-      providedInitialEndpoint ??
-      getFixtureEndpoint(endpointId) ??
-      ({
-        endpoint_id: endpointId,
-        hostname: endpointId,
-        platform: "linux",
-        platform_version: null,
-        agent_version: "unknown",
-        tenant_id: null,
-        site_id: null,
-        status: "pending",
-        connectivity_status: null,
-        last_seen_at: new Date().toISOString(),
-        last_heartbeat_at: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        last_platform_profile: null,
-        declared_capabilities: [],
-        execution_hooks: null,
-        latest_posture_summary: null,
-        latest_results: [],
-      } satisfies EndpointDetail),
-    [endpointId, providedInitialEndpoint],
+    () => providedInitialEndpoint ?? (demoMode ? getFixtureEndpoint(endpointId) : undefined) ?? emptyEndpoint(endpointId),
+    [demoMode, endpointId, providedInitialEndpoint],
   );
 
   const [endpoint, setEndpoint] = useState(initialEndpoint);
-  const [source, setSource] = useState<"fixture" | "live">("fixture");
+  const [source, setSource] = useState<"loading" | "demo" | "live" | "error">(
+    demoMode ? "demo" : providedInitialEndpoint ? "live" : "loading",
+  );
+  const [identityError, setIdentityError] = useState<string | null>(null);
+  const [relatedError, setRelatedError] = useState<string | null>(null);
+  const [grantsReady, setGrantsReady] = useState(demoMode);
+  const [controlsReady, setControlsReady] = useState(demoMode || Boolean(initialControls));
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [heartbeatPending, setHeartbeatPending] = useState(false);
   const [snapshotPending, setSnapshotPending] = useState(false);
   const [responseActionPending, setResponseActionPending] = useState(false);
+  const [grantClock, setGrantClock] = useState(() => Date.now());
   const [heartbeatDirty, setHeartbeatDirty] = useState(false);
   const [snapshotDirty, setSnapshotDirty] = useState(false);
-  const [responseActions, setResponseActions] = useState<ResponseAction[]>(() => getFixtureResponseActions(endpointId));
+  const [responseActions, setResponseActions] = useState<ResponseAction[]>(() =>
+    demoMode ? getFixtureResponseActions(endpointId) : [],
+  );
+  const [approvalGrants, setApprovalGrants] = useState<ApprovalGrant[]>(() =>
+    demoMode ? getFixtureApprovalGrants() : [],
+  );
+  const [controls, setControls] = useState<ControlRegistryItem[]>(() =>
+    initialControls ?? (demoMode ? getFixtureControlRegistry() : []),
+  );
   const [heartbeatForm, setHeartbeatForm] = useState(() => buildHeartbeatForm(initialEndpoint));
   const [snapshotForm, setSnapshotForm] = useState(() => buildSnapshotForm(initialEndpoint));
   const [responseActionForm, setResponseActionForm] = useState({
     approval_grant_id: "",
     action: "collect_security_context" as ApprovalAction,
-    control_id: defaultHardeningControlId(initialEndpoint.platform),
+    control_id: defaultHardeningControlId(initialEndpoint, controls),
     troubleshooting_scope: "process_inventory" as TroubleshootingScope,
-    requested_by: "ops-console",
     reason: "Queue approved bounded endpoint response action.",
   });
 
@@ -155,54 +188,115 @@ export default function EndpointDetailConsole({
     setSnapshotForm(updater);
   };
 
-  async function refreshEndpoint() {
+  async function refreshEndpointIdentity() {
     const liveEndpoint = await getEndpoint(endpointId);
     setEndpoint(liveEndpoint);
+    setIdentityError(null);
     setSource("live");
-    setResponseActions(await listEndpointResponseActions(endpointId, true));
   }
 
   useEffect(() => {
     setEndpoint(initialEndpoint);
-    setSource("fixture");
+    setSource(demoMode ? "demo" : providedInitialEndpoint ? "live" : "loading");
+    setIdentityError(null);
+    setRelatedError(null);
+    setGrantsReady(demoMode);
+    setControlsReady(demoMode || Boolean(initialControls));
+    setControls(initialControls ?? (demoMode ? getFixtureControlRegistry() : []));
     setHeartbeatDirty(false);
     setSnapshotDirty(false);
-    setResponseActions(getFixtureResponseActions(endpointId));
+    if (!demoMode) {
+      setResponseActions([]);
+      setApprovalGrants([]);
+    }
     setHeartbeatForm(buildHeartbeatForm(initialEndpoint));
     setSnapshotForm(buildSnapshotForm(initialEndpoint));
     setResponseActionForm((current) => ({ ...current, approval_grant_id: "" }));
-  }, [endpointId, initialEndpoint]);
+  }, [demoMode, endpointId, initialControls, initialEndpoint, providedInitialEndpoint]);
 
   useEffect(() => {
+    if (demoMode) {
+      if (!getFixtureEndpoint(endpointId)) {
+        setSource("error");
+        setIdentityError(`Demo endpoint ${endpointId} was not found.`);
+      }
+      return;
+    }
+
     let cancelled = false;
-    getEndpoint(endpointId)
+    if (!providedInitialEndpoint) {
+      setSource("loading");
+    }
+
+    const identityRequest = getEndpoint(endpointId)
       .then((liveEndpoint) => {
         if (!cancelled) {
           setEndpoint(liveEndpoint);
           setSource("live");
+          setIdentityError(null);
         }
       })
-      .catch(() => {
+      .catch((caught) => {
         if (!cancelled) {
-          setSource("fixture");
+          setSource("error");
+          setIdentityError(caught instanceof Error ? caught.message : `Endpoint ${endpointId} was not found.`);
         }
       });
-    listEndpointResponseActions(endpointId, true)
+    const grantsRequest = listApprovalGrants()
+      .then((grants) => {
+        if (!cancelled) {
+          setApprovalGrants(grants);
+          setGrantsReady(true);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setGrantsReady(false);
+          setRelatedError((current) =>
+            [current, caught instanceof Error ? caught.message : "Unable to load endpoint approval grants."]
+              .filter(Boolean)
+              .join(" "),
+          );
+        }
+      });
+    const controlsRequest = listControlRegistry()
+      .then((registry) => {
+        if (!cancelled) {
+          setControls(registry);
+          setControlsReady(true);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setControlsReady(Boolean(initialControls));
+          setRelatedError((current) =>
+            [current, caught instanceof Error ? caught.message : "Unable to load the control registry."]
+              .filter(Boolean)
+              .join(" "),
+          );
+        }
+      });
+    const actionsRequest = listEndpointResponseActions(endpointId, true)
       .then((actions) => {
         if (!cancelled) {
           setResponseActions(actions);
         }
       })
-      .catch(() => {
+      .catch((caught) => {
         if (!cancelled) {
-          setResponseActions(getFixtureResponseActions(endpointId));
+          setRelatedError((current) =>
+            [current, caught instanceof Error ? caught.message : "Unable to load endpoint action history."]
+              .filter(Boolean)
+              .join(" "),
+          );
         }
       });
+    void Promise.allSettled([identityRequest, grantsRequest, controlsRequest, actionsRequest]);
 
     return () => {
       cancelled = true;
     };
-  }, [endpointId]);
+  }, [demoMode, endpointId, initialControls, providedInitialEndpoint]);
 
   useEffect(() => {
     if (!heartbeatDirty) {
@@ -213,22 +307,111 @@ export default function EndpointDetailConsole({
     }
   }, [endpoint, heartbeatDirty, snapshotDirty]);
 
-  const hardeningControlOptions = useMemo(
-    () => hardeningControlOptionsForPlatform(endpoint.platform),
-    [endpoint.platform],
+  const availableResponseActions = useMemo(
+    () =>
+      RESPONSE_ACTION_OPTIONS.filter((action) => {
+        if (action === "apply_control" || action === "rollback_control") {
+          return actionableControlsForEndpoint(
+            controls,
+            endpoint.platform,
+            action,
+            endpoint.declared_capabilities,
+          ).length > 0;
+        }
+        return declaresActionCapability(endpoint.declared_capabilities, action);
+      }),
+    [controls, endpoint.declared_capabilities, endpoint.platform],
+  );
+  const actionableControls = useMemo(
+    () =>
+      responseActionForm.action === "apply_control" || responseActionForm.action === "rollback_control"
+        ? actionableControlsForEndpoint(
+            controls,
+            endpoint.platform,
+            responseActionForm.action as ControlRegistryAction,
+            endpoint.declared_capabilities,
+          )
+        : [],
+    [controls, endpoint.declared_capabilities, endpoint.platform, responseActionForm.action],
   );
   const executionHooks = useMemo(() => Object.entries(endpoint.execution_hooks ?? {}).filter(([, value]) => value), [endpoint.execution_hooks]);
 
   useEffect(() => {
+    setResponseActionForm((current) => {
+      const action = availableResponseActions.includes(current.action) ? current.action : availableResponseActions[0];
+      if (!action) {
+        return current;
+      }
+      return action === current.action ? current : { ...current, action };
+    });
+  }, [availableResponseActions]);
+
+  useEffect(() => {
     setResponseActionForm((current) =>
-      hardeningControlOptions.some((control) => control.control_id === current.control_id)
+      actionableControls.some((control) => control.control_id === current.control_id)
         ? current
-        : { ...current, control_id: hardeningControlOptions[0]?.control_id ?? "" },
+        : { ...current, control_id: actionableControls[0]?.control_id ?? "" },
     );
-  }, [hardeningControlOptions]);
+  }, [actionableControls]);
+
+  const needsResponseActionControl = responseActionForm.action === "apply_control" || responseActionForm.action === "rollback_control";
+  const needsResponseActionScope = responseActionForm.action !== "collect_remediation_evidence" && !needsResponseActionControl;
+  useEffect(() => {
+    const now = Date.now();
+    setGrantClock(now);
+    const nextExpiry = approvalGrants
+      .map((grant) => new Date(grant.expires_at).getTime())
+      .filter((expiresAt) => expiresAt > now)
+      .sort((left, right) => left - right)[0];
+    if (!nextExpiry) {
+      return;
+    }
+    const timer = window.setTimeout(() => setGrantClock(Date.now()), Math.max(0, nextExpiry - now + 1));
+    return () => window.clearTimeout(timer);
+  }, [approvalGrants]);
+
+  const eligibleApprovalGrants = useMemo(
+    () =>
+      approvalGrants.filter(
+        (grant) =>
+          grant.status === "approved" &&
+          new Date(grant.expires_at).getTime() > grantClock &&
+          grant.endpoint_ids.includes(endpointId) &&
+          declaresActionCapability(
+            endpoint.declared_capabilities,
+            responseActionForm.action,
+            needsResponseActionControl ? responseActionForm.control_id : null,
+          ) &&
+          grant.allowed_actions.includes(responseActionForm.action) &&
+          (!needsResponseActionControl || grant.control_ids.includes(responseActionForm.control_id)) &&
+          (!needsResponseActionScope || grant.troubleshooting_scopes.includes(responseActionForm.troubleshooting_scope)),
+      ),
+    [
+      approvalGrants,
+      endpoint.declared_capabilities,
+      endpointId,
+      grantClock,
+      needsResponseActionControl,
+      needsResponseActionScope,
+      responseActionForm.action,
+      responseActionForm.control_id,
+      responseActionForm.troubleshooting_scope,
+    ],
+  );
+
+  const effectiveApprovalGrantId = eligibleApprovalGrants.some(
+    (grant) => grant.approval_grant_id === responseActionForm.approval_grant_id,
+  )
+    ? responseActionForm.approval_grant_id
+    : eligibleApprovalGrants.length === 1
+      ? eligibleApprovalGrants[0].approval_grant_id
+      : "";
 
   async function handleHeartbeat(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (source !== "live") {
+      return;
+    }
     setHeartbeatPending(true);
     setFeedback(null);
     setError(null);
@@ -253,7 +436,7 @@ export default function EndpointDetailConsole({
           .filter(Boolean),
         execution_hooks: hooks,
       });
-      await refreshEndpoint();
+      await refreshEndpointIdentity();
       setHeartbeatDirty(false);
       setFeedback("Heartbeat accepted.");
     } catch (caught) {
@@ -265,6 +448,9 @@ export default function EndpointDetailConsole({
 
   async function handleSnapshot(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (source !== "live") {
+      return;
+    }
     setSnapshotPending(true);
     setFeedback(null);
     setError(null);
@@ -286,7 +472,7 @@ export default function EndpointDetailConsole({
           },
         ],
       });
-      await refreshEndpoint();
+      await refreshEndpointIdentity();
       setSnapshotDirty(false);
       setFeedback("Posture snapshot recorded.");
     } catch (caught) {
@@ -298,21 +484,26 @@ export default function EndpointDetailConsole({
 
   async function handleCreateResponseAction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (
+      source !== "live" ||
+      !grantsReady ||
+      !effectiveApprovalGrantId ||
+      (needsResponseActionControl && (!controlsReady || !responseActionForm.control_id))
+    ) {
+      return;
+    }
     setResponseActionPending(true);
     setFeedback(null);
     setError(null);
 
-    const needsControl = responseActionForm.action === "apply_control" || responseActionForm.action === "rollback_control";
-    const needsScope = responseActionForm.action !== "collect_remediation_evidence" && !needsControl;
-
     try {
       const created = await createResponseAction({
         endpoint_id: endpointId,
-        approval_grant_id: responseActionForm.approval_grant_id,
+        approval_grant_id: effectiveApprovalGrantId,
         action: responseActionForm.action,
-        control_id: needsControl ? responseActionForm.control_id : null,
-        troubleshooting_scope: needsScope ? responseActionForm.troubleshooting_scope : null,
-        requested_by: responseActionForm.requested_by,
+        control_id: needsResponseActionControl ? responseActionForm.control_id : null,
+        troubleshooting_scope: needsResponseActionScope ? responseActionForm.troubleshooting_scope : null,
+        idempotency_key: crypto.randomUUID(),
         reason: responseActionForm.reason,
       });
       setResponseActions((current) => [...current.filter((item) => item.response_action_id !== created.response_action_id), created]);
@@ -323,6 +514,38 @@ export default function EndpointDetailConsole({
     } finally {
       setResponseActionPending(false);
     }
+  }
+
+  if (source === "loading") {
+    return <EmptyState title={`Loading endpoint ${endpointId}`} body="Waiting for live endpoint identity." />;
+  }
+
+  if (source === "error") {
+    return (
+      <EmptyState
+        title={`Endpoint ${endpointId} unavailable`}
+        body={`Live endpoint identity could not be loaded: ${identityError ?? "unknown endpoint"}`}
+      />
+    );
+  }
+
+  if (source === "demo") {
+    return (
+      <Panel>
+        <SectionHeader
+          eyebrow="Demo endpoint identity"
+          title={`Endpoint ${endpoint.hostname}`}
+          description="Fixture-only endpoint preview. Heartbeat, posture, and response action surfaces are disabled in demo mode."
+        />
+        <div className="detail-grid">
+          <div className="detail-card"><span>Endpoint id</span><strong>{endpoint.endpoint_id}</strong></div>
+          <div className="detail-card"><span>Platform</span><strong>{platformDisplayName(endpoint.platform)} {endpoint.platform_version ?? ""}</strong></div>
+          <div className="detail-card"><span>Containment</span><strong>{endpointStateLabel(endpoint)} • score {endpointScore(endpoint) ?? "--"}</strong></div>
+          <div className="detail-card"><span>Signal</span><strong>{connectivityDisplay(endpoint.connectivity_status)} • last seen {formatDateTime(endpoint.last_seen_at)}</strong></div>
+        </div>
+        <Badge tone="warning">Demo fixture — mutations disabled</Badge>
+      </Panel>
+    );
   }
 
   return (
@@ -360,6 +583,7 @@ export default function EndpointDetailConsole({
           </div>
           {feedback ? <p className="inline-feedback inline-feedback--success">{feedback}</p> : null}
           {error ? <p className="inline-feedback inline-feedback--danger">{error}</p> : null}
+          {relatedError ? <p className="inline-feedback inline-feedback--danger" role="alert">Endpoint action resources load failed: {relatedError}</p> : null}
         </Panel>
       </section>
 
@@ -568,26 +792,46 @@ export default function EndpointDetailConsole({
           />
           <form className="form-grid" onSubmit={handleCreateResponseAction}>
             <label className="field field--span-2" htmlFor="response-action-grant">
-              <span className="field__label">Approval grant id</span>
-              <input
+              <span className="field__label">Approval grant</span>
+              <select
                 className="field__control"
+                disabled={!eligibleApprovalGrants.length}
                 id="response-action-grant"
                 onChange={(event) => setResponseActionForm((current) => ({ ...current, approval_grant_id: event.target.value }))}
                 required
-                value={responseActionForm.approval_grant_id}
-              />
+                value={effectiveApprovalGrantId}
+              >
+                {!eligibleApprovalGrants.length ? (
+                  <option value="">No eligible active grant for this action and scope</option>
+                ) : eligibleApprovalGrants.length > 1 ? (
+                  <>
+                    <option value="">Select an eligible grant</option>
+                    {eligibleApprovalGrants.map((grant) => (
+                      <option key={grant.approval_grant_id} value={grant.approval_grant_id}>
+                        {grant.approval_grant_id} — expires {formatDateTime(grant.expires_at)}
+                      </option>
+                    ))}
+                  </>
+                ) : (
+                  <option value={eligibleApprovalGrants[0].approval_grant_id}>
+                    {eligibleApprovalGrants[0].approval_grant_id} — expires {formatDateTime(eligibleApprovalGrants[0].expires_at)}
+                  </option>
+                )}
+              </select>
             </label>
             <label className="field" htmlFor="response-action-kind">
               <span className="field__label">Action</span>
               <select
                 className="field__control"
+                disabled={!availableResponseActions.length}
                 id="response-action-kind"
                 onChange={(event) =>
                   setResponseActionForm((current) => ({ ...current, action: event.target.value as ApprovalAction }))
                 }
                 value={responseActionForm.action}
               >
-                {RESPONSE_ACTION_OPTIONS.map((action) => (
+                {!availableResponseActions.length ? <option value="">No declared response actions</option> : null}
+                {availableResponseActions.map((action) => (
                   <option key={action} value={action}>
                     {approvalActionDisplay(action)}
                   </option>
@@ -599,16 +843,16 @@ export default function EndpointDetailConsole({
                 <span className="field__label">Control id</span>
                 <select
                   className="field__control"
-                  disabled={!hardeningControlOptions.length}
+                  disabled={!actionableControls.length}
                   id="response-action-control"
                   onChange={(event) => setResponseActionForm((current) => ({ ...current, control_id: event.target.value }))}
                   required
                   value={responseActionForm.control_id}
                 >
-                  {hardeningControlOptions.length ? (
-                    hardeningControlOptions.map((control) => (
+                  {actionableControls.length ? (
+                    actionableControls.map((control) => (
                       <option key={control.control_id} value={control.control_id}>
-                        {control.label}
+                        {control.title}
                       </option>
                     ))
                   ) : (
@@ -638,15 +882,9 @@ export default function EndpointDetailConsole({
                 </select>
               </label>
             )}
-            <label className="field" htmlFor="response-action-requested-by">
-              <span className="field__label">Requested by</span>
-              <input
-                className="field__control"
-                id="response-action-requested-by"
-                onChange={(event) => setResponseActionForm((current) => ({ ...current, requested_by: event.target.value }))}
-                value={responseActionForm.requested_by}
-              />
-            </label>
+            <p className="inline-feedback field--span-2">
+              Action attribution comes from the authenticated API principal.
+            </p>
             <label className="field field--span-2" htmlFor="response-action-reason">
               <span className="field__label">Reason</span>
               <textarea
@@ -657,7 +895,17 @@ export default function EndpointDetailConsole({
               />
             </label>
             <div className="form-actions">
-              <button className="action-button action-button--primary" disabled={responseActionPending} type="submit">
+              <button
+                className="action-button action-button--primary"
+                disabled={
+                  responseActionPending ||
+                  !grantsReady ||
+                  !effectiveApprovalGrantId ||
+                  !availableResponseActions.length ||
+                  (needsResponseActionControl && (!controlsReady || !responseActionForm.control_id))
+                }
+                type="submit"
+              >
                 {responseActionPending ? "Queueing…" : "Queue response action"}
               </button>
             </div>
@@ -675,6 +923,11 @@ export default function EndpointDetailConsole({
                     <p>
                       {action.control_id ?? (action.troubleshooting_scope ? troubleshootingScopeDisplay(action.troubleshooting_scope) : "No scope")} • requested by {action.requested_by} • {formatDateTime(action.created_at)}
                     </p>
+                    {action.status === "leased" ? (
+                      <p>
+                        Attempt {action.attempt_count} • claimed {formatDateTime(action.leased_at)} • lease expires {formatDateTime(action.lease_expires_at)}
+                      </p>
+                    ) : null}
                     {action.result_summary ? <p>{action.result_summary}</p> : null}
                   </div>
                 </div>

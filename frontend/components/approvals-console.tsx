@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import {
+  actionableControlsForEndpoint,
   approvalActionDisplay,
   approvalDecisionSummary,
   approvalRequestKindDisplay,
@@ -16,14 +17,16 @@ import {
   endpointLabel,
   endpointListDisplay,
   formatDateTime,
-  formatLocalInputValue,
   futureIso,
-  hardeningControlOptionsForPlatform,
+  futureLocalInput,
+  getFixtureControlRegistry,
   getFixtureApprovalGrants,
   getFixtureApprovalRequests,
   getFixtureEndpoints,
+  isDemoMode,
   listApprovalGrants,
   listApprovalRequests,
+  listControlRegistry,
   listEndpoints,
   localInputToIso,
   titleCaseKey,
@@ -31,6 +34,7 @@ import {
   type ApprovalAction,
   type ApprovalGrant,
   type ApprovalRequest,
+  type ControlRegistryItem,
   type EndpointInventoryItem,
   type TroubleshootingScope,
 } from "../lib/api";
@@ -40,6 +44,8 @@ type ApprovalsConsoleProps = {
   initialRequests?: ApprovalRequest[];
   initialGrants?: ApprovalGrant[];
   initialEndpoints?: EndpointInventoryItem[];
+  initialControls?: ControlRegistryItem[];
+  demoMode?: boolean;
 };
 
 const TROUBLESHOOTING_SCOPE_OPTIONS: TroubleshootingScope[] = [
@@ -51,70 +57,150 @@ const TROUBLESHOOTING_SCOPE_OPTIONS: TroubleshootingScope[] = [
   "network_bindings",
 ];
 
-function firstHardeningControlForEndpoint(endpoint: EndpointInventoryItem | undefined) {
-  return hardeningControlOptionsForPlatform(endpoint?.platform)[0]?.control_id ?? "";
+function firstHardeningControlForEndpoint(
+  endpoint: EndpointInventoryItem | undefined,
+  controls: readonly ControlRegistryItem[],
+) {
+  return actionableControlsForEndpoint(
+    controls,
+    endpoint?.platform,
+    "apply_control",
+    endpoint?.declared_capabilities ?? [],
+  )[0]?.control_id ?? "";
 }
 
 export default function ApprovalsConsole({
-  initialRequests = getFixtureApprovalRequests(),
-  initialGrants = getFixtureApprovalGrants(),
-  initialEndpoints = getFixtureEndpoints(),
+  initialRequests,
+  initialGrants,
+  initialEndpoints,
+  initialControls,
+  demoMode = isDemoMode(),
 }: ApprovalsConsoleProps) {
-  const [requests, setRequests] = useState(initialRequests);
-  const [grants, setGrants] = useState(initialGrants);
-  const [endpoints, setEndpoints] = useState(initialEndpoints);
-  const [source, setSource] = useState<"fixture" | "live">("fixture");
-  const [selectedId, setSelectedId] = useState<string | null>(initialRequests.find((item) => item.status === "pending")?.approval_request_id ?? null);
-  const [decisionOperator, setDecisionOperator] = useState("secops-alpha");
+  const [requests, setRequests] = useState(() => initialRequests ?? (demoMode ? getFixtureApprovalRequests() : []));
+  const [grants, setGrants] = useState(() => initialGrants ?? (demoMode ? getFixtureApprovalGrants() : []));
+  const [endpoints, setEndpoints] = useState(() => initialEndpoints ?? (demoMode ? getFixtureEndpoints() : []));
+  const [controls, setControls] = useState(() =>
+    initialControls ?? (demoMode ? getFixtureControlRegistry() : []),
+  );
+  const [resourceState, setResourceState] = useState(() => ({
+    requests: demoMode || Boolean(initialRequests),
+    grants: demoMode || Boolean(initialGrants),
+    endpoints: demoMode || Boolean(initialEndpoints),
+    controls: demoMode || Boolean(initialControls),
+    loading: !demoMode,
+  }));
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => requests.find((item) => item.status === "pending")?.approval_request_id ?? null,
+  );
   const [decisionComment, setDecisionComment] = useState("Approved for the maintenance window.");
-  const [decisionExpiry, setDecisionExpiry] = useState(formatLocalInputValue(futureIso(45)));
+  const [decisionExpiry, setDecisionExpiry] = useState(futureLocalInput(45));
   const [decisionPending, setDecisionPending] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [requestPending, setRequestPending] = useState(false);
   const [grantPending, setGrantPending] = useState(false);
-  const [requestForm, setRequestForm] = useState({
-    endpoint_id: initialEndpoints[0]?.endpoint_id ?? "",
-    request_kind: "hardening_change" as ApprovalRequest["request_kind"],
-    control_id: firstHardeningControlForEndpoint(initialEndpoints[0]),
-    reason: "Approve guarded hardening rollout",
-    requested_by: "ops-console",
-    risk: "high" as ApprovalRequest["risk"],
-    ttl: 60,
-    troubleshooting_scopes: ["security_logs"] as TroubleshootingScope[],
+  const [requestForm, setRequestForm] = useState(() => {
+    const endpointId = endpoints.length === 1 ? endpoints[0].endpoint_id : "";
+    return {
+      endpoint_id: endpointId,
+      request_kind: "hardening_change" as ApprovalRequest["request_kind"],
+      control_id: firstHardeningControlForEndpoint(
+        endpoints.find((item) => item.endpoint_id === endpointId),
+        controls,
+      ),
+      reason: "Approve guarded hardening rollout",
+      risk: "high" as ApprovalRequest["risk"],
+      ttl: 60,
+      troubleshooting_scopes: ["security_logs"] as TroubleshootingScope[],
+    };
   });
-  const [grantForm, setGrantForm] = useState({
-    endpoint_id: initialEndpoints[0]?.endpoint_id ?? "",
-    approved_by: "secops-alpha",
-    requested_by: "ops-console",
+  const [grantForm, setGrantForm] = useState(() => ({
+    endpoint_id: endpoints.length === 1 ? endpoints[0].endpoint_id : "",
     reason: "Temporary bounded troubleshooting window",
-    expires_at: formatLocalInputValue(futureIso(90)),
+    expires_at: futureLocalInput(90),
     troubleshooting_scopes: ["security_logs"] as TroubleshootingScope[],
-  });
+  }));
 
   useEffect(() => {
-    let cancelled = false;
+    if (demoMode) {
+      setRequests(initialRequests ?? getFixtureApprovalRequests());
+      setGrants(initialGrants ?? getFixtureApprovalGrants());
+      setEndpoints(initialEndpoints ?? getFixtureEndpoints());
+      setControls(initialControls ?? getFixtureControlRegistry());
+      setResourceState({ requests: true, grants: true, endpoints: true, controls: true, loading: false });
+      setLoadError(null);
+      return;
+    }
 
-    Promise.all([listApprovalRequests(), listApprovalGrants(), listEndpoints()])
-      .then(([liveRequests, liveGrants, liveEndpoints]) => {
+    let cancelled = false;
+    setResourceState((current) => ({ ...current, loading: true }));
+    setLoadError(null);
+    Promise.allSettled([listApprovalRequests(), listApprovalGrants(), listEndpoints(), listControlRegistry()]).then(
+      ([requestResult, grantResult, endpointResult, controlResult]) => {
         if (cancelled) {
           return;
         }
-        setRequests(liveRequests);
-        setGrants(liveGrants);
-        setEndpoints(liveEndpoints);
-        setSource("live");
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSource("fixture");
+        if (requestResult.status === "fulfilled") {
+          setRequests(requestResult.value);
         }
-      });
+        if (grantResult.status === "fulfilled") {
+          setGrants(grantResult.value);
+        }
+        if (endpointResult.status === "fulfilled") {
+          setEndpoints(endpointResult.value);
+        }
+        if (controlResult.status === "fulfilled") {
+          setControls(controlResult.value);
+        }
+        const failures = [requestResult, grantResult, endpointResult, controlResult].filter(
+          (result): result is PromiseRejectedResult => result.status === "rejected",
+        );
+        setResourceState({
+          requests: requestResult.status === "fulfilled" || initialRequests !== undefined,
+          grants: grantResult.status === "fulfilled" || initialGrants !== undefined,
+          endpoints: endpointResult.status === "fulfilled" || initialEndpoints !== undefined,
+          controls: controlResult.status === "fulfilled" || initialControls !== undefined,
+          loading: false,
+        });
+        setLoadError(
+          failures.length
+            ? failures
+                .map((result) => (result.reason instanceof Error ? result.reason.message : "Unable to load an approval resource."))
+                .join(" ")
+            : null,
+        );
+      },
+    );
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [demoMode, initialControls, initialEndpoints, initialGrants, initialRequests]);
+
+  useEffect(() => {
+    const chooseEndpoint = (current: string) => {
+      if (endpoints.some((endpoint) => endpoint.endpoint_id === current)) {
+        return current;
+      }
+      return endpoints.length === 1 ? endpoints[0].endpoint_id : "";
+    };
+    setRequestForm((current) => {
+      const endpointId = chooseEndpoint(current.endpoint_id);
+      return {
+        ...current,
+        endpoint_id: endpointId,
+        control_id:
+          endpointId === current.endpoint_id
+            ? current.control_id
+            : firstHardeningControlForEndpoint(
+                endpoints.find((endpoint) => endpoint.endpoint_id === endpointId),
+                controls,
+              ),
+      };
+    });
+    setGrantForm((current) => ({ ...current, endpoint_id: chooseEndpoint(current.endpoint_id) }));
+  }, [controls, endpoints]);
 
   const pendingRequests = useMemo(() => requests.filter((request) => request.status === "pending"), [requests]);
   const activeGrants = useMemo(() => grants.filter((grant) => grant.status === "approved"), [grants]);
@@ -123,9 +209,15 @@ export default function ApprovalsConsole({
     () => endpoints.find((endpoint) => endpoint.endpoint_id === requestForm.endpoint_id),
     [endpoints, requestForm.endpoint_id],
   );
-  const hardeningControlOptions = useMemo(
-    () => hardeningControlOptionsForPlatform(requestEndpoint?.platform),
-    [requestEndpoint?.platform],
+  const actionableControls = useMemo(
+    () =>
+      actionableControlsForEndpoint(
+        controls,
+        requestEndpoint?.platform,
+        "apply_control",
+        requestEndpoint?.declared_capabilities ?? [],
+      ),
+    [controls, requestEndpoint?.declared_capabilities, requestEndpoint?.platform],
   );
   const selectedRequest = useMemo(() => {
     return requests.find((request) => request.approval_request_id === selectedId) ?? pendingRequests[0] ?? requests[0] ?? null;
@@ -135,31 +227,46 @@ export default function ApprovalsConsole({
     if (requestForm.request_kind !== "hardening_change") {
       return;
     }
-    if (hardeningControlOptions.some((control) => control.control_id === requestForm.control_id)) {
+    if (actionableControls.some((control) => control.control_id === requestForm.control_id)) {
       return;
     }
-    setRequestForm((current) => ({ ...current, control_id: hardeningControlOptions[0]?.control_id ?? "" }));
-  }, [hardeningControlOptions, requestForm.control_id, requestForm.request_kind]);
+    setRequestForm((current) => ({ ...current, control_id: actionableControls[0]?.control_id ?? "" }));
+  }, [actionableControls, requestForm.control_id, requestForm.request_kind]);
 
   useEffect(() => {
     if (selectedRequest && selectedId !== selectedRequest.approval_request_id) {
       setSelectedId(selectedRequest.approval_request_id);
-      setDecisionExpiry(formatLocalInputValue(futureIso(selectedRequest.requested_ttl_minutes)));
+      setDecisionExpiry(futureLocalInput(selectedRequest.requested_ttl_minutes));
     }
   }, [selectedId, selectedRequest]);
 
-  async function refreshGrants() {
-    try {
-      const liveGrants = await listApprovalGrants();
-      setGrants(liveGrants);
-      setSource("live");
-    } catch {
-      // preserve current grant snapshot if refresh fails
+  async function refreshApprovalData() {
+    const [requestResult, grantResult] = await Promise.allSettled([listApprovalRequests(), listApprovalGrants()]);
+    if (requestResult.status === "fulfilled") {
+      setRequests(requestResult.value);
     }
+    if (grantResult.status === "fulfilled") {
+      setGrants(grantResult.value);
+    }
+    setResourceState((current) => ({
+      ...current,
+      requests: requestResult.status === "fulfilled",
+      grants: grantResult.status === "fulfilled",
+    }));
+    const failures = [requestResult, grantResult].filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    setLoadError(
+      failures.length
+        ? failures
+            .map((result) => (result.reason instanceof Error ? result.reason.message : "Unable to refresh approval data."))
+            .join(" ")
+        : null,
+    );
   }
 
   async function submitDecision(decision: "approve" | "deny" | "revoke") {
-    if (!selectedRequest) {
+    if (!selectedRequest || !resourceState.requests || demoMode) {
       return;
     }
 
@@ -170,7 +277,6 @@ export default function ApprovalsConsole({
     try {
       const updated = await decideApprovalRequest(selectedRequest.approval_request_id, {
         decision,
-        decided_by: decisionOperator,
         decision_comment: decisionComment,
         expires_at: decision === "approve" ? localInputToIso(decisionExpiry) : null,
       });
@@ -179,11 +285,13 @@ export default function ApprovalsConsole({
           request.approval_request_id === updated.approval_request_id ? updated : request,
         ),
       );
-      setSource("live");
-      setFeedback(`${approvalStatusDisplay(updated.status)} by ${updated.decision_by ?? decisionOperator}`);
-      await refreshGrants();
+      setFeedback(
+        `${approvalStatusDisplay(updated.status)}${updated.decision_by ? ` by ${updated.decision_by}` : ""}`,
+      );
+      await refreshApprovalData();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to submit decision.");
+      await refreshApprovalData();
     } finally {
       setDecisionPending(false);
     }
@@ -191,6 +299,15 @@ export default function ApprovalsConsole({
 
   async function handleCreateRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (
+      !resourceState.requests ||
+      !resourceState.endpoints ||
+      demoMode ||
+      !requestForm.endpoint_id ||
+      (requestForm.request_kind === "hardening_change" && (!resourceState.controls || !requestForm.control_id))
+    ) {
+      return;
+    }
     setRequestPending(true);
     setFeedback(null);
     setError(null);
@@ -205,7 +322,6 @@ export default function ApprovalsConsole({
               control_ids: [requestForm.control_id],
               troubleshooting_scopes: [],
               requested_ttl_minutes: requestForm.ttl,
-              requested_by: requestForm.requested_by,
               reason: requestForm.reason,
               risk: requestForm.risk,
             }
@@ -220,14 +336,13 @@ export default function ApprovalsConsole({
               control_ids: [],
               troubleshooting_scopes: requestForm.troubleshooting_scopes,
               requested_ttl_minutes: requestForm.ttl,
-              requested_by: requestForm.requested_by,
               reason: requestForm.reason,
               risk: requestForm.risk,
             };
       const created = await createApprovalRequest(payload);
       setRequests((current) => [created, ...current]);
       setSelectedId(created.approval_request_id);
-      setSource("live");
+      setResourceState((current) => ({ ...current, requests: true }));
       setFeedback(`Queued request ${created.approval_request_id}.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to create approval request.");
@@ -238,6 +353,9 @@ export default function ApprovalsConsole({
 
   async function handleCreateGrant(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!resourceState.grants || !resourceState.endpoints || demoMode || !grantForm.endpoint_id) {
+      return;
+    }
     setGrantPending(true);
     setFeedback(null);
     setError(null);
@@ -248,13 +366,11 @@ export default function ApprovalsConsole({
         allowed_actions: ["request_elevated_troubleshooting", "inspect_control", "collect_security_context"],
         control_ids: [],
         troubleshooting_scopes: grantForm.troubleshooting_scopes,
-        requested_by: grantForm.requested_by,
-        approved_by: grantForm.approved_by,
         reason: grantForm.reason,
         expires_at: localInputToIso(grantForm.expires_at) ?? futureIso(60),
       });
       setGrants((current) => [created, ...current]);
-      setSource("live");
+      setResourceState((current) => ({ ...current, grants: true }));
       setFeedback(`Opened manual grant ${created.approval_grant_id}.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to create approval grant.");
@@ -262,6 +378,29 @@ export default function ApprovalsConsole({
       setGrantPending(false);
     }
   }
+
+  const anyResourceReady =
+    resourceState.requests || resourceState.grants || resourceState.endpoints || resourceState.controls;
+  const source = demoMode
+    ? "demo"
+    : resourceState.loading
+      ? "loading"
+      : loadError
+        ? anyResourceReady
+          ? "partial"
+          : "error"
+        : resourceState.requests && resourceState.grants && resourceState.endpoints && resourceState.controls
+          ? "live"
+          : anyResourceReady
+            ? "partial"
+            : "error";
+  const canDecide = resourceState.requests && !demoMode;
+  const canCreateRequest =
+    resourceState.requests &&
+    resourceState.endpoints &&
+    !demoMode &&
+    (requestForm.request_kind !== "hardening_change" || (resourceState.controls && Boolean(requestForm.control_id)));
+  const canCreateGrant = resourceState.grants && resourceState.endpoints && !demoMode;
 
   return (
     <>
@@ -272,11 +411,12 @@ export default function ApprovalsConsole({
             title="Human decision surface"
             description="Risk-bearing changes stay blocked until an operator approves, denies, or revokes the request."
           />
+          {loadError ? <p className="inline-feedback inline-feedback--danger" role="alert">Approval resources load failed: {loadError}</p> : null}
           <div className="stat-grid">
             <StatCard label="Pending" value={pendingRequests.length} meta="Awaiting decision" tone="warning" />
             <StatCard label="Active grants" value={activeGrants.length} meta="Approved windows in force" tone="success" />
             <StatCard label="Recorded history" value={auditHistory.length} meta="Closed approval outcomes" tone="info" />
-            <StatCard label="Data source" value={source === "live" ? "Live" : "Fixture"} meta="Backend link state" tone={source === "live" ? "success" : "warning"} />
+            <StatCard label="Data source" value={source === "live" ? "Live" : source === "demo" ? "Demo" : source === "loading" ? "Loading" : source === "partial" ? "Partial" : "Error"} meta="Backend link state" tone={source === "live" ? "success" : source === "error" ? "danger" : "warning"} />
           </div>
         </Panel>
       </section>
@@ -297,7 +437,7 @@ export default function ApprovalsConsole({
                   key={request.approval_request_id}
                   onClick={() => {
                     setSelectedId(request.approval_request_id);
-                    setDecisionExpiry(formatLocalInputValue(futureIso(request.requested_ttl_minutes)));
+                    setDecisionExpiry(futureLocalInput(request.requested_ttl_minutes));
                   }}
                   type="button"
                 >
@@ -359,16 +499,9 @@ export default function ApprovalsConsole({
               </div>
 
               <form className="form-grid" onSubmit={(event) => event.preventDefault()}>
-                <label className="field" htmlFor="decision-operator">
-                  <span className="field__label">Decision operator</span>
-                  <input
-                    className="field__control"
-                    id="decision-operator"
-                    onChange={(event) => setDecisionOperator(event.target.value)}
-                    required
-                    value={decisionOperator}
-                  />
-                </label>
+                <p className="inline-feedback field--span-2">
+                  Decision attribution comes from the authenticated API principal.
+                </p>
                 <label className="field field--span-2" htmlFor="decision-comment">
                   <span className="field__label">Decision comment</span>
                   <textarea
@@ -390,14 +523,18 @@ export default function ApprovalsConsole({
                   />
                 </label>
                 <div className="form-actions">
-                  <button className="action-button action-button--primary" disabled={decisionPending} onClick={() => submitDecision("approve")} type="button">
-                    Approve request
-                  </button>
-                  <button className="action-button action-button--secondary" disabled={decisionPending} onClick={() => submitDecision("deny")} type="button">
-                    Deny request
-                  </button>
+                  {selectedRequest.status === "pending" ? (
+                    <>
+                      <button className="action-button action-button--primary" disabled={decisionPending || !canDecide} onClick={() => submitDecision("approve")} type="button">
+                        Approve request
+                      </button>
+                      <button className="action-button action-button--secondary" disabled={decisionPending || !canDecide} onClick={() => submitDecision("deny")} type="button">
+                        Deny request
+                      </button>
+                    </>
+                  ) : null}
                   {selectedRequest.status === "approved" ? (
-                    <button className="action-button action-button--ghost" disabled={decisionPending} onClick={() => submitDecision("revoke")} type="button">
+                    <button className="action-button action-button--ghost" disabled={decisionPending || !canDecide} onClick={() => submitDecision("revoke")} type="button">
                       Revoke request
                     </button>
                   ) : null}
@@ -426,8 +563,10 @@ export default function ApprovalsConsole({
                 className="field__control"
                 id="request-endpoint"
                 onChange={(event) => setRequestForm((current) => ({ ...current, endpoint_id: event.target.value }))}
+                required
                 value={requestForm.endpoint_id}
               >
+                {endpoints.length !== 1 ? <option value="">Select an endpoint</option> : null}
                 {endpoints.map((endpoint) => (
                   <option key={endpoint.endpoint_id} value={endpoint.endpoint_id}>
                     {endpoint.hostname}
@@ -457,16 +596,16 @@ export default function ApprovalsConsole({
                 <span className="field__label">Control id</span>
                 <select
                   className="field__control"
-                  disabled={!hardeningControlOptions.length}
+                  disabled={!actionableControls.length}
                   id="request-control-id"
                   onChange={(event) => setRequestForm((current) => ({ ...current, control_id: event.target.value }))}
                   required
                   value={requestForm.control_id}
                 >
-                  {hardeningControlOptions.length ? (
-                    hardeningControlOptions.map((control) => (
+                  {actionableControls.length ? (
+                    actionableControls.map((control) => (
                       <option key={control.control_id} value={control.control_id}>
-                        {control.label}
+                        {control.title}
                       </option>
                     ))
                   ) : (
@@ -508,15 +647,9 @@ export default function ApprovalsConsole({
                 value={requestForm.reason}
               />
             </label>
-            <label className="field" htmlFor="request-by">
-              <span className="field__label">Requested by</span>
-              <input
-                className="field__control"
-                id="request-by"
-                onChange={(event) => setRequestForm((current) => ({ ...current, requested_by: event.target.value }))}
-                value={requestForm.requested_by}
-              />
-            </label>
+            <p className="inline-feedback field--span-2">
+              Request attribution comes from the authenticated API principal.
+            </p>
             <label className="field" htmlFor="request-risk">
               <span className="field__label">Risk</span>
               <select
@@ -544,7 +677,7 @@ export default function ApprovalsConsole({
               />
             </label>
             <div className="form-actions">
-              <button className="action-button action-button--primary" disabled={requestPending} type="submit">
+              <button className="action-button action-button--primary" disabled={requestPending || !canCreateRequest || !requestForm.endpoint_id || (requestForm.request_kind === "hardening_change" && !requestForm.control_id)} type="submit">
                 {requestPending ? "Queueing…" : "Create approval request"}
               </button>
             </div>
@@ -564,8 +697,10 @@ export default function ApprovalsConsole({
                 className="field__control"
                 id="grant-endpoint"
                 onChange={(event) => setGrantForm((current) => ({ ...current, endpoint_id: event.target.value }))}
+                required
                 value={grantForm.endpoint_id}
               >
+                {endpoints.length !== 1 ? <option value="">Select an endpoint</option> : null}
                 {endpoints.map((endpoint) => (
                   <option key={endpoint.endpoint_id} value={endpoint.endpoint_id}>
                     {endpoint.hostname}
@@ -573,24 +708,9 @@ export default function ApprovalsConsole({
                 ))}
               </select>
             </label>
-            <label className="field" htmlFor="grant-approved-by">
-              <span className="field__label">Approved by</span>
-              <input
-                className="field__control"
-                id="grant-approved-by"
-                onChange={(event) => setGrantForm((current) => ({ ...current, approved_by: event.target.value }))}
-                value={grantForm.approved_by}
-              />
-            </label>
-            <label className="field" htmlFor="grant-requested-by">
-              <span className="field__label">Requested by</span>
-              <input
-                className="field__control"
-                id="grant-requested-by"
-                onChange={(event) => setGrantForm((current) => ({ ...current, requested_by: event.target.value }))}
-                value={grantForm.requested_by}
-              />
-            </label>
+            <p className="inline-feedback field--span-2">
+              Grant attribution comes from the authenticated API principal.
+            </p>
             <label className="field" htmlFor="grant-expiry">
               <span className="field__label">Grant expires at</span>
               <input
@@ -634,7 +754,7 @@ export default function ApprovalsConsole({
               </select>
             </label>
             <div className="form-actions">
-              <button className="action-button action-button--secondary" disabled={grantPending} type="submit">
+              <button className="action-button action-button--secondary" disabled={grantPending || !canCreateGrant || !grantForm.endpoint_id} type="submit">
                 {grantPending ? "Issuing…" : "Issue manual grant"}
               </button>
             </div>

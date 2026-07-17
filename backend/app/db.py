@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from collections.abc import Iterator
-from typing import Any, cast
+from typing import Any, Literal, cast
 from pathlib import Path
 
 from fastapi import Request
@@ -11,15 +11,20 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
-from app.migrations import run_sqlite_migrations
-from app.models import Base
+from app.migrations import require_current_database, run_sqlite_migrations, upgrade_database
 
 _POSTGRES_DDL_LOCK_ID = 918502781
 
 
 class DatabaseStore:
-    def __init__(self, database_url: str) -> None:
+    def __init__(
+        self,
+        database_url: str,
+        *,
+        migration_mode: Literal["upgrade", "check"] = "upgrade",
+    ) -> None:
         self.database_url = database_url
+        self.migration_mode = migration_mode
         url = make_url(database_url)
         connect_args = {"check_same_thread": False} if url.drivername.startswith("sqlite") else {}
         self.engine = create_engine(
@@ -40,16 +45,19 @@ class DatabaseStore:
 
     def prepare(self) -> None:
         self._ensure_sqlite_parent_directory()
-        if make_url(self.database_url).drivername.startswith("postgresql"):
-            with self.engine.begin() as connection:
-                connection.exec_driver_sql(f"SELECT pg_advisory_lock({_POSTGRES_DDL_LOCK_ID})")
-                try:
-                    Base.metadata.create_all(connection)
-                finally:
-                    connection.exec_driver_sql(f"SELECT pg_advisory_unlock({_POSTGRES_DDL_LOCK_ID})")
-        else:
-            Base.metadata.create_all(self.engine)
         run_sqlite_migrations(self.database_url)
+        is_postgres = make_url(self.database_url).drivername.startswith("postgresql")
+        with self.engine.begin() as connection:
+            if is_postgres:
+                connection.exec_driver_sql(f"SELECT pg_advisory_lock({_POSTGRES_DDL_LOCK_ID})")
+            try:
+                if self.migration_mode == "upgrade":
+                    upgrade_database(connection, self.database_url)
+                else:
+                    require_current_database(connection, self.database_url)
+            finally:
+                if is_postgres:
+                    connection.exec_driver_sql(f"SELECT pg_advisory_unlock({_POSTGRES_DDL_LOCK_ID})")
 
     def dispose(self) -> None:
         self.engine.dispose()

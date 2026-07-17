@@ -1,6 +1,5 @@
 import InstallersConsole from "../../components/installers-console";
 import NavShell from "../../components/nav-shell";
-import { getFixtureInstallerProfiles } from "../../lib/api";
 
 export default function InstallersPage() {
   return (
@@ -9,7 +8,7 @@ export default function InstallersPage() {
       title="Installer profile registry"
       description="Package-definition console for Windows, Linux, and macOS enrollment profiles, channels, and policy modes."
     >
-      <InstallersConsole initialProfiles={getFixtureInstallerProfiles()} />
+      <InstallersConsole />
     </NavShell>
   );
 }

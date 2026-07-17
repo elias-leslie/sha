@@ -213,7 +213,15 @@
     },
     "declared_capabilities": {
       "items": {
-        "$ref": "#/$defs/AgentCapability"
+        "anyOf": [
+          {
+            "$ref": "#/$defs/AgentCapability"
+          },
+          {
+            "pattern": "^(?:apply_control|rollback_control):[a-z0-9]+(?:[.-][a-z0-9]+)+$",
+            "type": "string"
+          }
+        ]
       },
       "title": "Declared Capabilities",
       "type": "array"

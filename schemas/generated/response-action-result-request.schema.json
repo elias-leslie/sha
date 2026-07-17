@@ -3,6 +3,7 @@
     "ResponseActionStatus": {
       "enum": [
         "queued",
+        "leased",
         "succeeded",
         "failed",
         "cancelled"
@@ -12,6 +13,12 @@
     }
   },
   "properties": {
+    "lease_token": {
+      "maxLength": 256,
+      "minLength": 32,
+      "title": "Lease Token",
+      "type": "string"
+    },
     "result_summary": {
       "title": "Result Summary",
       "type": "string"
@@ -22,7 +29,8 @@
   },
   "required": [
     "status",
-    "result_summary"
+    "result_summary",
+    "lease_token"
   ],
   "title": "ResponseActionResultRequest",
   "type": "object"

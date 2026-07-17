@@ -28,13 +28,13 @@ def test_posture_snapshot_rejects_duplicate_control_keys_case_insensitively(db_p
             "platform_profile": "windows-workstation",
             "results": [
                 {
-                    "control_key": "SSH-ROOT",
+                    "control_key": "CONTROL.WINDOWS.FIREWALL-ALL-PROFILES",
                     "status": "fail",
                     "evidence_summary": "Root login still enabled",
                     "reboot_required": False,
                 },
                 {
-                    "control_key": " ssh-root ",
+                    "control_key": " control.windows.firewall-all-profiles ",
                     "status": "fail",
                     "evidence_summary": "Duplicate logical key",
                     "reboot_required": False,

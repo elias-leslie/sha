@@ -34,8 +34,11 @@ coverage/
 backend/data/*.sqlite3
 control-packs/*.tmp
 control-packs/packs/*.tmp
+# Local PostgreSQL backups (may contain sensitive tenant and endpoint data)
+/backups/
 # Local VM artifacts
 .tmp-winvm/
+.tmp-proxmox-windows-phase0/
 .ruff_cache/
 .mypy_cache/
 .pyright/

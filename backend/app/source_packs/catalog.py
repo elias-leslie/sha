@@ -553,6 +553,10 @@ def load_source_pack(pack_id: str, repo_root: Path | None = None) -> SourcePack:
     return SourcePack.model_validate(_load_json(pack_path))
 
 
+def load_source_packs(repo_root: Path | None = None) -> list[SourcePack]:
+    return _load_curated_packs(_repo_root(repo_root))
+
+
 __all__ = [
     "CURATED_PACK_FILES",
     "CURATED_PACK_SPECS",
@@ -560,5 +564,6 @@ __all__ = [
     "build_source_catalog",
     "load_source_catalog",
     "load_source_pack",
+    "load_source_packs",
     "pack_payload",
 ]

@@ -5,11 +5,49 @@ from datetime import UTC, datetime
 from pathlib import Path
 import sqlite3
 
-from sqlalchemy.engine import make_url
+from alembic import command
+from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from sqlalchemy.engine import Connection, make_url
 
 Migration = tuple[str, Callable[[sqlite3.Connection], None]]
 
 CURRENT_SCHEMA_VERSION = "20260630_0001_macos_platform_constraints"
+_ALEMBIC_CONFIG_PATH = Path(__file__).resolve().parents[1] / "alembic.ini"
+
+
+def upgrade_database(connection: Connection, database_url: str) -> tuple[str | None, str]:
+    config = _alembic_config(database_url, connection=connection)
+    command.upgrade(config, "head")
+    return database_revisions(connection, database_url)
+
+
+def require_current_database(connection: Connection, database_url: str) -> tuple[str | None, str]:
+    current, head = database_revisions(connection, database_url)
+    if current != head:
+        raise RuntimeError(
+            f"database schema is not current: revision={current or 'none'} expected={head}"
+        )
+    return current, head
+
+
+def database_revisions(connection: Connection, database_url: str) -> tuple[str | None, str]:
+    config = _alembic_config(database_url)
+    script = ScriptDirectory.from_config(config)
+    head = script.get_current_head()
+    if head is None:
+        raise RuntimeError("Alembic migration history has no head revision")
+    current = MigrationContext.configure(connection).get_current_revision()
+    return current, head
+
+
+def _alembic_config(database_url: str, *, connection: Connection | None = None) -> Config:
+    config = Config(str(_ALEMBIC_CONFIG_PATH))
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+    if connection is not None:
+        config.attributes["connection"] = connection
+    return config
 
 
 def run_sqlite_migrations(database_url: str) -> list[str]:

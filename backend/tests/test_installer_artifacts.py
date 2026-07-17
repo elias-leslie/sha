@@ -41,17 +41,22 @@ def test_linux_installer_artifact_is_deterministic_and_contains_systemd_reporter
     assert first.text.startswith("#!/usr/bin/env bash\n")
     assert '"profile_id": "{}"'.format(profile["id"]) in first.text
     assert '"control_plane_url": "https://sha.example.test/control"' in first.text
+    assert '"api_token": null' in first.text
     assert '"platform_profile": "linux-bootstrap-v1"' in first.text
+    assert "install -d -m 0700 /etc/sha" in first.text
+    assert "chmod 0600 /etc/sha/reporter-config.json" in first.text
     assert "systemctl enable --now sha-reporter.timer" in first.text
     assert "/api/endpoints/enroll" in first.text
     assert "/api/endpoints/" in first.text
-    assert "/response-actions" in first.text
+    assert "/response-actions/claim" in first.text
+    assert '"lease_token": lease_token' in first.text
     assert "/api/posture-snapshots" in first.text
     assert '"collect_remediation_evidence"' in first.text
     assert '"apply_control"' in first.text
     assert '"rollback_control"' in first.text
     assert '"captures_rollback_artifacts": true' in first.text
     assert '"reports_execution_results": true' in first.text
+    assert '"supports_dry_run": false' in first.text
     assert "linux.firewall.service-active" in first.text
     assert "linux.ssh.password-authentication-disabled" in first.text
     assert "linux.root.password-locked" in first.text
@@ -111,6 +116,7 @@ def test_linux_reporter_executes_bounded_context_response_action():
         "https://sha.example.test/control",
         {
             "response_action_id": "act_test",
+            "lease_token": "lease_test_token_0123456789abcdef",
             "action": "collect_security_context",
             "troubleshooting_scope": "process_inventory",
         },
@@ -120,12 +126,57 @@ def test_linux_reporter_executes_bounded_context_response_action():
         (
             "https://sha.example.test/control/api/response-actions/act_test/result",
             {
+                "lease_token": "lease_test_token_0123456789abcdef",
                 "status": "succeeded",
                 "result_summary": completed[0][1]["result_summary"],
             },
         )
     ]
     assert "linux.telemetry.process-inventory=" in str(completed[0][1]["result_summary"])
+
+
+def test_python_reporters_claim_response_actions_and_return_lease_token():
+    cases = (
+        (_linux_reporter_script, "Linux"),
+        (_macos_reporter_script, "macOS"),
+    )
+    for reporter_script, platform_name in cases:
+        namespace: dict[str, object] = {"__name__": "sha_reporter_test"}
+        exec(reporter_script(), namespace)  # noqa: S102 - exercises the generated bootstrap script
+        calls: list[tuple[str, dict[str, object]]] = []
+
+        def fake_post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
+            calls.append((url, payload))
+            if url.endswith("/claim"):
+                return {
+                    "items": [
+                        {
+                            "response_action_id": "act_claimed",
+                            "lease_token": "lease_test_token_0123456789abcdef",
+                            "action": "unsupported_action",
+                        }
+                    ]
+                }
+            return {}
+
+        namespace["post_json"] = fake_post_json
+        reporter = cast(dict[str, Callable[..., object]], namespace)
+        reporter["execute_pending_response_actions"]("https://sha.example.test/control", "ep_test")
+
+        assert calls == [
+            (
+                "https://sha.example.test/control/api/endpoints/ep_test/response-actions/claim",
+                {},
+            ),
+            (
+                "https://sha.example.test/control/api/response-actions/act_claimed/result",
+                {
+                    "lease_token": "lease_test_token_0123456789abcdef",
+                    "status": "failed",
+                    "result_summary": f"Unsupported {platform_name} bootstrap action: unsupported_action.",
+                },
+            ),
+        ]
 
 
 
@@ -233,15 +284,22 @@ def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task
     assert '"profile_id": "{}"'.format(profile["id"]) in first.text
     assert '"control_plane_url": "https://sha.example.test/control"' in first.text
     assert '"platform_profile": "windows-bootstrap-v1"' in first.text
+    assert "$restrictedPrincipals = @('*S-1-5-18', '*S-1-5-32-544')" in first.text
+    assert "icacls.exe $ShaRoot /inheritance:r /grant:r" in first.text
+    assert "icacls.exe $ConfigPath /inheritance:r /grant:r" in first.text
+    assert "failed to restrict SHA reporter config ACL" in first.text
+    assert "-Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + $ReporterPath)" in first.text
+    assert "-File ``\"$ReporterPath``\"" not in first.text
     assert "Register-ScheduledTask" in first.text
     assert "Invoke-RestMethod" in first.text
     assert "MachineGuid" in first.text
     assert "/api/endpoints/enroll" in first.text
-    assert "/response-actions" in first.text
+    assert "/response-actions/claim" in first.text
+    assert "lease_token = [string]$Action.lease_token" in first.text
     assert "/api/posture-snapshots" in first.text
     assert '"collect_remediation_evidence"' in first.text
-    assert "windows.firewall.all-profiles-enabled" in first.text
-    assert "windows.defender.real-time-protection" in first.text
+    assert "'control.windows.firewall-all-profiles' 'pass'" in first.text
+    assert "'control.windows.defender-real-time-protection' 'pass'" in first.text
     assert "windows.bitlocker.system-drive-protected" in first.text
     assert "windows.secure-boot.enabled" in first.text
     assert "windows.telemetry.process-inventory" in first.text
@@ -268,6 +326,7 @@ def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task
     assert '"rollback_control"' in first.text
     assert '"captures_rollback_artifacts": true' in first.text
     assert '"reports_execution_results": true' in first.text
+    assert '"supports_dry_run": false' in first.text
     assert "[string]$CurrentValue" not in first.text
     assert "[string]$RecommendedValue" not in first.text
     assert "[string]$Severity" not in first.text
@@ -302,7 +361,8 @@ def test_macos_installer_artifact_is_deterministic_and_contains_launchd_reporter
     assert "launchctl bootstrap" in first.text
     assert "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" in first.text
     assert "/api/endpoints/enroll" in first.text
-    assert "/response-actions" in first.text
+    assert "/response-actions/claim" in first.text
+    assert '"lease_token": lease_token' in first.text
     assert "/api/posture-snapshots" in first.text
     assert '"collect_remediation_evidence"' in first.text
     assert "macos.firewall.application-firewall-enabled" in first.text
@@ -315,6 +375,7 @@ def test_macos_installer_artifact_is_deterministic_and_contains_launchd_reporter
     assert "macos.telemetry.network-bindings" in first.text
     assert '"captures_rollback_artifacts": false' in first.text
     assert '"reports_execution_results": true' in first.text
+    assert '"supports_dry_run": false' in first.text
 
 
 def test_macos_reporter_collects_bounded_local_telemetry_without_network():

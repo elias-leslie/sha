@@ -35,8 +35,16 @@
       "type": "array"
     },
     "approved_by": {
-      "title": "Approved By",
-      "type": "string"
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approved By"
     },
     "control_ids": {
       "items": {
@@ -63,8 +71,16 @@
       "type": "string"
     },
     "requested_by": {
-      "title": "Requested By",
-      "type": "string"
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Requested By"
     },
     "troubleshooting_scopes": {
       "items": {
@@ -77,8 +93,6 @@
   "required": [
     "endpoint_ids",
     "allowed_actions",
-    "requested_by",
-    "approved_by",
     "reason",
     "expires_at"
   ],

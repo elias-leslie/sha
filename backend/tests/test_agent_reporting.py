@@ -102,6 +102,7 @@ def test_endpoint_collection_and_detail_include_latest_posture_summary_and_resul
                 "inspect_control",
                 "collect_security_context",
                 "request_elevated_troubleshooting",
+                "rollback_control:linux.ssh.password-authentication-disabled",
             ],
             "execution_hooks": {
                 "captures_rollback_artifacts": False,
@@ -180,6 +181,7 @@ def test_endpoint_collection_and_detail_include_latest_posture_summary_and_resul
                     "heartbeat",
                     "inspect_control",
                     "request_elevated_troubleshooting",
+                    "rollback_control:linux.ssh.password-authentication-disabled",
                 ],
                 "execution_hooks": {
                     "captures_rollback_artifacts": False,
@@ -204,16 +206,16 @@ def test_endpoint_collection_and_detail_include_latest_posture_summary_and_resul
         **collection.json()["items"][0],
         "latest_results": [
             {
-                "control_key": "journald.storage-persistent",
-                "status": "warn",
-                "current_value": "volatile",
-                "recommended_value": "persistent",
-                "severity": "medium",
-                "evidence_summary": "journald still stores logs in /run.",
+                "control_key": "linux.firewall.service-active",
+                "status": "pass",
+                "current_value": "enabled",
+                "recommended_value": "enabled",
+                "severity": None,
+                "evidence_summary": "UFW is already enabled.",
                 "reboot_required": False,
             },
             {
-                "control_key": "ssh.disable-password-authentication",
+                "control_key": "linux.ssh.password-authentication-disabled",
                 "status": "fail",
                 "current_value": "yes",
                 "recommended_value": "no",
@@ -222,12 +224,12 @@ def test_endpoint_collection_and_detail_include_latest_posture_summary_and_resul
                 "reboot_required": False,
             },
             {
-                "control_key": "ufw.enabled",
-                "status": "pass",
-                "current_value": "enabled",
-                "recommended_value": "enabled",
-                "severity": None,
-                "evidence_summary": "UFW is already enabled.",
+                "control_key": "linux.telemetry.security-logging",
+                "status": "warn",
+                "current_value": "volatile",
+                "recommended_value": "persistent",
+                "severity": "medium",
+                "evidence_summary": "journald still stores logs in /run.",
                 "reboot_required": False,
             },
         ],
@@ -253,6 +255,20 @@ def test_heartbeat_rejects_duplicate_capabilities_and_unknown_endpoints(db_path,
             },
         },
     )
+    arbitrary_action_capability = client.post(
+        f"/api/endpoints/{endpoint_id}/heartbeat",
+        json={
+            "agent_version": "1.0.0",
+            "platform_profile": "windows-workstation",
+            "connectivity_status": "online",
+            "declared_capabilities": ["heartbeat", "run_command:control.windows.firewall-all-profiles"],
+            "execution_hooks": {
+                "captures_rollback_artifacts": True,
+                "reports_execution_results": True,
+                "supports_dry_run": False,
+            },
+        },
+    )
     missing_endpoint = client.post(
         "/api/endpoints/ep_missing/heartbeat",
         json={
@@ -270,5 +286,6 @@ def test_heartbeat_rejects_duplicate_capabilities_and_unknown_endpoints(db_path,
 
     assert duplicate_capabilities.status_code == 422
     assert duplicate_capabilities.json() == {"detail": "duplicate declared_capabilities are not allowed"}
+    assert arbitrary_action_capability.status_code == 422
     assert missing_endpoint.status_code == 404
     assert missing_endpoint.json() == {"detail": "endpoint not found"}

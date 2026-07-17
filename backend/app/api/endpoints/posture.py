@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.control_registry import normalize_observation_control_id
 from app.db import DatabaseStore, get_store
 from app.models import Endpoint, PostureResult, PostureSnapshot
 from app.schemas.contracts import PostureSnapshotAck, PostureSnapshotCreateRequest
@@ -38,7 +40,14 @@ def create_posture_snapshot(
             normalized_results: list[dict[str, object]] = []
             seen_control_keys: set[str] = set()
             for result in payload.results:
-                control_key, control_key_normalized = normalize_control_key(result.control_key)
+                try:
+                    canonical_key = normalize_observation_control_id(
+                        result.control_key,
+                        platform=endpoint.platform,
+                    )
+                except ValueError as exc:
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
+                control_key, control_key_normalized = normalize_control_key(canonical_key)
                 if control_key_normalized in seen_control_keys:
                     raise HTTPException(
                         status_code=422,

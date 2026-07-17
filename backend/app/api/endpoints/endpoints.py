@@ -4,12 +4,13 @@ import json
 from collections import Counter
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db import DatabaseStore, get_store
 from app.models import ApprovalGrant, Endpoint, PostureResult, PostureSnapshot, ResponseAction
 from app.schemas.contracts import (
+    AgentCapability,
     EndpointDetailResponse,
     EndpointEnrollRequest,
     EndpointHeartbeatAck,
@@ -243,7 +244,9 @@ def heartbeat_endpoint(
     agent_version = normalize_required_string(payload.agent_version, "agent_version")
     platform_profile = normalize_required_string(payload.platform_profile, "platform_profile")
     connectivity_status = normalize_connectivity_status(payload.connectivity_status.value)
-    declared_capabilities = _normalize_declared_capabilities([capability.value for capability in payload.declared_capabilities])
+    declared_capabilities = _normalize_declared_capabilities(
+        [capability.value if isinstance(capability, AgentCapability) else capability for capability in payload.declared_capabilities]
+    )
     execution_hooks = payload.execution_hooks.model_dump(mode="json")
     now = to_utc_z(utc_now())
 
@@ -277,7 +280,13 @@ def heartbeat_endpoint(
                     .join(ApprovalGrant, ApprovalGrant.approval_grant_id == ResponseAction.approval_grant_id)
                     .where(
                         ResponseAction.endpoint_id == endpoint.endpoint_id,
-                        ResponseAction.status == "queued",
+                        or_(
+                            ResponseAction.status == "queued",
+                            and_(
+                                ResponseAction.status == "leased",
+                                ResponseAction.lease_expires_at <= now,
+                            ),
+                        ),
                         ApprovalGrant.status == "approved",
                         ApprovalGrant.expires_at > now,
                     )

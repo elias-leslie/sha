@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 
 import ControlsPage from "../app/controls/page"
+import ControlsConsole from "../components/controls-console"
+import { getFixtureApprovalRequests, getFixtureEndpointDetails } from "../lib/api"
 
 describe("SHA controls workspace", () => {
   it("loads live source-pack summaries and shows selected pack detail", async () => {
@@ -97,5 +99,53 @@ describe("SHA controls workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: /nist sp 800-53 rev\. 5 starter/i }))
     expect(await screen.findByText(/NIST SP 800-53 Rev\. 5 control AC-17/i)).toBeInTheDocument()
     expect(await screen.findByText(/1 controls/i)).toBeInTheDocument()
+  })
+
+  it("retains successful endpoint details and other control resources", async () => {
+    const [first, second] = getFixtureEndpointDetails()
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.endsWith("/api/endpoints")) {
+          return { ok: true, json: async () => ({ items: [first, second] }) } as Response
+        }
+        if (url.endsWith(`/api/endpoints/${first.endpoint_id}`)) {
+          return { ok: true, json: async () => first } as Response
+        }
+        if (url.endsWith(`/api/endpoints/${second.endpoint_id}`)) {
+          return { ok: false, status: 503, json: async () => ({ detail: "one detail failed" }) } as Response
+        }
+        if (url.endsWith("/api/approval-requests")) {
+          return { ok: true, json: async () => ({ items: getFixtureApprovalRequests() }) } as Response
+        }
+        if (url.endsWith("/api/source-packs")) {
+          return {
+            ok: true,
+            json: async () => ({
+              packs: [{ pack_id: "pack-live", source_family: "nist", source_name: "Live Pack", source_version: "1", control_count: 2 }],
+            }),
+          } as Response
+        }
+        return { ok: false, status: 503, json: async () => ({ detail: "pack detail unavailable" }) } as Response
+      }),
+    )
+
+    render(<ControlsPage />)
+
+    expect(await screen.findByText(first.hostname)).toBeInTheDocument()
+    expect(screen.getByText("Live Pack")).toBeInTheDocument()
+    expect(screen.getByText("1")).toBeInTheDocument()
+    expect(screen.getByText(/one detail failed/i)).toBeInTheDocument()
+  })
+
+  it("shows selected fixture source-pack detail in demo mode", () => {
+    vi.stubGlobal("fetch", vi.fn())
+
+    render(<ControlsConsole demoMode />)
+    fireEvent.click(screen.getByRole("button", { name: /windows script execution boundary/i }))
+
+    expect(screen.getByRole("heading", { name: /windows script execution boundary/i })).toBeInTheDocument()
+    expect(screen.getByText(/moves powershell into signed-only execution/i)).toBeInTheDocument()
   })
 })

@@ -3,7 +3,12 @@ import { use } from "react";
 import EndpointDetailConsole from "../../../components/endpoint-detail-console";
 import EndpointShellTitle from "../../../components/endpoint-shell-title";
 import NavShell from "../../../components/nav-shell";
-import { getFixtureEndpoint, getFixtureEndpoints } from "../../../lib/api";
+import {
+  getFixtureControlRegistry,
+  getFixtureEndpoint,
+  getFixtureEndpoints,
+  isDemoMode,
+} from "../../../lib/api";
 
 type EndpointParams = {
   endpointId: string;
@@ -28,15 +33,21 @@ export default function EndpointDetailPage({
   params: Promise<EndpointParams> | EndpointParams;
 }) {
   const { endpointId } = resolveEndpointParams(params);
-  const endpoint = getFixtureEndpoint(endpointId);
+  const demoMode = isDemoMode();
+  const endpoint = demoMode ? getFixtureEndpoint(endpointId) : undefined;
 
   return (
     <NavShell
       currentPath="/fleet"
-      title={<EndpointShellTitle endpointId={endpointId} initialHostname={endpoint?.hostname} />}
+      title={<EndpointShellTitle demoMode={demoMode} endpointId={endpointId} initialHostname={endpoint?.hostname} />}
       description="Endpoint drill-down with live heartbeat and posture write surfaces for operator validation and controlled testing."
     >
-      <EndpointDetailConsole endpointId={endpointId} initialEndpoint={endpoint} />
+      <EndpointDetailConsole
+        demoMode={demoMode}
+        endpointId={endpointId}
+        initialControls={demoMode ? getFixtureControlRegistry() : undefined}
+        initialEndpoint={endpoint}
+      />
     </NavShell>
   );
 }

@@ -49,13 +49,34 @@
       "title": "Endpoint Id",
       "type": "string"
     },
+    "idempotency_key": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Idempotency Key"
+    },
     "reason": {
       "title": "Reason",
       "type": "string"
     },
     "requested_by": {
-      "title": "Requested By",
-      "type": "string"
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Requested By"
     },
     "troubleshooting_scope": {
       "anyOf": [
@@ -73,7 +94,6 @@
     "endpoint_id",
     "approval_grant_id",
     "action",
-    "requested_by",
     "reason"
   ],
   "title": "ResponseActionCreateRequest",

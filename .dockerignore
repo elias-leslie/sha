@@ -9,3 +9,5 @@
 **/*.tsbuildinfo
 backend/data/*.sqlite3
 agent/sha-agent
+# Local PostgreSQL backups must never enter an image build context.
+/backups/

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.auth import Principal, require_operator_principal
+from app.control_registry import ControlAction, require_control_action
 from app.db import DatabaseStore, get_store
 from app.models import ApprovalGrant, ApprovalRequest, ApprovalRequestEvent, Endpoint
 from app.schemas.contracts import (
@@ -43,6 +45,36 @@ _TROUBLESHOOTING_ACTIONS = {
     "inspect_control",
 }
 _EXPIRED_COMMENT = "Grant expired automatically."
+_APPROVAL_TTL_BOUNDS_MINUTES = (15, 240)
+
+
+def _validate_grant_expiry(
+    expires_at_dt: datetime,
+    now_dt: datetime,
+    *,
+    maximum_ttl_minutes: int,
+) -> str:
+    minimum_ttl, global_maximum_ttl = _APPROVAL_TTL_BOUNDS_MINUTES
+    maximum_ttl_minutes = min(maximum_ttl_minutes, global_maximum_ttl)
+    if expires_at_dt.tzinfo is None:
+        expires_at_dt = expires_at_dt.replace(tzinfo=now_dt.tzinfo)
+    expires_at = to_utc_z(expires_at_dt)
+    maximum_expiry = now_dt + timedelta(minutes=maximum_ttl_minutes)
+    if maximum_expiry.second or maximum_expiry.microsecond:
+        maximum_expiry = maximum_expiry.replace(second=0, microsecond=0) + timedelta(minutes=1)
+    if not (
+        to_utc_z(now_dt + timedelta(minutes=minimum_ttl))
+        <= expires_at
+        <= to_utc_z(maximum_expiry)
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"expires_at must be between {minimum_ttl} and "
+                f"{maximum_ttl_minutes} minutes from creation time"
+            ),
+        )
+    return expires_at
 
 
 def _approval_event_payload(event: ApprovalRequestEvent) -> dict[str, object]:
@@ -117,6 +149,36 @@ def _normalize_control_ids(raw_control_ids: list[str]) -> list[str]:
     if has_duplicates(control_ids):
         raise HTTPException(status_code=422, detail="duplicate control_ids are not allowed")
     return control_ids
+
+
+def _validate_control_actions_for_endpoints(
+    session: Session,
+    *,
+    endpoint_ids: list[str],
+    actions: list[str],
+    control_ids: list[str],
+) -> None:
+    hardening_actions: list[ControlAction] = [
+        "apply_control" if action == "apply_control" else "rollback_control"
+        for action in actions
+        if action in _HARDENING_ACTIONS
+    ]
+    if not hardening_actions:
+        return
+    endpoints = [session.get(Endpoint, endpoint_id) for endpoint_id in endpoint_ids]
+    for endpoint in endpoints:
+        if endpoint is None:
+            raise HTTPException(status_code=422, detail="one or more endpoint_ids were not found")
+        for control_id in control_ids:
+            for action in hardening_actions:
+                try:
+                    require_control_action(
+                        control_id,
+                        platform=endpoint.platform,
+                        action=action,
+                    )
+                except ValueError as exc:
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 def _normalize_troubleshooting_scopes(raw_scopes: list[str]) -> list[str]:
@@ -334,6 +396,7 @@ def list_approval_requests(
 def create_approval_request(
     payload: ApprovalRequestCreateRequest,
     store: DatabaseStore = Depends(get_store),
+    principal: Principal = Depends(require_operator_principal),
 ) -> dict[str, object]:
     request_kind = normalize_approval_request_kind(payload.request_kind.value)
     requested_actions = _normalize_actions([action.value for action in payload.requested_actions])
@@ -341,18 +404,28 @@ def create_approval_request(
     troubleshooting_scopes = _normalize_troubleshooting_scopes(
         [scope.value for scope in payload.troubleshooting_scopes]
     )
-    requested_by = normalize_required_string(payload.requested_by, "requested_by")
+    requested_by = principal.audit_actor
     reason = normalize_required_string(payload.reason, "reason")
     risk = normalize_approval_risk(payload.risk.value)
     requested_ttl_minutes = payload.requested_ttl_minutes
-    if not 15 <= requested_ttl_minutes <= 240:
-        raise HTTPException(status_code=422, detail="requested_ttl_minutes must be between 15 and 240")
+    minimum_ttl, maximum_ttl = _APPROVAL_TTL_BOUNDS_MINUTES
+    if not minimum_ttl <= requested_ttl_minutes <= maximum_ttl:
+        raise HTTPException(
+            status_code=422,
+            detail=f"requested_ttl_minutes must be between {minimum_ttl} and {maximum_ttl}",
+        )
     _validate_request_shape(request_kind, requested_actions, control_ids, troubleshooting_scopes)
     now_str = to_utc_z(utc_now())
 
     with store.session() as session:
         with session.begin():
             endpoint_ids = _normalize_endpoint_ids(session, payload.endpoint_ids)
+            _validate_control_actions_for_endpoints(
+                session,
+                endpoint_ids=endpoint_ids,
+                actions=requested_actions,
+                control_ids=control_ids,
+            )
             request = ApprovalRequest(
                 approval_request_id=generate_prefixed_id("apr"),
                 endpoint_ids=endpoint_ids,
@@ -393,10 +466,11 @@ def decide_approval_request(
     approval_request_id: str,
     payload: ApprovalDecisionRequest,
     store: DatabaseStore = Depends(get_store),
+    principal: Principal = Depends(require_operator_principal),
 ) -> dict[str, object]:
     approval_request_id = normalize_required_string(approval_request_id, "approval_request_id")
     decision = normalize_approval_decision(payload.decision.value)
-    decided_by = normalize_required_string(payload.decided_by, "decided_by")
+    decided_by = principal.audit_actor
     decision_comment = normalize_required_string(payload.decision_comment, "decision_comment")
     now_dt = utc_now()
     now_str = to_utc_z(now_dt)
@@ -416,16 +490,11 @@ def decide_approval_request(
                     )
                 if payload.expires_at is None:
                     raise HTTPException(status_code=422, detail="expires_at is required for approve decisions")
-                expires_at_dt = payload.expires_at
-                upper_bound = now_dt + timedelta(minutes=request.requested_ttl_minutes)
-                if expires_at_dt.tzinfo is None:
-                    expires_at_dt = expires_at_dt.replace(tzinfo=now_dt.tzinfo)
-                expires_at_str = to_utc_z(expires_at_dt)
-                if not (now_str < expires_at_str <= to_utc_z(upper_bound)):
-                    raise HTTPException(
-                        status_code=422,
-                        detail="expires_at must be within requested_ttl_minutes of decision time",
-                    )
+                expires_at_str = _validate_grant_expiry(
+                    payload.expires_at,
+                    now_dt,
+                    maximum_ttl_minutes=request.requested_ttl_minutes,
+                )
                 grant = ApprovalGrant(
                     approval_grant_id=generate_prefixed_id("grant"),
                     approval_request_id=request.approval_request_id,
@@ -589,24 +658,37 @@ def list_approval_grants(
 def create_approval_grant(
     payload: ApprovalGrantCreateRequest,
     store: DatabaseStore = Depends(get_store),
+    principal: Principal = Depends(require_operator_principal),
 ) -> dict[str, object]:
     allowed_actions = _normalize_actions([action.value for action in payload.allowed_actions])
     control_ids = _normalize_control_ids(payload.control_ids)
     troubleshooting_scopes = _normalize_troubleshooting_scopes(
         [scope.value for scope in payload.troubleshooting_scopes]
     )
-    requested_by = normalize_required_string(payload.requested_by, "requested_by")
-    approved_by = normalize_required_string(payload.approved_by, "approved_by")
+    requested_by = principal.audit_actor
+    approved_by = principal.audit_actor
     reason = normalize_required_string(payload.reason, "reason")
     expires_at = to_utc_z(payload.expires_at)
-    now_str = to_utc_z(utc_now())
+    now_dt = utc_now()
+    now_str = to_utc_z(now_dt)
     if expires_at <= now_str:
         raise HTTPException(status_code=422, detail="expires_at must be in the future")
+    expires_at = _validate_grant_expiry(
+        payload.expires_at,
+        now_dt,
+        maximum_ttl_minutes=_APPROVAL_TTL_BOUNDS_MINUTES[1],
+    )
 
     with store.session() as session:
         with session.begin():
             endpoint_ids = _normalize_endpoint_ids(session, payload.endpoint_ids)
             _validate_manual_grant_shape(allowed_actions, control_ids, troubleshooting_scopes)
+            _validate_control_actions_for_endpoints(
+                session,
+                endpoint_ids=endpoint_ids,
+                actions=allowed_actions,
+                control_ids=control_ids,
+            )
             grant = ApprovalGrant(
                 approval_grant_id=generate_prefixed_id("grant"),
                 approval_request_id=None,

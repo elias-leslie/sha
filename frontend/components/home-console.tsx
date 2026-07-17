@@ -19,6 +19,7 @@ import {
   getFixtureApprovalRequests,
   getFixtureEndpoints,
   getFixtureInstallerProfiles,
+  isDemoMode,
   listApprovalGrants,
   listApprovalRequests,
   listEndpoints,
@@ -38,44 +39,68 @@ type HomeConsoleProps = {
   initialRequests?: ApprovalRequest[];
   initialGrants?: ApprovalGrant[];
   initialProfiles?: InstallerProfile[];
+  demoMode?: boolean;
 };
 
 export default function HomeConsole({
-  initialEndpoints = getFixtureEndpoints(),
-  initialRequests = getFixtureApprovalRequests(),
-  initialGrants = getFixtureApprovalGrants(),
-  initialProfiles = getFixtureInstallerProfiles(),
+  initialEndpoints,
+  initialRequests,
+  initialGrants,
+  initialProfiles,
+  demoMode = isDemoMode(),
 }: HomeConsoleProps) {
-  const [endpoints, setEndpoints] = useState(initialEndpoints);
-  const [requests, setRequests] = useState(initialRequests);
-  const [grants, setGrants] = useState(initialGrants);
-  const [profiles, setProfiles] = useState(initialProfiles);
-  const [source, setSource] = useState<"fixture" | "live">("fixture");
+  const [endpoints, setEndpoints] = useState(() => initialEndpoints ?? (demoMode ? getFixtureEndpoints() : []));
+  const [requests, setRequests] = useState(() => initialRequests ?? (demoMode ? getFixtureApprovalRequests() : []));
+  const [grants, setGrants] = useState(() => initialGrants ?? (demoMode ? getFixtureApprovalGrants() : []));
+  const [profiles, setProfiles] = useState(() => initialProfiles ?? (demoMode ? getFixtureInstallerProfiles() : []));
+  const [source, setSource] = useState<"loading" | "demo" | "live" | "error">(demoMode ? "demo" : "loading");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    if (demoMode) {
+      setSource("demo");
+      setError(null);
+      return;
+    }
 
-    Promise.all([listEndpoints(), listApprovalRequests(), listApprovalGrants(), listInstallerProfiles()])
-      .then(([liveEndpoints, liveRequests, liveGrants, liveProfiles]) => {
+    let cancelled = false;
+    setSource("loading");
+    setError(null);
+    Promise.allSettled([listEndpoints(), listApprovalRequests(), listApprovalGrants(), listInstallerProfiles()]).then(
+      ([endpointResult, requestResult, grantResult, profileResult]) => {
         if (cancelled) {
           return;
         }
-        setEndpoints(liveEndpoints);
-        setRequests(liveRequests);
-        setGrants(liveGrants);
-        setProfiles(liveProfiles);
-        setSource("live");
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSource("fixture");
+        if (endpointResult.status === "fulfilled") {
+          setEndpoints(endpointResult.value);
         }
-      });
+        if (requestResult.status === "fulfilled") {
+          setRequests(requestResult.value);
+        }
+        if (grantResult.status === "fulfilled") {
+          setGrants(grantResult.value);
+        }
+        if (profileResult.status === "fulfilled") {
+          setProfiles(profileResult.value);
+        }
+        const failures = [endpointResult, requestResult, grantResult, profileResult].filter(
+          (result): result is PromiseRejectedResult => result.status === "rejected",
+        );
+        setSource(failures.length ? "error" : "live");
+        setError(
+          failures.length
+            ? `Partial live data: ${failures
+                .map((result) => (result.reason instanceof Error ? result.reason.message : "resource unavailable"))
+                .join(" ")}`
+            : null,
+        );
+      },
+    );
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [demoMode, initialEndpoints, initialGrants, initialProfiles, initialRequests]);
 
   const summary = useMemo(() => fleetSummary(endpoints, requests, grants), [endpoints, grants, requests]);
   const watchlist = useMemo(
@@ -97,8 +122,11 @@ export default function HomeConsole({
                 operator context anchored to the live fleet whenever the backend is reachable.
               </p>
             </div>
-            <Badge tone={source === "live" ? "success" : "warning"}>{source === "live" ? "Live backend" : "Fixture rail"}</Badge>
+            <Badge tone={source === "live" ? "success" : source === "error" ? "danger" : "warning"}>
+              {source === "live" ? "Live backend" : source === "demo" ? "Demo fixtures" : source === "loading" ? "Loading live backend" : "Live backend unavailable"}
+            </Badge>
           </div>
+          {error ? <p className="inline-feedback inline-feedback--danger" role="alert">Operational data load failed: {error}</p> : null}
           <div className="stat-grid">
             <StatCard label="Endpoints" value={summary.totalEndpoints} meta="Registered control-plane assets" tone="info" />
             <StatCard label="Average score" value={summary.averageScore || "--"} meta="Weighted posture confidence" tone="success" />

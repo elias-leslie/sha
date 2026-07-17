@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: sha
       POSTGRES_USER: sha
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sha-dev-password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -13,19 +13,34 @@ services:
       timeout: 5s
       retries: 20
 
+  migrate:
+    build:
+      context: ../..
+      dockerfile: deploy/backend.Dockerfile
+    command: ["uv", "run", "python", "scripts/migrate.py"]
+    environment:
+      SHA_DATABASE_URL: postgresql+psycopg://sha:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/sha
+      SHA_DATABASE_MIGRATION_MODE: upgrade
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   backend-a: &backend
     build:
       context: ../..
       dockerfile: deploy/backend.Dockerfile
     environment:
-      SHA_DATABASE_URL: postgresql+psycopg://sha:${POSTGRES_PASSWORD:-sha-dev-password}@postgres:5432/sha
-      SHA_API_TOKEN: ${SHA_API_TOKEN:-operator-token}
-      SHA_READONLY_API_TOKEN: ${SHA_READONLY_API_TOKEN:-readonly-token}
-      SHA_AGENT_API_TOKEN: ${SHA_AGENT_API_TOKEN:-agent-token}
+      SHA_DATABASE_URL: postgresql+psycopg://sha:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/sha
+      SHA_DATABASE_MIGRATION_MODE: check
+      SHA_AUTH_MODE: protected
+      SHA_API_TOKEN: ${SHA_API_TOKEN:?set SHA_API_TOKEN}
+      SHA_READONLY_API_TOKEN: ${SHA_READONLY_API_TOKEN:?set SHA_READONLY_API_TOKEN}
+      SHA_AGENT_API_TOKEN: ${SHA_AGENT_API_TOKEN:?set SHA_AGENT_API_TOKEN}
       SHA_EXTERNAL_AUTH_TRUSTED_TOKEN: ${SHA_EXTERNAL_AUTH_TRUSTED_TOKEN:-}
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     expose:
       - "8010"
     healthcheck:
@@ -41,9 +56,10 @@ services:
     build:
       context: ../..
       dockerfile: deploy/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_SHA_DEMO_MODE: ${NEXT_PUBLIC_SHA_DEMO_MODE:-false}
     environment:
       API_URL: http://backend-a:8010
-      NEXT_PUBLIC_SHA_API_TOKEN: ${SHA_API_TOKEN:-operator-token}
     depends_on:
       backend-a:
         condition: service_healthy

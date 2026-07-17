@@ -73,6 +73,10 @@
       "model": "ApprovalGrantListResponse"
     },
     {
+      "filename": "control-registry-response.schema.json",
+      "model": "ControlRegistryResponse"
+    },
+    {
       "filename": "response-action-create-request.schema.json",
       "model": "ResponseActionCreateRequest"
     },
@@ -87,6 +91,10 @@
     {
       "filename": "response-action-list-response.schema.json",
       "model": "ResponseActionListResponse"
+    },
+    {
+      "filename": "response-action-claim-response.schema.json",
+      "model": "ResponseActionClaimResponse"
     }
   ],
   "schema_version": 1,

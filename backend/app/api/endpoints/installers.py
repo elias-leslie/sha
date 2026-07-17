@@ -67,16 +67,28 @@ def get_installer_artifact(
         if profile is None:
             raise HTTPException(status_code=404, detail="installer profile not found")
 
-    filename, media_type, content = render_installer_artifact(
-        profile,
-        api_token=getattr(request.app.state, "agent_api_token", None) or getattr(request.app.state, "api_token", None),
+    agent_api_token = getattr(request.app.state, "agent_api_token", None)
+    operator_auth_configured = bool(
+        getattr(request.app.state, "api_token", None)
+        or getattr(request.app.state, "external_auth_trusted_token", None)
     )
+    if operator_auth_configured and not agent_api_token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="agent API token is required to generate installer artifacts when operator authentication is configured",
+        )
+
+    filename, media_type, content = render_installer_artifact(profile, api_token=agent_api_token)
     sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
     return Response(
         content=content,
         media_type=media_type,
         headers={
+            "Cache-Control": "private, no-store",
             "Content-Disposition": f'attachment; filename="{filename}"',
+            "Pragma": "no-cache",
+            "Referrer-Policy": "no-referrer",
+            "X-Content-Type-Options": "nosniff",
             "X-SHA-Artifact-Sha256": sha256,
         },
     )

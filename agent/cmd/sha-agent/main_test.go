@@ -11,10 +11,21 @@ import (
 	"time"
 )
 
-func TestAgentRunOnceCompletesApprovedSSHAction(t *testing.T) {
+func TestLinuxAgentRejectsStaleMutationWithoutFilesystemOrCommandChanges(t *testing.T) {
 	tmp := t.TempDir()
 	hardeningPath := filepath.Join(tmp, "99-sha-hardening.conf")
 	completed := false
+	restorePlatform := currentPlatformName
+	restoreRunCommand := runCommand
+	currentPlatformName = func() string { return "linux" }
+	runCommand = func(name string, args ...string) (string, error) {
+		t.Fatalf("unsupported Linux mutation invoked command %s %#v", name, args)
+		return "", nil
+	}
+	t.Cleanup(func() {
+		currentPlatformName = restorePlatform
+		runCommand = restoreRunCommand
+	})
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer agent-token" {
@@ -24,24 +35,46 @@ func TestAgentRunOnceCompletesApprovedSSHAction(t *testing.T) {
 		case r.Method == "POST" && r.URL.Path == "/api/endpoints/enroll":
 			writeJSON(w, endpointResponse{EndpointID: "ep_test"})
 		case r.Method == "POST" && r.URL.Path == "/api/endpoints/ep_test/heartbeat":
-			writeJSON(w, map[string]any{"pending_action_count": 1})
-		case r.Method == "POST" && r.URL.Path == "/api/posture-snapshots":
-			writeJSON(w, map[string]any{"accepted_result_count": 2})
-		case r.Method == "GET" && r.URL.Path == "/api/endpoints/ep_test/response-actions":
-			controlID := "linux.ssh.password-authentication-disabled"
-			writeJSON(w, actionList{Items: []responseAction{{ResponseActionID: "act_test", Action: "apply_control", ControlID: &controlID}}})
-		case r.Method == "POST" && r.URL.Path == "/api/response-actions/act_test/result":
 			var payload struct {
-				Status string `json:"status"`
+				DeclaredCapabilities []string        `json:"declared_capabilities"`
+				ExecutionHooks       map[string]bool `json:"execution_hooks"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 				t.Fatal(err)
 			}
-			if payload.Status != "succeeded" {
-				t.Fatalf("unexpected result status %q", payload.Status)
+			if strings.Join(payload.DeclaredCapabilities, ",") != "enroll,heartbeat,collect_posture_snapshot,rollback_control:linux.ssh.password-authentication-disabled" {
+				t.Fatalf("unexpected Linux capabilities: %#v", payload.DeclaredCapabilities)
+			}
+			if payload.ExecutionHooks["supports_dry_run"] || payload.ExecutionHooks["captures_rollback_artifacts"] {
+				t.Fatalf("dishonest Linux execution hooks: %#v", payload.ExecutionHooks)
+			}
+			writeJSON(w, map[string]any{"pending_action_count": 1})
+		case r.Method == "POST" && r.URL.Path == "/api/posture-snapshots":
+			writeJSON(w, map[string]any{"accepted_result_count": 2})
+		case r.Method == "POST" && r.URL.Path == "/api/endpoints/ep_test/response-actions/claim":
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if len(payload) != 0 {
+				t.Fatalf("unexpected claim payload: %#v", payload)
+			}
+			controlID := "linux.ssh.password-authentication-disabled"
+			writeJSON(w, actionList{Items: []responseAction{{ResponseActionID: "act_test", Action: "apply_control", ControlID: &controlID, LeaseToken: "lease-token-with-at-least-thirty-two-bytes"}}})
+		case r.Method == "POST" && r.URL.Path == "/api/response-actions/act_test/result":
+			var payload struct {
+				Status     string `json:"status"`
+				Summary    string `json:"result_summary"`
+				LeaseToken string `json:"lease_token"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Status != "failed" || !strings.Contains(payload.Summary, "no mutation was attempted") || payload.LeaseToken != "lease-token-with-at-least-thirty-two-bytes" {
+				t.Fatalf("unexpected result: %#v", payload)
 			}
 			completed = true
-			writeJSON(w, map[string]any{"status": "succeeded"})
+			writeJSON(w, map[string]any{"status": "failed"})
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
@@ -55,15 +88,76 @@ func TestAgentRunOnceCompletesApprovedSSHAction(t *testing.T) {
 	if err := agent.RunOnce(); err != nil {
 		t.Fatal(err)
 	}
-	content, err := os.ReadFile(hardeningPath)
+	if _, err := os.Stat(hardeningPath); !os.IsNotExist(err) {
+		t.Fatalf("unsupported Linux mutation touched hardening path: %v", err)
+	}
+	if !completed {
+		t.Fatal("failed action result was not posted")
+	}
+}
+
+func TestLinuxLegacySSHRollbackRemovesOnlyExactHistoricalPayload(t *testing.T) {
+	restorePlatform := currentPlatformName
+	currentPlatformName = func() string { return "linux" }
+	t.Cleanup(func() { currentPlatformName = restorePlatform })
+
+	path := filepath.Join(t.TempDir(), "99-sha-hardening.conf")
+	if err := os.WriteFile(path, []byte(legacyGoSSHHardeningPayload), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	controlID := linuxLegacySSHControlID
+	status, summary := (Agent{config: Config{SSHDHardeningPath: path}}).executeAction(
+		responseAction{Action: "rollback_control", ControlID: &controlID},
+	)
+	if status != "succeeded" || !strings.Contains(summary, "exact legacy") {
+		t.Fatalf("unexpected rollback result: %q %q", status, summary)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("exact legacy payload was not removed: %v", err)
+	}
+}
+
+func TestLinuxLegacySSHRollbackRefusesAlteredPayloadWithoutMutation(t *testing.T) {
+	restorePlatform := currentPlatformName
+	restoreRunCommand := runCommand
+	currentPlatformName = func() string { return "linux" }
+	runCommand = func(name string, args ...string) (string, error) {
+		t.Fatalf("legacy rollback invoked command %s %#v", name, args)
+		return "", nil
+	}
+	t.Cleanup(func() {
+		currentPlatformName = restorePlatform
+		runCommand = restoreRunCommand
+	})
+
+	path := filepath.Join(t.TempDir(), "99-sha-hardening.conf")
+	altered := legacyGoSSHHardeningPayload + "PermitRootLogin no\n"
+	if err := os.WriteFile(path, []byte(altered), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	controlID := linuxLegacySSHControlID
+	status, summary := (Agent{config: Config{SSHDHardeningPath: path}}).executeAction(
+		responseAction{Action: "rollback_control", ControlID: &controlID},
+	)
+	if status != "failed" || !strings.Contains(summary, "does not exactly match") {
+		t.Fatalf("unexpected refusal result: %q %q", status, summary)
+	}
+	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(content) != "# Managed by SHA Go agent\nPasswordAuthentication no\n" {
-		t.Fatalf("unexpected hardening file: %q", content)
+	if string(content) != altered {
+		t.Fatalf("refused rollback mutated content: %q", content)
 	}
-	if !completed {
-		t.Fatal("action result was not posted")
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o640 {
+		t.Fatalf("refused rollback mutated mode: %o", info.Mode().Perm())
 	}
 }
 
@@ -87,7 +181,7 @@ func TestAgentCompletesWindowsFirewallAction(t *testing.T) {
 	if status != "succeeded" {
 		t.Fatalf("unexpected status %q: %s", status, summary)
 	}
-	if len(commands) != 1 || !strings.Contains(commands[0], "Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True") {
+	if len(commands) != 1 || !strings.Contains(commands[0], "icacls.exe") || !strings.Contains(commands[0], "Refusing to overwrite existing SHA firewall rollback artifact") || !strings.Contains(commands[0], "Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True") {
 		t.Fatalf("unexpected apply command: %#v", commands)
 	}
 
@@ -95,7 +189,7 @@ func TestAgentCompletesWindowsFirewallAction(t *testing.T) {
 	if status != "succeeded" {
 		t.Fatalf("unexpected rollback status %q: %s", status, summary)
 	}
-	if len(commands) != 2 || !strings.Contains(commands[1], "$enabled = if ([bool]$enabledStates[$i]) { 'True' } else { 'False' }") {
+	if len(commands) != 2 || !strings.Contains(commands[1], "SHA firewall rollback artifact has an untrusted owner") || !strings.Contains(commands[1], "$profile.Enabled -isnot [bool]") {
 		t.Fatalf("unexpected rollback command: %#v", commands)
 	}
 }
@@ -113,23 +207,62 @@ func TestWindowsPostureReportsFirewallState(t *testing.T) {
 	})
 
 	results := (Agent{}).postureResults()
-	if results[0].ControlKey != "windows.firewall.all-profiles-enabled" || results[0].Status != "pass" {
+	if results[0].ControlKey != windowsFirewallControlID || results[0].Status != "pass" {
 		t.Fatalf("unexpected windows posture: %#v", results)
 	}
 }
 
-func TestMacOSAgentDeclaresObserveOnlyCapabilities(t *testing.T) {
+func TestPlatformCapabilitiesAndExecutionHooksAreTruthful(t *testing.T) {
 	restorePlatform := currentPlatformName
-	currentPlatformName = func() string { return "macos" }
 	t.Cleanup(func() { currentPlatformName = restorePlatform })
 
-	for _, capability := range declaredCapabilities() {
-		if capability == "apply_control" || capability == "rollback_control" {
-			t.Fatalf("macOS Go agent must not declare hardening mutation capability: %#v", declaredCapabilities())
-		}
+	tests := []struct {
+		platform     string
+		capabilities string
+		rollback     bool
+	}{
+		{platform: "linux", capabilities: "enroll,heartbeat,collect_posture_snapshot,rollback_control:linux.ssh.password-authentication-disabled", rollback: false},
+		{platform: "macos", capabilities: "enroll,heartbeat,collect_posture_snapshot", rollback: false},
+		{platform: "windows", capabilities: "enroll,heartbeat,collect_posture_snapshot,apply_control:control.windows.firewall-all-profiles,rollback_control:control.windows.firewall-all-profiles", rollback: true},
 	}
-	if executionHooks()["captures_rollback_artifacts"] {
-		t.Fatal("macOS observe-only agent must not claim rollback artifacts")
+	for _, test := range tests {
+		t.Run(test.platform, func(t *testing.T) {
+			currentPlatformName = func() string { return test.platform }
+			if got := strings.Join(declaredCapabilities(), ","); got != test.capabilities {
+				t.Fatalf("unexpected capabilities %q", got)
+			}
+			hooks := executionHooks()
+			if hooks["supports_dry_run"] {
+				t.Fatal("Go agent must not claim dry-run support")
+			}
+			if hooks["captures_rollback_artifacts"] != test.rollback {
+				t.Fatalf("unexpected rollback-artifact hook: %#v", hooks)
+			}
+			if !hooks["reports_execution_results"] {
+				t.Fatalf("unexpected execution-result hook: %#v", hooks)
+			}
+		})
+	}
+}
+
+func TestStaleEvidenceActionFailsWithoutCollectingEvidence(t *testing.T) {
+	restorePlatform := currentPlatformName
+	restoreRunCommand := runCommand
+	currentPlatformName = func() string { return "macos" }
+	runCommand = func(name string, args ...string) (string, error) {
+		t.Fatalf("unsupported evidence action invoked command %s %#v", name, args)
+		return "", nil
+	}
+	t.Cleanup(func() {
+		currentPlatformName = restorePlatform
+		runCommand = restoreRunCommand
+	})
+
+	for _, action := range []string{"collect_security_context", "collect_remediation_evidence", "inspect_control"} {
+		status, summary := (Agent{}).executeAction(responseAction{Action: action})
+		if status != "failed" || !strings.Contains(summary, "no evidence was collected") {
+			t.Fatalf("unexpected stale %s result: %q %q", action, status, summary)
+		}
 	}
 }
 

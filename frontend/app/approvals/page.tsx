@@ -1,12 +1,9 @@
 import ApprovalsConsole from "../../components/approvals-console";
 import NavShell from "../../components/nav-shell";
-import {
-  getFixtureApprovalGrants,
-  getFixtureApprovalRequests,
-  getFixtureEndpoints,
-} from "../../lib/api";
+import { getFixtureControlRegistry, isDemoMode } from "../../lib/api";
 
 export default function ApprovalsPage() {
+  const demoMode = isDemoMode();
   return (
     <NavShell
       currentPath="/approvals"
@@ -14,9 +11,8 @@ export default function ApprovalsPage() {
       description="Operator review surface for hardening changes, bounded troubleshooting, and manual emergency grants."
     >
       <ApprovalsConsole
-        initialEndpoints={getFixtureEndpoints()}
-        initialGrants={getFixtureApprovalGrants()}
-        initialRequests={getFixtureApprovalRequests()}
+        demoMode={demoMode}
+        initialControls={demoMode ? getFixtureControlRegistry() : undefined}
       />
     </NavShell>
   );

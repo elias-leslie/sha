@@ -155,14 +155,6 @@ def _linux_reporter_script() -> str:
                 return json.load(response)
 
 
-        def get_json(url: str) -> dict[str, object]:
-            http_request = request.Request(url, method="GET")
-            http_request.add_header("Accept", "application/json")
-            add_auth_header(http_request)
-            with request.urlopen(http_request, timeout=20) as response:
-                return json.load(response)
-
-
         def run_command(*args: str) -> tuple[bool, str]:
             try:
                 completed = subprocess.run(
@@ -829,6 +821,7 @@ def _linux_reporter_script() -> str:
 
         def execute_response_action(control_plane_url: str, action: dict[str, object]) -> None:
             action_id = str(action["response_action_id"])
+            lease_token = str(action["lease_token"])
             action_name = str(action["action"])
             scope = action.get("troubleshooting_scope")
             control_id = action.get("control_id")
@@ -844,6 +837,7 @@ def _linux_reporter_script() -> str:
                 post_json(
                     f"{control_plane_url}/api/response-actions/{action_id}/result",
                     {
+                        "lease_token": lease_token,
                         "status": result_status,
                         "result_summary": result_summary,
                     },
@@ -853,6 +847,7 @@ def _linux_reporter_script() -> str:
                 post_json(
                     f"{control_plane_url}/api/response-actions/{action_id}/result",
                     {
+                        "lease_token": lease_token,
                         "status": "failed",
                         "result_summary": f"Unsupported Linux bootstrap action: {action_name}.",
                     },
@@ -862,6 +857,7 @@ def _linux_reporter_script() -> str:
             post_json(
                 f"{control_plane_url}/api/response-actions/{action_id}/result",
                 {
+                    "lease_token": lease_token,
                     "status": "failed" if any(result["status"] == "error" for result in results) else "succeeded",
                     "result_summary": summarize_results(results),
                 },
@@ -869,7 +865,10 @@ def _linux_reporter_script() -> str:
 
 
         def execute_pending_response_actions(control_plane_url: str, endpoint_id: str) -> None:
-            payload = get_json(f"{control_plane_url}/api/endpoints/{endpoint_id}/response-actions")
+            payload = post_json(
+                f"{control_plane_url}/api/endpoints/{endpoint_id}/response-actions/claim",
+                {},
+            )
             items = payload.get("items", [])
             if not isinstance(items, list):
                 return
@@ -992,11 +991,13 @@ def _render_linux_bootstrap(profile: InstallerProfile, *, api_token: str | None 
             "  exit 1",
             "fi",
             "",
-            "install -d -m 0755 /opt/sha /etc/sha",
+            "install -d -m 0755 /opt/sha",
+            "install -d -m 0700 /etc/sha",
             "",
             "cat > /etc/sha/reporter-config.json <<'JSON'",
             config_json,
             "JSON",
+            "chmod 0600 /etc/sha/reporter-config.json",
             "",
             "cat > /opt/sha/reporter.py <<'PY'",
             reporter_script,
@@ -1062,14 +1063,6 @@ def _macos_reporter_script() -> str:
             http_request = request.Request(url, data=body, method="POST")
             http_request.add_header("Accept", "application/json")
             http_request.add_header("Content-Type", "application/json")
-            add_auth_header(http_request)
-            with request.urlopen(http_request, timeout=20) as response:
-                return json.load(response)
-
-
-        def get_json(url: str) -> dict[str, object]:
-            http_request = request.Request(url, method="GET")
-            http_request.add_header("Accept", "application/json")
             add_auth_header(http_request)
             with request.urlopen(http_request, timeout=20) as response:
                 return json.load(response)
@@ -1498,6 +1491,7 @@ def _macos_reporter_script() -> str:
 
         def execute_response_action(control_plane_url: str, action: dict[str, object]) -> None:
             action_id = str(action["response_action_id"])
+            lease_token = str(action["lease_token"])
             action_name = str(action["action"])
             scope = action.get("troubleshooting_scope")
             if action_name in {"collect_security_context", "inspect_control", "request_elevated_troubleshooting"}:
@@ -1508,6 +1502,7 @@ def _macos_reporter_script() -> str:
                 post_json(
                     f"{control_plane_url}/api/response-actions/{action_id}/result",
                     {
+                        "lease_token": lease_token,
                         "status": "failed",
                         "result_summary": "macOS bootstrap is observe-only and cannot execute hardening changes.",
                     },
@@ -1517,6 +1512,7 @@ def _macos_reporter_script() -> str:
                 post_json(
                     f"{control_plane_url}/api/response-actions/{action_id}/result",
                     {
+                        "lease_token": lease_token,
                         "status": "failed",
                         "result_summary": f"Unsupported macOS bootstrap action: {action_name}.",
                     },
@@ -1526,6 +1522,7 @@ def _macos_reporter_script() -> str:
             post_json(
                 f"{control_plane_url}/api/response-actions/{action_id}/result",
                 {
+                    "lease_token": lease_token,
                     "status": "failed" if any(result["status"] == "error" for result in results) else "succeeded",
                     "result_summary": summarize_results(results),
                 },
@@ -1533,7 +1530,10 @@ def _macos_reporter_script() -> str:
 
 
         def execute_pending_response_actions(control_plane_url: str, endpoint_id: str) -> None:
-            payload = get_json(f"{control_plane_url}/api/endpoints/{endpoint_id}/response-actions")
+            payload = post_json(
+                f"{control_plane_url}/api/endpoints/{endpoint_id}/response-actions/claim",
+                {},
+            )
             items = payload.get("items", [])
             if not isinstance(items, list):
                 return
@@ -1730,15 +1730,6 @@ def _windows_reporter_script() -> str:
             return Invoke-RestMethod -Method Post -Uri $Url -Body $json -ContentType 'application/json' -Headers $headers
         }
 
-        function Invoke-JsonGet([string]$Url) {
-            $headers = @{}
-            $config = Get-Config
-            if ($config.api_token) {
-                $headers['Authorization'] = "Bearer $($config.api_token)"
-            }
-            return Invoke-RestMethod -Method Get -Uri $Url -ContentType 'application/json' -Headers $headers
-        }
-
         function New-Result(
             [string]$ControlKey,
             [string]$Status,
@@ -1865,15 +1856,15 @@ def _windows_reporter_script() -> str:
 
         function Get-FirewallResult {
             if (-not (Get-Command Get-NetFirewallProfile -ErrorAction SilentlyContinue)) {
-                return New-Result 'windows.firewall.all-profiles-enabled' 'not_applicable' 'Get-NetFirewallProfile missing' 'enabled' $null 'Firewall inspection cmdlet is unavailable.' $false
+                return New-Result 'control.windows.firewall-all-profiles' 'not_applicable' 'Get-NetFirewallProfile missing' 'enabled' $null 'Firewall inspection cmdlet is unavailable.' $false
             }
             $profiles = @(Get-NetFirewallProfile)
             $disabled = @($profiles | Where-Object { -not $_.Enabled })
             if ($disabled.Count -eq 0) {
-                return New-Result 'windows.firewall.all-profiles-enabled' 'pass' 'enabled' 'enabled' $null 'Domain, Private, and Public firewall profiles are enabled.' $false
+                return New-Result 'control.windows.firewall-all-profiles' 'pass' 'enabled' 'enabled' $null 'Domain, Private, and Public firewall profiles are enabled.' $false
             }
             $names = ($disabled | ForEach-Object { $_.Name }) -join ','
-            return New-Result 'windows.firewall.all-profiles-enabled' 'fail' $names 'enabled' 'high' "Firewall disabled on profile(s): $names." $false
+            return New-Result 'control.windows.firewall-all-profiles' 'fail' $names 'enabled' 'high' "Firewall disabled on profile(s): $names." $false
         }
 
         function Invoke-ApplyWindowsFirewallAllProfiles {
@@ -2038,13 +2029,13 @@ def _windows_reporter_script() -> str:
 
         function Get-DefenderRealTimeProtectionResult {
             if (-not (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue)) {
-                return New-Result 'windows.defender.real-time-protection' 'not_applicable' 'Get-MpComputerStatus missing' 'enabled' $null 'Microsoft Defender inspection cmdlet is unavailable.' $false
+                return New-Result 'control.windows.defender-real-time-protection' 'not_applicable' 'Get-MpComputerStatus missing' 'enabled' $null 'Microsoft Defender inspection cmdlet is unavailable.' $false
             }
             $status = Get-MpComputerStatus
             if ($status.RealTimeProtectionEnabled) {
-                return New-Result 'windows.defender.real-time-protection' 'pass' 'enabled' 'enabled' $null 'Microsoft Defender real-time protection is enabled.' $false
+                return New-Result 'control.windows.defender-real-time-protection' 'pass' 'enabled' 'enabled' $null 'Microsoft Defender real-time protection is enabled.' $false
             }
-            return New-Result 'windows.defender.real-time-protection' 'fail' 'disabled' 'enabled' 'high' 'Microsoft Defender real-time protection is disabled.' $false
+            return New-Result 'control.windows.defender-real-time-protection' 'fail' 'disabled' 'enabled' 'high' 'Microsoft Defender real-time protection is disabled.' $false
         }
 
         function Get-BitLockerSystemDriveResult {
@@ -2099,6 +2090,7 @@ def _windows_reporter_script() -> str:
 
         function Complete-ResponseAction($ControlPlaneUrl, $Action, [string]$Status, [string]$Summary) {
             Invoke-JsonPost "$ControlPlaneUrl/api/response-actions/$($Action.response_action_id)/result" ([ordered]@{
+                lease_token = [string]$Action.lease_token
                 status = $Status
                 result_summary = $Summary
             }) | Out-Null
@@ -2138,7 +2130,7 @@ def _windows_reporter_script() -> str:
         }
 
         function Invoke-PendingResponseActions([string]$ControlPlaneUrl, [string]$EndpointId) {
-            $payload = Invoke-JsonGet "$ControlPlaneUrl/api/endpoints/$EndpointId/response-actions"
+            $payload = Invoke-JsonPost "$ControlPlaneUrl/api/endpoints/$EndpointId/response-actions/claim" ([ordered]@{})
             foreach ($action in @($payload.items)) {
                 Invoke-ResponseAction $ControlPlaneUrl $action
             }
@@ -2228,16 +2220,21 @@ def _render_windows_bootstrap(profile: InstallerProfile, *, api_token: str | Non
             "$ReporterPath = Join-Path $ShaRoot 'reporter.ps1'",
             "",
             "New-Item -ItemType Directory -Force -Path $ShaRoot | Out-Null",
+            "$restrictedPrincipals = @('*S-1-5-18', '*S-1-5-32-544')",
+            "& icacls.exe $ShaRoot /inheritance:r /grant:r \"$($restrictedPrincipals[0]):(OI)(CI)(F)\" \"$($restrictedPrincipals[1]):(OI)(CI)(F)\" | Out-Null",
+            "if ($LASTEXITCODE -ne 0) { throw 'failed to restrict SHA data directory ACL' }",
             "",
             "@'",
             config_json,
             "'@ | Set-Content -LiteralPath $ConfigPath -Encoding UTF8",
+            "& icacls.exe $ConfigPath /inheritance:r /grant:r \"$($restrictedPrincipals[0]):(F)\" \"$($restrictedPrincipals[1]):(F)\" | Out-Null",
+            "if ($LASTEXITCODE -ne 0) { throw 'failed to restrict SHA reporter config ACL' }",
             "",
             "@'",
             reporter_script,
             "'@ | Set-Content -LiteralPath $ReporterPath -Encoding UTF8",
             "",
-            "$action = New-ScheduledTaskAction -Execute 'PowerShell.exe' -Argument \"-NoProfile -ExecutionPolicy Bypass -File ``\"$ReporterPath``\"\"",
+            "$action = New-ScheduledTaskAction -Execute 'PowerShell.exe' -Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + $ReporterPath)",
             "$repeatTrigger = New-ScheduledTaskTrigger -Once -At ((Get-Date).AddMinutes(1)) -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration (New-TimeSpan -Days 3650)",
             "$startupTrigger = New-ScheduledTaskTrigger -AtStartup",
             "$principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest",

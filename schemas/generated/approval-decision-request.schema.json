@@ -12,8 +12,16 @@
   },
   "properties": {
     "decided_by": {
-      "title": "Decided By",
-      "type": "string"
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decided By"
     },
     "decision": {
       "$ref": "#/$defs/ApprovalDecision"
@@ -38,7 +46,6 @@
   },
   "required": [
     "decision",
-    "decided_by",
     "decision_comment"
   ],
   "title": "ApprovalDecisionRequest",

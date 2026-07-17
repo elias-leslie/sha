@@ -75,8 +75,16 @@
       "type": "array"
     },
     "requested_by": {
-      "title": "Requested By",
-      "type": "string"
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Requested By"
     },
     "requested_ttl_minutes": {
       "title": "Requested Ttl Minutes",
@@ -98,7 +106,6 @@
     "request_kind",
     "requested_actions",
     "requested_ttl_minutes",
-    "requested_by",
     "reason",
     "risk"
   ],

@@ -1,14 +1,14 @@
 # SHA agent contract
 
-This document defines the boundary the future privileged SHA agent must honor.
-
 ## Purpose
 
-The SHA agent is a local privileged service on endpoint systems. The checked-in Go implementation currently covers the Linux path.
-It exists to inspect hardening posture and execute approved hardening actions through typed verbs.
-It is not a general-purpose remote shell.
+This document defines the boundary every privileged SHA agent and generated reporter must honor.
 
-## Required typed capabilities
+The checked-in Go agent implements cross-platform enrollment, heartbeat, posture reporting, action claiming, and result reporting. Its active mutation surface is Windows Firewall only; Linux additionally retains a byte-exact cleanup path for the historical Go SSH hardening payload. Generated bootstrap reporters are separate implementations with concrete bounded evidence collection; Linux and Windows generated reporters also implement the reversible controls listed below.
+SHA agents inspect hardening posture and execute only the typed actions they truthfully advertise.
+They are not general-purpose remote shells.
+
+## Typed capability vocabulary
 
 - `enroll`
 - `heartbeat`
@@ -19,6 +19,20 @@ It is not a general-purpose remote shell.
 - `collect_security_context`
 - `collect_remediation_evidence`
 - `request_elevated_troubleshooting`
+
+Implementations may advertise a generic action capability when every admitted control is implemented, or a per-control capability as `<action>:<control-id>`. The action segment remains the typed `apply_control` or `rollback_control` verb; arbitrary action strings are invalid. Backend admission and frontend eligibility accept a hardening action only when either its generic action or its exact action/control pair was declared.
+
+Current Go declarations are:
+- all platforms: `enroll`, `heartbeat`, `collect_posture_snapshot`
+- Windows only: `apply_control:control.windows.firewall-all-profiles` and `rollback_control:control.windows.firewall-all-profiles`
+- Linux only: `rollback_control:linux.ssh.password-authentication-disabled`; rollback removes the file only when it byte-for-byte matches `# Managed by SHA Go agent\nPasswordAuthentication no\n`
+- no Go evidence verbs until bounded evidence payloads are implemented; stale evidence jobs return `failed`/unsupported and collect nothing
+- Linux never advertises or executes SSH apply; altered, missing, or ambiguous legacy rollback files are refused without mutation
+- macOS Go mutation jobs and all other Go Linux mutation jobs return `failed`/unsupported without filesystem or command changes
+- `supports_dry_run=false` on every Go platform
+- `captures_rollback_artifacts=true` only on Windows Go, where the firewall rollback artifact is persisted; false on Linux and macOS
+
+Generated reporters retain separate, implementation-backed declarations. Linux generated evidence verbs summarize concrete posture/telemetry results, while its SSH and network-isolation mutations have tested rollback paths; macOS generated reporting remains mutation-free.
 
 ## Required approval-boundary behavior
 
@@ -40,14 +54,26 @@ Current backend enrollment route:
 - `POST /api/endpoints/enroll`
 
 Authentication:
-- if the control plane has `SHA_API_TOKEN` configured, operator `/api/*` calls must include `Authorization: Bearer <token>` or `X-SHA-API-Token`
-- if `SHA_AGENT_API_TOKEN` is configured, generated reporters and the Go agent should use that least-privilege token for enroll, heartbeat, posture, response-action polling, and action-result reporting
-- generated bootstrap artifacts include the least-privilege agent token when available, otherwise the operator token when token protection is enabled
+- protected mode separates operator, read-only, and agent principals; credentials are not interchangeable
+- `SHA_API_TOKEN` authenticates operator routes but is forbidden from the agent-only enrollment, heartbeat, posture, claim, and result routes
+- `SHA_READONLY_API_TOKEN` authenticates safe read routes but is forbidden from agent routes, mutations, and artifact downloads
+- `SHA_AGENT_API_TOKEN` authenticates only enrollment, heartbeat, posture upload, response-action claim, and lease-bound result reporting
+- generated compatibility artifacts contain `SHA_AGENT_API_TOKEN` when configured; they never fall back to the operator token
+- artifact generation returns HTTP 503 when operator-token or trusted-proxy authentication is configured without an agent token
+- when no credential is configured, explicit local `development_open` mode uses a visible development principal; shared deployments must use fail-closed `protected` mode
+
+Phase 0 uses one shared agent token, not a unique device credential. Short-lived enrollment tokens, atomic exchange for endpoint-bound credentials, rotation/revocation, and signed package manifests remain production roadmap work.
+
+Transport:
+- `control_plane_url` currently accepts `http` for local compatibility and `https` for deployed use
+- HTTPS clients use normal platform hostname, chain, and validity checks; there is no insecure verification bypass in the agent or generated reporters
+- a private CA must currently be installed in the operating-system trust store; per-agent CA bundle/pin configuration is not implemented yet
+- production deployments must use HTTPS; the HA TLS overlay exposes HTTPS only and supports TLS 1.2 and TLS 1.3
 
 Current request payload fields:
 - `agent_fingerprint` — required, trimmed, lowercased for matching/storage
 - `hostname` — required, trimmed
-- `platform` — required enum: `windows | linux`
+- `platform` — required enum: `windows | linux | macos`
 - `platform_version` — optional nullable string; explicit `null` clears it, omission preserves current value on re-enroll
 - `agent_version` — required, trimmed
 - `tenant_id` — optional nullable string; explicit `null` clears it, omission preserves current value on re-enroll
@@ -87,6 +113,15 @@ Shared response rules:
 - detail responses always include `latest_results`; before the first posture snapshot it is `[]`
 - latest posture summary selection uses `observed_at DESC, snapshot_id DESC`
 - detail `latest_results` ordering is `control_key ASC`
+
+## Canonical control registry contract
+
+Current backend route:
+- `GET /api/control-registry`
+
+The response uses `{ "items": [...] }`. Each item contains `control_id`, `title`, `platform`, `kind`, `observation_aliases`, and `supported_actions`. `kind` is `benchmark_control` or `operational_observation`.
+
+The checked-in source catalog owns benchmark controls and their provenance. The registry supplements them with canonical operational-observation IDs for reporter telemetry that is not itself a benchmark control, then overlays accepted aliases and exact apply/rollback support across the combined namespace. `supported_actions`, not `kind`, determines whether a control is actionable. Posture ingestion normalizes supported legacy aliases, while approvals and action creation reject unknown, wrong-platform, or unsupported controls. Agents must advertise only the exact capabilities they implement.
 
 ## Posture snapshot contract
 
@@ -130,7 +165,7 @@ Current backend installer routes:
 
 Create request fields:
 - `name` — required, trimmed, unique per platform after trim + lowercase normalization
-- `platform` — enum: `windows | linux`
+- `platform` — enum: `windows | linux | macos`
 - `channel` — enum: `stable | preview`
 - `control_plane_url` — absolute `http` or `https` URL
 - `policy_mode` — enum: `observe | safe_auto | approval_required`
@@ -152,16 +187,18 @@ Returned object fields:
 Important rules:
 - list responses use `{ "items": [...] }`
 - duplicate normalized `(platform, name)` returns HTTP 409
-- `GET /api/installer-profiles/{profile_id}/artifact` returns a deterministic text artifact for that profile
+- `GET /api/installer-profiles/{profile_id}/artifact` returns a deterministic compatibility reporter for that profile
 - Linux profiles return a shell bootstrap that installs `/opt/sha/reporter.py`, `/etc/sha/reporter-config.json`, and a `sha-reporter.service` + `sha-reporter.timer`
 - Windows profiles return a PowerShell bootstrap that installs `C:\ProgramData\SHA\reporter.ps1`, `C:\ProgramData\SHA\reporter-config.json`, and a `SHA Reporter` scheduled task
 - macOS profiles return a shell bootstrap that installs `/usr/local/lib/sha/reporter.py`, `/Library/Application Support/SHA/reporter-config.json`, and a `com.sha.reporter` launchd daemon
-- repeated artifact downloads for the same profile are byte-identical until the profile itself changes
-- artifact responses set `Content-Disposition` and `X-SHA-Artifact-Sha256` headers for download and verification
+- repeated artifact downloads for the same profile and agent credential are byte-identical until either changes
+- artifact responses set `Cache-Control: private, no-store`, `Pragma: no-cache`, `Content-Disposition`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, and `X-SHA-Artifact-Sha256`
+- read-only principals cannot download artifacts, and the stock dashboard never previews or retains the token-bearing body in component state; it exposes only download metadata after a user-initiated download
+- the digest detects transfer corruption but is not publisher authentication; these artifacts are not signed production packages
 
 Bootstrap artifact behavior in this slice:
 - the generated reporter computes a stable per-host fingerprint from local machine identity + installer profile ID
-- each run performs `POST /api/endpoints/enroll`, `POST /api/endpoints/{endpoint_id}/heartbeat`, `POST /api/posture-snapshots`, `GET /api/endpoints/{endpoint_id}/response-actions`, and `POST /api/response-actions/{response_action_id}/result`
+- each run performs `POST /api/endpoints/enroll`, `POST /api/endpoints/{endpoint_id}/heartbeat`, `POST /api/posture-snapshots`, `POST /api/endpoints/{endpoint_id}/response-actions/claim`, and `POST /api/response-actions/{response_action_id}/result`
 - Linux posture checks stay read-only and bounded to firewall service state, SSH password-auth configuration, root-password lock state, automatic update enablement, audit/log-retention signal, hardware summary, process inventory, package inventory, startup services, login sessions, and listening-port inventory
 - Linux response-action execution is bounded to context/evidence collection for the approved troubleshooting scope plus apply/rollback for `linux.ssh.password-authentication-disabled` and `linux.network.endpoint-isolated`
 - Windows posture checks and context/evidence actions stay read-only and bounded to firewall profile state, Defender real-time protection, BitLocker system-drive protection, Secure Boot state, process inventory, TCP listener inventory, installed software, automatic-start services, recent Security log readability, service status, and current service identity; Windows hardening execution is bounded to apply/rollback for `control.windows.firewall-all-profiles`, `control.windows.defender-real-time-protection`, and `control.windows.firewall-endpoint-isolated`
@@ -200,7 +237,7 @@ Approval request create fields:
 - `control_ids` — explicit array, required non-empty only for `hardening_change`
 - `troubleshooting_scopes` — explicit array, required non-empty only for `elevated_troubleshooting`
 - `requested_ttl_minutes` — required integer from 15 through 240
-- `requested_by` — required, trimmed
+- `requested_by` — optional compatibility input; ignored
 - `reason` — required, trimmed
 - `risk` — enum: `low | medium | high | critical`
 
@@ -235,7 +272,7 @@ Request-kind rules:
 
 Decision request fields:
 - `decision` — enum: `approve | deny | revoke`
-- `decided_by` — required, trimmed
+- `decided_by` — optional compatibility input; ignored
 - `decision_comment` — required, trimmed
 - `expires_at` — required only for `approve`, forbidden for `deny` and `revoke`
 
@@ -270,6 +307,9 @@ Manual emergency grant rules:
 - it must still follow the same bounded hardening-vs-troubleshooting rules as request-approved grants
 - mixed hardening + troubleshooting payloads are rejected
 - manual grants do not synthesize approval-request audit events
+- optional request `requested_by` and `approved_by` compatibility fields are ignored
+
+For all approval mutations, stored requester/approver/decision actors come from the authenticated principal. A caller cannot attribute an audit event to another actor by sending a legacy actor field.
 
 Important rules:
 - list responses use `{ "items": [...] }`
@@ -283,16 +323,23 @@ Important rules:
 
 Current backend response-action routes:
 - `POST /api/response-actions`
-- `GET /api/endpoints/{endpoint_id}/response-actions`
+- `POST /api/endpoints/{endpoint_id}/response-actions/claim`
+- `GET /api/endpoints/{endpoint_id}/response-actions` (operator history/list view)
 - `POST /api/response-actions/{response_action_id}/result`
 
 Important rules:
+- action creation is operator-only; claim and result submission are agent-only under protected authentication
 - queued actions require an active, unexpired approval grant
 - the grant must include the endpoint, action, and requested control or troubleshooting scope
-- the endpoint must have declared the action capability in heartbeat before the action can be queued
-- endpoint fetches return only queued actions whose grant is still active by default; `include_terminal=true` returns queued and terminal action history for operators
-- result reporting only accepts `succeeded` or `failed`; completed actions are terminal
-- heartbeat `pending_action_count` reflects queued actions backed by active grants
+- the endpoint must have declared either the generic action capability or the exact `<action>:<control-id>` capability in heartbeat before a hardening action can be queued
+- agents execute only actions returned by the claim route; a claim response contains at most one item and includes an opaque `lease_token`
+- claim leases expire after a bounded interval; an expired lease can be reclaimed with a new token and incremented attempt count
+- agents must return the exact claim `lease_token` with `status` and `result_summary`; missing, stale, mismatched, or expired tokens are rejected
+- operator fetches return only queued actions whose grant is still active by default; `include_terminal=true` returns queued, leased, and terminal action history
+- result reporting only accepts `succeeded` or `failed`; exact duplicate result submission with the same lease token is idempotent, and completed actions are terminal
+- heartbeat `pending_action_count` reflects queued or reclaimable expired-leased actions backed by active grants
+- action creation accepts an optional caller idempotency key scoped to the endpoint; exact replay returns the existing action, conflicting reuse returns HTTP 409, and omission generates a server key
+- `requested_by` in an action create body is optional compatibility input and ignored; the stored actor comes from the operator principal
 - actions remain typed (`apply_control`, `rollback_control`, bounded troubleshooting actions); no arbitrary shell payload exists
 
 ## Mutation contract

@@ -1,10 +1,12 @@
 # SHA v1 architecture
 
+This document describes the v1 direction. For the exact implemented Phase 0 boundary, use [Current SHA runtime contract](current-runtime-contract.md); roadmap-only entities and views below must not be presented as current features.
+
 ## Assumptions
 
 1. SHA should be usable from a clean public clone without private infrastructure.
 2. Operator automation, if added, should reason centrally on the server; endpoint agents should stay deterministic and non-LLM.
-3. Windows and Linux support matter first; macOS starts as observe-only bootstrap coverage.
+3. Windows and Linux support matter first; macOS currently receives build/contract coverage only.
 4. Safe hardening beats maximal hardening. High-disruption remediations must not auto-fire.
 5. Official or primary-source guidance should be normalized into versioned control packs, not applied from ad hoc scraping.
 
@@ -26,9 +28,9 @@
 
 ### 1. SHA control plane
 
-Responsibilities:
+Target responsibilities:
 
-- tenant/site/environment inventory
+- global/client/location/endpoint ownership and environment inventory
 - endpoint enrollment and connectivity tracking
 - normalized control catalog and source provenance
 - posture snapshots and drift history
@@ -37,23 +39,25 @@ Responsibilities:
 - approval workflow for elevated access and disruptive remediations
 - API surface for endpoint agents and optional operator automation
 
-Current stack:
+Current Phase 0 stack:
 
-- FastAPI backend
-- Next.js dashboard
-- SQLite for local development
+- FastAPI backend with 9 routers and 19 OpenAPI paths
+- Next.js dashboard using live API state or explicit fixture-only demo mode
+- Alembic-managed SQLite for local development and PostgreSQL as the HA/concurrency reference
+- principal-separated operator, read-only, and agent API-token authentication
+- atomic PostgreSQL/SQLite action claims with short opaque leases
 
 Target production stack:
 
 - Postgres for durable state
-- Redis or equivalent only when queues, leases, or presence are required
-- authentication, authorization, TLS, auditing, and deployment hardening before public exposure
+- PostgreSQL-backed queue leases until an observed scaling requirement justifies another broker
+- OIDC sessions, scoped authorization, managed secrets, package trust, internal transport protection where needed, and deployment hardening before public exposure
 
 ### 2. SHA agent
 
-A future privileged local service installed on managed endpoints.
+The checked-in Go agent is the canonical long-term privileged local service. Generated Python and PowerShell reporters remain compatibility shims and should not gain new feature breadth.
 
-Responsibilities:
+Target responsibilities:
 
 - enroll with the control plane using a bounded bootstrap profile
 - collect hardening-relevant telemetry only
@@ -63,11 +67,13 @@ Responsibilities:
 - expose narrow execution verbs rather than arbitrary shell access
 - report health, execution results, and drift deltas
 
-Recommended implementation:
+Implementation direction:
 
 - Go single binary for Windows service + Linux systemd service
 - signed release packages for Windows MSI/EXE and Linux deb/rpm/install script later
 - typed executors per operating system and control family
+
+Phase 0 Go behavior includes cross-platform enrollment, heartbeat, posture upload, atomic action claim, lease-bound result reporting, Windows Firewall apply/rollback, a byte-exact legacy Linux rollback path, and explicit unsupported results elsewhere. Current compatibility reporters have a broader temporary collection/mutation surface; they are not production signed packages.
 
 ### 3. Optional operator automation
 
@@ -112,7 +118,7 @@ The SHA agent should expose typed capabilities, not raw command execution:
 - collect_remediation_evidence
 - request_elevated_troubleshooting
 
-Any raw or broad diagnostic execution should require a temporary approval grant with:
+No raw command or terminal route exists in Phase 0. A later command console or terminal must be a separate capability and require a temporary approval grant with:
 
 - explicit endpoint scope
 - explicit capability scope
@@ -177,12 +183,12 @@ Normalization model:
 - evidence mapping
 - compliance mappings
 
-## Endpoint data model
+## Target endpoint data model
 
-Key entities:
+Target entities:
 
-- tenants
-- sites
+- clients
+- locations
 - endpoints
 - endpoint facts
 - control packs
@@ -197,26 +203,32 @@ Key entities:
 - installer profiles
 - agent release channels
 
+Phase 0 persists endpoints, posture snapshots/results, compatibility installer profiles, approvals/grants/events, and leased response actions. Tenant/site values are transitional strings, not relational client/location authorization boundaries.
+
 ## Dashboard capabilities
 
-Operator-facing views:
+Current views cover fleet, endpoint, control, installer-profile, and approval slices. They use live backend data in normal mode and explicit fixtures only in demo mode. The protected browser stack has no bundled login/session adapter yet.
 
-- fleet summary with connectivity and risk posture
-- endpoint detail with ranked findings and evidence
+Target operator-facing views:
+
+- global fleet summary with connectivity, risk, compliance, action, and incident posture
+- client and location dashboards using the same scoped metrics and drill-downs
+- endpoint detail with ranked findings, current telemetry, action history, and evidence
 - remediation queue and rollout history
 - approval inbox for elevated access and disruptive controls
 - baseline / control-pack browser with source provenance
 - package builder for Windows/Linux/macOS installer output
 - operator-assistant activity log and audit trail when automation is integrated
 
-Installer/profile builder:
+Current compatibility profile builder:
 
 - control-plane URL
-- bootstrap credential reference or future enrollment token
+- shared agent credential supplied by the backend artifact renderer
 - tenant/site/profile metadata
 - update channel
 - allowed policy set
-- optional proxy / certificate trust settings
+
+The current download is a deterministic, private/no-store compatibility script with digest metadata. The dashboard does not preview its token-bearing body. Short-lived enrollment tokens, two package modes, signatures, proxy settings, and explicit private-CA settings remain target work.
 
 ## Windows and Linux scope
 

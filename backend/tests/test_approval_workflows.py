@@ -32,7 +32,7 @@ def create_request(client, endpoint_id: str, **overrides):
         "endpoint_ids": [endpoint_id],
         "request_kind": "hardening_change",
         "requested_actions": ["apply_control"],
-        "control_ids": [" control.rdp-network-level-authentication "],
+        "control_ids": [" control.windows.firewall-all-profiles "],
         "troubleshooting_scopes": [],
         "requested_ttl_minutes": 60,
         "requested_by": "  SHAna  ",
@@ -69,10 +69,10 @@ def test_create_hardening_request_persists_pending_request_and_requested_audit_e
     assert body["endpoint_ids"] == [endpoint_id]
     assert body["request_kind"] == "hardening_change"
     assert body["requested_actions"] == ["apply_control"]
-    assert body["control_ids"] == ["control.rdp-network-level-authentication"]
+    assert body["control_ids"] == ["control.windows.firewall-all-profiles"]
     assert body["troubleshooting_scopes"] == []
     assert body["requested_ttl_minutes"] == 60
-    assert body["requested_by"] == "SHAna"
+    assert body["requested_by"] == "development:operator"
     assert body["reason"] == "Tighten RDP posture"
     assert body["risk"] == "high"
     assert body["status"] == "pending"
@@ -86,7 +86,7 @@ def test_create_hardening_request_persists_pending_request_and_requested_audit_e
         {
             "approval_event_id": body["audit_events"][0]["approval_event_id"],
             "event_type": "requested",
-            "actor": "SHAna",
+            "actor": "development:operator",
             "comment": "Tighten RDP posture",
             "created_at": "2026-04-18T20:00:00Z",
         }
@@ -144,7 +144,7 @@ def test_approve_request_creates_linked_grant_and_normalizes_expiry(db_path, mak
     assert approved.status_code == 200
     body = approved.json()
     assert body["status"] == "approved"
-    assert body["decision_by"] == "secops"
+    assert body["decision_by"] == "development:operator"
     assert body["decision_comment"] == "Approved for rollout"
     assert body["decision_at"] == "2026-04-18T20:05:00Z"
     assert body["approval_grant_id"].startswith("grant_")
@@ -159,10 +159,10 @@ def test_approve_request_creates_linked_grant_and_normalizes_expiry(db_path, mak
                 "approval_request_id": approval_request_id,
                 "endpoint_ids": [endpoint_id],
                 "allowed_actions": ["apply_control"],
-                "control_ids": ["control.rdp-network-level-authentication"],
+                "control_ids": ["control.windows.firewall-all-profiles"],
                 "troubleshooting_scopes": [],
-                "requested_by": "SHAna",
-                "approved_by": "secops",
+                "requested_by": "development:operator",
+                "approved_by": "development:operator",
                 "reason": "Tighten RDP posture",
                 "expires_at": "2026-04-18T20:45:00Z",
                 "status": "approved",
@@ -189,8 +189,44 @@ def test_approve_request_rejects_expiry_outside_requested_ttl_window(db_path, ma
 
     assert response.status_code == 422
     assert response.json() == {
-        "detail": "expires_at must be within requested_ttl_minutes of decision time"
+        "detail": "expires_at must be between 15 and 30 minutes from creation time"
     }
+
+
+def test_approve_request_rejects_subminimum_grant_and_accepts_exact_minimum(
+    db_path, make_client, monkeypatch
+):
+    client = make_client(db_path)
+    endpoint_id = enroll_endpoint(client).json()["endpoint_id"]
+    set_now(monkeypatch, "2026-04-18T20:00:00Z")
+    approval_request_id = create_request(client, endpoint_id, requested_ttl_minutes=15).json()[
+        "approval_request_id"
+    ]
+
+    set_now(monkeypatch, "2026-04-18T20:00:45Z")
+    rejected = approve_request(
+        client,
+        approval_request_id,
+        expires_at="2026-04-18T20:01:00Z",
+    )
+    assert rejected.status_code == 422
+    assert rejected.json() == {
+        "detail": "expires_at must be between 15 and 15 minutes from creation time"
+    }
+
+    displayed_minimum = approve_request(
+        client,
+        approval_request_id,
+        expires_at="2026-04-18T20:15:00Z",
+    )
+    assert displayed_minimum.status_code == 422
+
+    accepted = approve_request(
+        client,
+        approval_request_id,
+        expires_at="2026-04-18T20:15:45Z",
+    )
+    assert accepted.status_code == 200
 
 
 def test_decision_route_rejects_replay_after_request_is_terminal(db_path, make_client, monkeypatch):
@@ -244,7 +280,7 @@ def test_decision_route_returns_conflict_when_a_linked_grant_was_created_by_a_ra
                 approval_request_id,
                 '["%s"]' % endpoint_id,
                 '["apply_control"]',
-                '["control.rdp-network-level-authentication"]',
+                '["control.windows.firewall-all-profiles"]',
                 '[]',
                 'SHAna',
                 'secops',
@@ -273,7 +309,7 @@ def test_list_routes_lazily_expire_request_backed_and_manual_grants_once(db_path
     approval_request_id = create_request(client, endpoint_id).json()["approval_request_id"]
 
     set_now(monkeypatch, "2026-04-18T20:05:00Z")
-    approved = approve_request(client, approval_request_id, expires_at="2026-04-18T20:10:00Z")
+    approved = approve_request(client, approval_request_id, expires_at="2026-04-18T20:20:00Z")
     approval_grant_id = approved.json()["approval_grant_id"]
 
     manual = client.post(
@@ -286,13 +322,13 @@ def test_list_routes_lazily_expire_request_backed_and_manual_grants_once(db_path
             "requested_by": "ops",
             "approved_by": "secops",
             "reason": "Collect emergency logs",
-            "expires_at": "2026-04-18T20:10:00Z",
+            "expires_at": "2026-04-18T20:20:00Z",
         },
     )
     assert manual.status_code == 201
     manual_grant_id = manual.json()["approval_grant_id"]
 
-    set_now(monkeypatch, "2026-04-18T20:11:00Z")
+    set_now(monkeypatch, "2026-04-18T20:21:00Z")
     expired_requests = client.get("/api/approval-requests")
     expired_grants = client.get("/api/approval-grants")
     repeated_requests = client.get("/api/approval-requests")
@@ -322,15 +358,15 @@ def test_list_routes_lazily_expire_request_backed_and_manual_grants_once(db_path
             "approval_request_id": approval_request_id,
             "endpoint_ids": [endpoint_id],
             "allowed_actions": ["apply_control"],
-            "control_ids": ["control.rdp-network-level-authentication"],
+            "control_ids": ["control.windows.firewall-all-profiles"],
             "troubleshooting_scopes": [],
-            "requested_by": "SHAna",
-            "approved_by": "secops",
+            "requested_by": "development:operator",
+            "approved_by": "development:operator",
             "reason": "Tighten RDP posture",
-            "expires_at": "2026-04-18T20:10:00Z",
+            "expires_at": "2026-04-18T20:20:00Z",
             "status": "expired",
             "created_at": "2026-04-18T20:05:00Z",
-            "updated_at": "2026-04-18T20:11:00Z",
+            "updated_at": "2026-04-18T20:21:00Z",
         },
         {
             "approval_grant_id": manual_grant_id,
@@ -339,13 +375,13 @@ def test_list_routes_lazily_expire_request_backed_and_manual_grants_once(db_path
             "allowed_actions": ["request_elevated_troubleshooting", "inspect_control"],
             "control_ids": [],
             "troubleshooting_scopes": ["security_logs"],
-            "requested_by": "ops",
-            "approved_by": "secops",
+            "requested_by": "development:operator",
+            "approved_by": "development:operator",
             "reason": "Collect emergency logs",
-            "expires_at": "2026-04-18T20:10:00Z",
+            "expires_at": "2026-04-18T20:20:00Z",
             "status": "expired",
             "created_at": "2026-04-18T20:05:00Z",
-            "updated_at": "2026-04-18T20:11:00Z",
+            "updated_at": "2026-04-18T20:21:00Z",
         },
     ]
     assert grant_items == sorted(
@@ -364,7 +400,7 @@ def test_manual_grants_reject_mixed_hardening_and_troubleshooting_signals(db_pat
         json={
             "endpoint_ids": [endpoint_id],
             "allowed_actions": ["request_elevated_troubleshooting", "apply_control"],
-            "control_ids": ["control.rdp-network-level-authentication"],
+            "control_ids": ["control.windows.firewall-all-profiles"],
             "troubleshooting_scopes": ["security_logs"],
             "requested_by": "ops",
             "approved_by": "secops",
@@ -374,6 +410,61 @@ def test_manual_grants_reject_mixed_hardening_and_troubleshooting_signals(db_pat
     )
 
     assert response.status_code == 422
+
+
+def test_manual_grant_allows_maximum_ttl_and_rejects_beyond_it(db_path, make_client, monkeypatch):
+    client = make_client(db_path)
+    endpoint_id = enroll_endpoint(client).json()["endpoint_id"]
+    set_now(monkeypatch, "2026-04-18T20:00:00Z")
+    payload = {
+        "endpoint_ids": [endpoint_id],
+        "allowed_actions": ["apply_control"],
+        "control_ids": ["control.windows.firewall-all-profiles"],
+        "troubleshooting_scopes": [],
+        "requested_by": "ops",
+        "approved_by": "secops",
+        "reason": "Bounded emergency change",
+        "expires_at": "2026-04-19T00:00:00Z",
+    }
+
+    assert client.post("/api/approval-grants", json=payload).status_code == 201
+    payload["expires_at"] = "2026-04-18T20:14:59Z"
+    response = client.post("/api/approval-grants", json=payload)
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "expires_at must be between 15 and 240 minutes from creation time"
+    }
+
+    payload["expires_at"] = "2026-04-19T00:00:01Z"
+    response = client.post("/api/approval-grants", json=payload)
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "expires_at must be between 15 and 240 minutes from creation time"
+    }
+
+
+def test_manual_grant_requires_full_fifteen_minute_lifetime(db_path, make_client, monkeypatch):
+    client = make_client(db_path)
+    endpoint_id = enroll_endpoint(client).json()["endpoint_id"]
+    set_now(monkeypatch, "2026-04-18T20:00:45Z")
+
+    response = client.post(
+        "/api/approval-grants",
+        json={
+            "endpoint_ids": [endpoint_id],
+            "allowed_actions": ["apply_control"],
+            "control_ids": ["control.windows.firewall-all-profiles"],
+            "troubleshooting_scopes": [],
+            "requested_by": "ops",
+            "approved_by": "secops",
+            "reason": "Exact minimum window",
+            "expires_at": "2026-04-18T20:15:45Z",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["expires_at"] == "2026-04-18T20:15:45Z"
 
 
 def test_manual_grants_reject_expired_expires_at(db_path, make_client, monkeypatch):
@@ -386,7 +477,7 @@ def test_manual_grants_reject_expired_expires_at(db_path, make_client, monkeypat
         json={
             "endpoint_ids": [endpoint_id],
             "allowed_actions": ["apply_control"],
-            "control_ids": ["control.windows.rdp-network-level-authentication"],
+            "control_ids": ["control.windows.firewall-all-profiles"],
             "troubleshooting_scopes": [],
             "requested_by": "ops",
             "approved_by": "secops",

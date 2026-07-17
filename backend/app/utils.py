@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 from typing import Any, Callable
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -23,6 +24,9 @@ AGENT_CAPABILITIES = {
     "collect_remediation_evidence",
     "request_elevated_troubleshooting",
 }
+CONTROL_ACTION_CAPABILITY_PATTERN = re.compile(
+    r"^(?:apply_control|rollback_control):[a-z0-9]+(?:[.-][a-z0-9]+)+$"
+)
 POSTURE_STATUSES = {"pass", "fail", "warn", "error", "not_applicable"}
 INSTALLER_CHANNELS = {"stable", "preview"}
 INSTALLER_POLICY_MODES = {"observe", "safe_auto", "approval_required"}
@@ -105,7 +109,18 @@ def normalize_connectivity_status(value: str) -> str:
 
 
 def normalize_agent_capability(value: str) -> str:
-    return _normalize_choice(value, "declared_capability", AGENT_CAPABILITIES)
+    trimmed = _trim_required(value, "declared_capability")
+    if trimmed in AGENT_CAPABILITIES or CONTROL_ACTION_CAPABILITY_PATTERN.fullmatch(trimmed):
+        return trimmed
+    allowed_values = ", ".join(sorted(AGENT_CAPABILITIES))
+    raise HTTPException(
+        status_code=422,
+        detail=(
+            "declared_capability must be a known capability or a typed "
+            "apply_control:<control-id>/rollback_control:<control-id> capability; "
+            f"known capabilities: {allowed_values}"
+        ),
+    )
 
 
 def normalize_endpoint_status(value: str) -> str:

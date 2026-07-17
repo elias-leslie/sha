@@ -10,12 +10,14 @@ import {
   getControlLibrary,
   getFixtureApprovalRequests,
   getFixtureEndpointDetails,
+  isDemoMode,
   getEndpoint,
   getSourcePack,
   listApprovalRequests,
   listEndpoints,
   listSourcePacks,
   type ApprovalRequest,
+  type ControlLibraryEntry,
   type EndpointDetail,
   type SourcePackDetail,
   type SourcePackSummary,
@@ -25,67 +27,133 @@ import { Badge, EmptyState, Panel, SectionHeader, StatCard } from "./console-pri
 type ControlsConsoleProps = {
   initialDetails?: EndpointDetail[];
   initialRequests?: ApprovalRequest[];
+  demoMode?: boolean;
 };
 
+function fixtureSourcePackSummary(item: ControlLibraryEntry, index: number): SourcePackSummary {
+  return {
+    pack_id: item.id,
+    source_family: "fixture",
+    source_name: item.title,
+    source_version: item.phase,
+    control_count: index + 1,
+  };
+}
+
+function fixtureSourcePackDetail(item: ControlLibraryEntry, index: number): SourcePackDetail {
+  return {
+    ...fixtureSourcePackSummary(item, index),
+    generated_at: "2026-04-18T00:00:00Z",
+    source_url: "demo://control-library",
+    platforms: ["linux", "windows", "macos"],
+    profiles: [item.scope],
+    summary: item.description,
+    controls: [],
+  };
+}
+
 export default function ControlsConsole({
-  initialDetails = getFixtureEndpointDetails(),
-  initialRequests = getFixtureApprovalRequests(),
+  initialDetails,
+  initialRequests,
+  demoMode = isDemoMode(),
 }: ControlsConsoleProps) {
-  const [details, setDetails] = useState(initialDetails);
-  const [requests, setRequests] = useState(initialRequests);
+  const [fixtureLibrary] = useState(() => (demoMode ? getControlLibrary() : []));
+  const [details, setDetails] = useState(() => initialDetails ?? (demoMode ? getFixtureEndpointDetails() : []));
+  const [requests, setRequests] = useState(() => initialRequests ?? (demoMode ? getFixtureApprovalRequests() : []));
   const [library, setLibrary] = useState<SourcePackSummary[]>(() =>
-    getControlLibrary().map((item, index) => ({
-      pack_id: item.id,
-      source_family: "fixture",
-      source_name: item.title,
-      source_version: item.phase,
-      control_count: index + 1,
-    })),
+    fixtureLibrary.map(fixtureSourcePackSummary),
   );
-  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
-  const [selectedPack, setSelectedPack] = useState<SourcePackDetail | null>(null);
-  const [source, setSource] = useState<"fixture" | "live">("fixture");
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(() => fixtureLibrary[0]?.id ?? null);
+  const [selectedPack, setSelectedPack] = useState<SourcePackDetail | null>(() =>
+    fixtureLibrary[0] ? fixtureSourcePackDetail(fixtureLibrary[0], 0) : null,
+  );
+  const [source, setSource] = useState<"loading" | "demo" | "live" | "error">(demoMode ? "demo" : "loading");
+  const [libraryReady, setLibraryReady] = useState(demoMode);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    if (demoMode) {
+      setSource("demo");
+      setLibraryReady(true);
+      setError(null);
+      return;
+    }
 
-    Promise.all([listEndpoints(), listApprovalRequests(), listSourcePacks()])
-      .then(async ([endpoints, liveRequests, sourcePacks]) => {
+    let cancelled = false;
+    setSource("loading");
+    setLibraryReady(false);
+    setError(null);
+    Promise.allSettled([listEndpoints(), listApprovalRequests(), listSourcePacks()]).then(
+      async ([endpointResult, requestResult, sourcePackResult]) => {
         if (cancelled) {
           return;
         }
-        setLibrary(sourcePacks);
-        setSelectedPackId((current) => current ?? sourcePacks[0]?.pack_id ?? null);
-        if (!endpoints.length) {
-          setDetails([]);
-          setRequests(liveRequests);
-          setSource("live");
-          return;
+        const failures: unknown[] = [];
+        if (requestResult.status === "fulfilled") {
+          setRequests(requestResult.value);
+        } else {
+          failures.push(requestResult.reason);
         }
-        const liveDetails = await Promise.all(endpoints.map((endpoint) => getEndpoint(endpoint.endpoint_id)));
-        if (!cancelled) {
+        if (sourcePackResult.status === "fulfilled") {
+          setLibrary(sourcePackResult.value);
+          setLibraryReady(true);
+          setSelectedPackId((current) =>
+            sourcePackResult.value.some((pack) => pack.pack_id === current)
+              ? current
+              : sourcePackResult.value[0]?.pack_id ?? null,
+          );
+        } else {
+          failures.push(sourcePackResult.reason);
+        }
+        if (endpointResult.status === "fulfilled") {
+          const detailResults = await Promise.allSettled(
+            endpointResult.value.map((endpoint) => getEndpoint(endpoint.endpoint_id)),
+          );
+          if (cancelled) {
+            return;
+          }
+          const liveDetails = detailResults.flatMap((result) =>
+            result.status === "fulfilled" ? [result.value] : [],
+          );
           setDetails(liveDetails);
-          setRequests(liveRequests);
-          setSource("live");
+          failures.push(
+            ...detailResults.flatMap((result) => (result.status === "rejected" ? [result.reason] : [])),
+          );
+        } else {
+          failures.push(endpointResult.reason);
         }
-      })
-      .catch((caught) => {
-        if (!cancelled) {
-          setSource("fixture");
-          setError(caught instanceof Error ? caught.message : "Unable to load control posture.");
-        }
-      });
+        setSource(failures.length ? "error" : "live");
+        setError(
+          failures.length
+            ? failures
+                .map((failure) => (failure instanceof Error ? failure.message : "Unable to load a control resource."))
+                .join(" ")
+            : null,
+        );
+      },
+    );
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [demoMode, initialDetails, initialRequests]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!selectedPackId || source !== "live") {
+    if (!selectedPackId) {
       setSelectedPack(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (source === "demo") {
+      const index = fixtureLibrary.findIndex((item) => item.id === selectedPackId);
+      setSelectedPack(index >= 0 ? fixtureSourcePackDetail(fixtureLibrary[index], index) : null);
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (!libraryReady) {
       return () => {
         cancelled = true;
       };
@@ -104,7 +172,7 @@ export default function ControlsConsole({
     return () => {
       cancelled = true;
     };
-  }, [selectedPackId, source]);
+  }, [fixtureLibrary, libraryReady, selectedPackId, source]);
 
   const rollups = useMemo(() => aggregateControlRollup(details, requests).slice(0, 8), [details, requests]);
   const averageScore = useMemo(() => {
@@ -125,7 +193,7 @@ export default function ControlsConsole({
             <StatCard label="Tracked controls" value={rollups.length} meta="Control keys seen in latest posture" tone="info" />
             <StatCard label="Average posture" value={averageScore || "--"} meta="Weighted endpoint score" tone="success" />
             <StatCard label="Pending changes" value={requests.filter((request) => request.status === "pending").length} meta="Approval requests touching controls" tone="warning" />
-            <StatCard label="Source" value={source === "live" ? "Live" : "Fixture"} meta="Control aggregation backend state" tone={source === "live" ? "success" : "warning"} />
+            <StatCard label="Source" value={source === "live" ? "Live" : source === "demo" ? "Demo" : source === "loading" ? "Loading" : "Error"} meta="Control aggregation backend state" tone={source === "live" ? "success" : source === "error" ? "danger" : "warning"} />
           </div>
           {error ? <p className="inline-feedback inline-feedback--danger">{error}</p> : null}
         </Panel>

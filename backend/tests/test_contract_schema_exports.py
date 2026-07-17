@@ -14,6 +14,7 @@ from app.schemas.contracts import (
     ApprovalRequestCreateRequest,
     ApprovalRequestListResponse,
     ApprovalRequestResponse,
+    ControlRegistryResponse,
     EndpointDetailResponse,
     EndpointEnrollRequest,
     EndpointHeartbeatAck,
@@ -26,6 +27,7 @@ from app.schemas.contracts import (
     PostureSnapshotAck,
     PostureSnapshotCreateRequest,
     ResponseActionCreateRequest,
+    ResponseActionClaimResponse,
     ResponseActionListResponse,
     ResponseActionResponse,
     ResponseActionResultRequest,
@@ -52,10 +54,12 @@ def shared_contract_models() -> tuple[tuple[str, type[BaseModel]], ...]:
         ("approval-grant-create-request.schema.json", ApprovalGrantCreateRequest),
         ("approval-grant-response.schema.json", ApprovalGrantResponse),
         ("approval-grant-list-response.schema.json", ApprovalGrantListResponse),
+        ("control-registry-response.schema.json", ControlRegistryResponse),
         ("response-action-create-request.schema.json", ResponseActionCreateRequest),
         ("response-action-result-request.schema.json", ResponseActionResultRequest),
         ("response-action-response.schema.json", ResponseActionResponse),
         ("response-action-list-response.schema.json", ResponseActionListResponse),
+        ("response-action-claim-response.schema.json", ResponseActionClaimResponse),
     )
 
 
@@ -72,11 +76,17 @@ def test_shared_schema_exports_are_checked_in_and_match_contract_models():
         assert json.loads(path.read_text()) == model.model_json_schema(ref_template="#/$defs/{model}")
 
 
-def test_endpoint_heartbeat_request_schema_exports_agent_capability_enum():
+def test_endpoint_heartbeat_request_schema_exports_typed_agent_capabilities():
     schema = EndpointHeartbeatRequest.model_json_schema(ref_template="#/$defs/{model}")
     declared_capabilities = schema["properties"]["declared_capabilities"]
 
-    assert declared_capabilities["items"] == {"$ref": "#/$defs/AgentCapability"}
+    assert declared_capabilities["items"]["anyOf"] == [
+        {"$ref": "#/$defs/AgentCapability"},
+        {
+            "pattern": r"^(?:apply_control|rollback_control):[a-z0-9]+(?:[.-][a-z0-9]+)+$",
+            "type": "string",
+        },
+    ]
     assert schema["$defs"]["AgentCapability"]["enum"] == [capability.value for capability in AgentCapability]
 
 
@@ -139,3 +149,11 @@ def test_endpoint_response_models_require_explicit_nullable_keys():
 
     for required_field in ("tenant_id", "site_id"):
         assert required_field in installer_profile_schema["required"]
+
+
+def test_response_action_claim_schema_requires_one_time_lease_token():
+    schema = ResponseActionClaimResponse.model_json_schema(ref_template="#/$defs/{model}")
+
+    claim_item = schema["$defs"]["ResponseActionClaimItem"]
+    assert "lease_token" in claim_item["required"]
+    assert claim_item["properties"]["lease_token"] == {"title": "Lease Token", "type": "string"}

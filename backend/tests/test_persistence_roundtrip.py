@@ -3,7 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import sqlite3
 
+import pytest
+
 from app.api.endpoints import approvals as approvals_module
+from app.db import DatabaseStore
 
 UTC = timezone.utc
 
@@ -158,19 +161,45 @@ def test_prepare_upgrades_legacy_platform_constraints_for_macos(db_path, make_cl
         assert connection.execute("SELECT version FROM schema_migrations").fetchall() == [
             ("20260630_0001_macos_platform_constraints",)
         ]
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchall() == [
+            ("20260717_0004",)
+        ]
 
 
-def test_prepare_records_schema_migration_on_new_database(db_path, make_client):
+def test_prepare_records_alembic_revision_on_new_database(db_path, make_client):
     client = make_client(db_path)
 
     assert client.get("/health").status_code == 200
 
     with sqlite3.connect(db_path) as connection:
-        rows = connection.execute(
-            "SELECT version FROM schema_migrations ORDER BY version"
-        ).fetchall()
+        rows = connection.execute("SELECT version_num FROM alembic_version").fetchall()
 
-    assert rows == [("20260630_0001_macos_platform_constraints",)]
+    assert rows == [("20260717_0004",)]
+
+
+def test_database_migration_is_repeatable_and_check_mode_accepts_head(db_path):
+    database_url = f"sqlite:///{db_path}"
+    upgrader = DatabaseStore(database_url, migration_mode="upgrade")
+    try:
+        upgrader.prepare()
+        upgrader.prepare()
+    finally:
+        upgrader.dispose()
+
+    checker = DatabaseStore(database_url, migration_mode="check")
+    try:
+        checker.prepare()
+    finally:
+        checker.dispose()
+
+
+def test_database_check_mode_rejects_unmigrated_database(db_path):
+    store = DatabaseStore(f"sqlite:///{db_path}", migration_mode="check")
+    try:
+        with pytest.raises(RuntimeError, match="database schema is not current"):
+            store.prepare()
+    finally:
+        store.dispose()
 
 
 def test_posture_snapshot_persists_results_and_ack_count(db_path, make_client):
@@ -185,7 +214,7 @@ def test_posture_snapshot_persists_results_and_ack_count(db_path, make_client):
             "platform_profile": "windows-workstation",
             "results": [
                 {
-                    "control_key": " SSH-ROOT ",
+                    "control_key": " control.windows.defender-real-time-protection ",
                     "status": "fail",
                     "current_value": "enabled",
                     "recommended_value": "disabled",
@@ -194,7 +223,7 @@ def test_posture_snapshot_persists_results_and_ack_count(db_path, make_client):
                     "reboot_required": False,
                 },
                 {
-                    "control_key": "Firewall-All-Profiles",
+                    "control_key": "control.windows.firewall-all-profiles",
                     "status": "pass",
                     "current_value": "enabled",
                     "recommended_value": "enabled",
@@ -226,19 +255,19 @@ def test_posture_snapshot_persists_results_and_ack_count(db_path, make_client):
     assert snapshot_count == 1
     assert result_rows == [
         (
-            "Firewall-All-Profiles",
-            "enabled",
-            "enabled",
-            None,
-            "Firewall already enabled",
-            0,
-        ),
-        (
-            "SSH-ROOT",
+            "control.windows.defender-real-time-protection",
             "enabled",
             "disabled",
             "high",
             "Root login is enabled",
+            0,
+        ),
+        (
+            "control.windows.firewall-all-profiles",
+            "enabled",
+            "enabled",
+            None,
+            "Firewall already enabled",
             0,
         ),
     ]
@@ -266,12 +295,12 @@ def test_collection_routes_use_persisted_rows_across_fresh_clients(db_path, make
         json={
             "endpoint_ids": [f" {endpoint_id} "],
             "allowed_actions": ["apply_control"],
-            "control_ids": [" control.rdp-network-level-authentication "],
+            "control_ids": [" control.windows.firewall-all-profiles "],
             "troubleshooting_scopes": [],
             "requested_by": "  shana  ",
             "approved_by": "  secops  ",
             "reason": "  Investigate control drift  ",
-            "expires_at": "2026-04-19T16:00:00+02:00",
+            "expires_at": "2026-04-18T23:00:00+02:00",
         },
     )
 
@@ -291,13 +320,13 @@ def test_collection_routes_use_persisted_rows_across_fresh_clients(db_path, make
     assert created_grant["approval_request_id"] is None
     assert created_grant["endpoint_ids"] == [endpoint_id]
     assert created_grant["allowed_actions"] == ["apply_control"]
-    assert created_grant["control_ids"] == ["control.rdp-network-level-authentication"]
+    assert created_grant["control_ids"] == ["control.windows.firewall-all-profiles"]
     assert created_grant["troubleshooting_scopes"] == []
-    assert created_grant["requested_by"] == "shana"
-    assert created_grant["approved_by"] == "secops"
+    assert created_grant["requested_by"] == "development:operator"
+    assert created_grant["approved_by"] == "development:operator"
     assert created_grant["reason"] == "Investigate control drift"
     assert created_grant["status"] == "approved"
-    assert created_grant["expires_at"] == "2026-04-19T14:00:00Z"
+    assert created_grant["expires_at"] == "2026-04-18T21:00:00Z"
 
 
 def test_collection_routes_return_empty_items_envelopes(db_path, make_client):

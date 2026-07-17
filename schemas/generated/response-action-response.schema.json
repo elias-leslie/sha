@@ -15,6 +15,7 @@
     "ResponseActionStatus": {
       "enum": [
         "queued",
+        "leased",
         "succeeded",
         "failed",
         "cancelled"
@@ -42,6 +43,10 @@
     "approval_grant_id": {
       "title": "Approval Grant Id",
       "type": "string"
+    },
+    "attempt_count": {
+      "title": "Attempt Count",
+      "type": "integer"
     },
     "completed_at": {
       "anyOf": [
@@ -74,6 +79,34 @@
     "endpoint_id": {
       "title": "Endpoint Id",
       "type": "string"
+    },
+    "idempotency_key": {
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "lease_expires_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lease Expires At"
+    },
+    "leased_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Leased At"
     },
     "reason": {
       "title": "Reason",
@@ -123,9 +156,11 @@
     "endpoint_id",
     "approval_grant_id",
     "action",
+    "idempotency_key",
     "requested_by",
     "reason",
     "status",
+    "attempt_count",
     "created_at",
     "updated_at"
   ],

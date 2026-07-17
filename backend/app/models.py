@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, JSON, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, JSON, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -210,9 +210,14 @@ class ResponseAction(Base):
     action: Mapped[str] = mapped_column(String(64), nullable=False)
     control_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     troubleshooting_scope: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
     requested_by: Mapped[str] = mapped_column(String(255), nullable=False)
     reason: Mapped[str] = mapped_column(String(4096), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
+    lease_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lease_expires_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    leased_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     result_summary: Mapped[str | None] = mapped_column(String(4096), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32), nullable=False)
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -227,7 +232,8 @@ class ResponseAction(Base):
             name="ck_response_actions_action",
         ),
         CheckConstraint(
-            "status IN ('queued', 'succeeded', 'failed', 'cancelled')",
+            "status IN ('queued', 'leased', 'succeeded', 'failed', 'cancelled')",
             name="ck_response_actions_status",
         ),
+        UniqueConstraint("endpoint_id", "idempotency_key", name="uq_response_actions_endpoint_idempotency"),
     )

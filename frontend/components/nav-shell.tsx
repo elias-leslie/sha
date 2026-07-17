@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { isDemoMode } from "../lib/api";
+
 const NAV_ITEMS = [
   { href: "/", label: "Home", code: "OVR" },
   { href: "/fleet", label: "Fleet", code: "FLT" },
@@ -17,8 +19,15 @@ type NavShellProps = {
 };
 
 export default function NavShell({ currentPath = "/", title, description, children, actions }: NavShellProps) {
+  const demoMode = isDemoMode();
+
   return (
     <div className="shell">
+      {demoMode ? (
+        <div className="inline-feedback inline-feedback--danger" role="status">
+          Demo mode — fixture data only. Live mutations disabled.
+        </div>
+      ) : null}
       <header className="command-header">
         <div className="command-header__topline">
           <div className="brand-mark">

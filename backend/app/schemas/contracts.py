@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 
 class EndpointStatus(str, Enum):
@@ -33,6 +34,13 @@ class AgentCapability(str, Enum):
     collect_security_context = "collect_security_context"
     collect_remediation_evidence = "collect_remediation_evidence"
     request_elevated_troubleshooting = "request_elevated_troubleshooting"
+
+
+ControlActionCapability = Annotated[
+    str,
+    StringConstraints(pattern=r"^(?:apply_control|rollback_control):[a-z0-9]+(?:[.-][a-z0-9]+)+$"),
+]
+DeclaredAgentCapability = AgentCapability | ControlActionCapability
 
 
 class PostureStatus(str, Enum):
@@ -92,9 +100,20 @@ class ApprovalGrantStatus(str, Enum):
 
 class ResponseActionStatus(str, Enum):
     queued = "queued"
+    leased = "leased"
     succeeded = "succeeded"
     failed = "failed"
     cancelled = "cancelled"
+
+
+class ControlRegistryAction(str, Enum):
+    apply_control = "apply_control"
+    rollback_control = "rollback_control"
+
+
+class ControlRegistryKind(str, Enum):
+    benchmark_control = "benchmark_control"
+    operational_observation = "operational_observation"
 
 
 class ApprovalRequestStatus(str, Enum):
@@ -155,7 +174,7 @@ class EndpointHeartbeatRequest(BaseModel):
     platform_version: str | None = None
     platform_profile: str
     connectivity_status: ConnectivityStatus
-    declared_capabilities: list[AgentCapability] = Field(min_length=1)
+    declared_capabilities: list[DeclaredAgentCapability] = Field(min_length=1)
     execution_hooks: EndpointExecutionHooks
 
     @field_validator("declared_capabilities", mode="before")
@@ -223,7 +242,7 @@ class EndpointInventoryItemResponse(BaseModel):
     created_at: str
     updated_at: str
     last_platform_profile: str | None
-    declared_capabilities: list[AgentCapability]
+    declared_capabilities: list[DeclaredAgentCapability]
     execution_hooks: EndpointExecutionHooks | None
     latest_posture_summary: EndpointLatestPostureSummary | None
 
@@ -236,6 +255,23 @@ class EndpointInventoryListResponse(BaseModel):
 
 class EndpointDetailResponse(EndpointInventoryItemResponse):
     latest_results: list[EndpointLatestResultResponse]
+
+
+class ControlRegistryItemResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    control_id: str
+    title: str
+    platform: EndpointPlatform
+    kind: ControlRegistryKind
+    observation_aliases: list[str]
+    supported_actions: list[ControlRegistryAction]
+
+
+class ControlRegistryResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    items: list[ControlRegistryItemResponse]
 
 
 class PostureResultInput(BaseModel):
@@ -321,7 +357,7 @@ class ApprovalRequestCreateRequest(BaseModel):
     control_ids: list[str] = Field(default_factory=list)
     troubleshooting_scopes: list[TroubleshootingScope] = Field(default_factory=list)
     requested_ttl_minutes: int
-    requested_by: str
+    requested_by: str | None = None
     reason: str
     risk: ApprovalRisk
 
@@ -330,7 +366,7 @@ class ApprovalDecisionRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     decision: ApprovalDecision
-    decided_by: str
+    decided_by: str | None = None
     decision_comment: str
     expires_at: datetime | None = None
 
@@ -371,8 +407,8 @@ class ApprovalGrantCreateRequest(BaseModel):
     allowed_actions: list[ApprovalAction] = Field(min_length=1)
     control_ids: list[str] = Field(default_factory=list)
     troubleshooting_scopes: list[TroubleshootingScope] = Field(default_factory=list)
-    requested_by: str
-    approved_by: str
+    requested_by: str | None = None
+    approved_by: str | None = None
     reason: str
     expires_at: datetime
 
@@ -409,7 +445,8 @@ class ResponseActionCreateRequest(BaseModel):
     action: ApprovalAction
     control_id: str | None = None
     troubleshooting_scope: TroubleshootingScope | None = None
-    requested_by: str
+    idempotency_key: str | None = Field(default=None, max_length=128)
+    requested_by: str | None = None
     reason: str
 
 
@@ -418,6 +455,7 @@ class ResponseActionResultRequest(BaseModel):
 
     status: ResponseActionStatus
     result_summary: str
+    lease_token: str = Field(min_length=32, max_length=256)
 
 
 class ResponseActionResponse(BaseModel):
@@ -429,9 +467,13 @@ class ResponseActionResponse(BaseModel):
     action: ApprovalAction
     control_id: str | None = None
     troubleshooting_scope: TroubleshootingScope | None = None
+    idempotency_key: str
     requested_by: str
     reason: str
     status: ResponseActionStatus
+    lease_expires_at: str | None = None
+    leased_at: str | None = None
+    attempt_count: int
     result_summary: str | None = None
     created_at: str
     updated_at: str
@@ -442,3 +484,13 @@ class ResponseActionListResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     items: list[ResponseActionResponse]
+
+
+class ResponseActionClaimItem(ResponseActionResponse):
+    lease_token: str
+
+
+class ResponseActionClaimResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    items: list[ResponseActionClaimItem]

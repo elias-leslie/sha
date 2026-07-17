@@ -1,0 +1,85 @@
+{
+  "$defs": {
+    "ControlRegistryAction": {
+      "enum": [
+        "apply_control",
+        "rollback_control"
+      ],
+      "title": "ControlRegistryAction",
+      "type": "string"
+    },
+    "ControlRegistryItemResponse": {
+      "properties": {
+        "control_id": {
+          "title": "Control Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ControlRegistryKind"
+        },
+        "observation_aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Observation Aliases",
+          "type": "array"
+        },
+        "platform": {
+          "$ref": "#/$defs/EndpointPlatform"
+        },
+        "supported_actions": {
+          "items": {
+            "$ref": "#/$defs/ControlRegistryAction"
+          },
+          "title": "Supported Actions",
+          "type": "array"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "control_id",
+        "title",
+        "platform",
+        "kind",
+        "observation_aliases",
+        "supported_actions"
+      ],
+      "title": "ControlRegistryItemResponse",
+      "type": "object"
+    },
+    "ControlRegistryKind": {
+      "enum": [
+        "benchmark_control",
+        "operational_observation"
+      ],
+      "title": "ControlRegistryKind",
+      "type": "string"
+    },
+    "EndpointPlatform": {
+      "enum": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "title": "EndpointPlatform",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/ControlRegistryItemResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "ControlRegistryResponse",
+  "type": "object"
+}

@@ -1,11 +1,11 @@
 # SHAna approval boundary
 
-This document captures the operator-facing safety boundary for SHAna and the SHA dashboard approval flow.
+This document captures the operator-facing safety boundary for future SHAna automation and the current SHA dashboard approval flow. No live SHAna integration is bundled.
 
 ## Why this slice exists
 
-SHA can already model endpoint posture and installer/profile data, but autonomous hardening is unsafe without a bounded approval path.
-This slice adds the governance layer before live endpoint execution:
+SHA models endpoint posture, compatibility installer profiles, approvals, and a leased typed-action queue. Autonomous hardening remains unsafe without a bounded approval path.
+This slice supplies the governance layer for current typed endpoint execution:
 - approval requests for disruptive hardening changes
 - approval requests for temporary elevated troubleshooting
 - bounded approval grants with expiry
@@ -69,6 +69,12 @@ If future work needs anything broader, it should add a new explicit scope or a n
 4. Denial preserves the audit trail but creates no grant.
 5. Revocation or expiry removes the active grant and updates the linked request state.
 
+Requester, approver, and decision actors come from the authenticated operator principal. Legacy actor fields remain optional compatibility inputs but are ignored, so a caller cannot forge another audit subject.
+
+## Action delivery
+
+An active grant does not open a shell or session. An operator creates a typed response action with endpoint, allowed action, control or troubleshooting scope, reason, and idempotency key. The agent atomically claims at most one eligible action and receives an opaque short-lived lease token. Results must carry that exact active token; stale, expired, or mismatched attempts are rejected, while exact result replay is idempotent.
+
 ## Expiry model
 
 - Pending requests do not expire on their own in this slice.
@@ -100,8 +106,8 @@ That is why the approvals workspace is split into:
 
 ## Non-goals for this slice
 
-- executing endpoint actions
 - websocket/session multiplexing to agents
 - background schedulers for expiry cleanup
 - dual approval / quorum logic
 - raw shell or remote desktop style access
+- unified job/schedule modeling and durable agent result outboxes

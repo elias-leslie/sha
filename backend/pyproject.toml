@@ -15,6 +15,7 @@ dependencies = [
   "pytest-cov>=7.1.0",
   "starlette==1.2.1",
   "psycopg[binary]==3.3.2",
+  "alembic==1.18.5",
 ]
 
 [build-system]

@@ -8,6 +8,8 @@ RUN corepack enable
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
+ARG NEXT_PUBLIC_SHA_DEMO_MODE=false
+ENV NEXT_PUBLIC_SHA_DEMO_MODE=$NEXT_PUBLIC_SHA_DEMO_MODE
 RUN pnpm build
 EXPOSE 3010
 CMD ["pnpm", "exec", "next", "start", "--hostname", "0.0.0.0", "--port", "3010"]
