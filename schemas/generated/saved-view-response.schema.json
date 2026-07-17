@@ -1,0 +1,218 @@
+{
+  "$defs": {
+    "AuthorizationScopeType": {
+      "enum": [
+        "global",
+        "client",
+        "location"
+      ],
+      "title": "AuthorizationScopeType",
+      "type": "string"
+    },
+    "EndpointFilterDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "match": {
+          "$ref": "#/$defs/EndpointFilterMatch",
+          "default": "all"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/EndpointFilterRule"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Rules",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "rules"
+      ],
+      "title": "EndpointFilterDefinition",
+      "type": "object"
+    },
+    "EndpointFilterField": {
+      "enum": [
+        "endpoint_id",
+        "hostname",
+        "platform",
+        "status",
+        "connectivity_status",
+        "agent_version",
+        "client_id",
+        "location_id",
+        "tag"
+      ],
+      "title": "EndpointFilterField",
+      "type": "string"
+    },
+    "EndpointFilterMatch": {
+      "enum": [
+        "all",
+        "any"
+      ],
+      "title": "EndpointFilterMatch",
+      "type": "string"
+    },
+    "EndpointFilterOperator": {
+      "enum": [
+        "eq",
+        "neq",
+        "contains",
+        "starts_with",
+        "in"
+      ],
+      "title": "EndpointFilterOperator",
+      "type": "string"
+    },
+    "EndpointFilterRule": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/EndpointFilterField"
+        },
+        "op": {
+          "$ref": "#/$defs/EndpointFilterOperator"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "field",
+        "op",
+        "value"
+      ],
+      "title": "EndpointFilterRule",
+      "type": "object"
+    },
+    "SavedViewVisibility": {
+      "enum": [
+        "private",
+        "shared"
+      ],
+      "title": "SavedViewVisibility",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "client_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Client Id"
+    },
+    "content_hash": {
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "current_filter": {
+      "$ref": "#/$defs/EndpointFilterDefinition"
+    },
+    "current_version": {
+      "title": "Current Version",
+      "type": "integer"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Description"
+    },
+    "location_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Location Id"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "owner_actor": {
+      "title": "Owner Actor",
+      "type": "string"
+    },
+    "owner_user_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Owner User Id"
+    },
+    "saved_view_id": {
+      "title": "Saved View Id",
+      "type": "string"
+    },
+    "scope_type": {
+      "$ref": "#/$defs/AuthorizationScopeType"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    },
+    "visibility": {
+      "$ref": "#/$defs/SavedViewVisibility"
+    }
+  },
+  "required": [
+    "saved_view_id",
+    "name",
+    "description",
+    "visibility",
+    "scope_type",
+    "client_id",
+    "location_id",
+    "owner_user_id",
+    "owner_actor",
+    "current_version",
+    "current_filter",
+    "content_hash",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "SavedViewResponse",
+  "type": "object"
+}

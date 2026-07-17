@@ -1,0 +1,123 @@
+{
+  "$defs": {
+    "AuthScopeBindingResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_id": {
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "client_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Client Id"
+        },
+        "location_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Location Id"
+        },
+        "permissions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Permissions",
+          "type": "array"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "scope_type": {
+          "$ref": "#/$defs/AuthorizationScopeType"
+        }
+      },
+      "required": [
+        "binding_id",
+        "role",
+        "scope_type",
+        "client_id",
+        "location_id",
+        "permissions"
+      ],
+      "title": "AuthScopeBindingResponse",
+      "type": "object"
+    },
+    "AuthUserStatus": {
+      "enum": [
+        "pending",
+        "active",
+        "disabled"
+      ],
+      "title": "AuthUserStatus",
+      "type": "string"
+    },
+    "AuthorizationScopeType": {
+      "enum": [
+        "global",
+        "client",
+        "location"
+      ],
+      "title": "AuthorizationScopeType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "authentication_method": {
+      "title": "Authentication Method",
+      "type": "string"
+    },
+    "bindings": {
+      "items": {
+        "$ref": "#/$defs/AuthScopeBindingResponse"
+      },
+      "title": "Bindings",
+      "type": "array"
+    },
+    "csrf_token": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Csrf Token"
+    },
+    "display_name": {
+      "title": "Display Name",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/AuthUserStatus"
+    },
+    "subject": {
+      "title": "Subject",
+      "type": "string"
+    }
+  },
+  "required": [
+    "subject",
+    "display_name",
+    "status",
+    "authentication_method",
+    "bindings",
+    "csrf_token"
+  ],
+  "title": "AuthSessionResponse",
+  "type": "object"
+}

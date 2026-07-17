@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.auth import (
+    Principal,
+    current_principal,
+    enforce_device_endpoint,
+    enforce_endpoint_credential_mode,
+)
 from app.control_registry import normalize_observation_control_id
 from app.db import DatabaseStore, get_store
 from app.models import Endpoint, PostureResult, PostureSnapshot
@@ -23,8 +29,10 @@ router = APIRouter(prefix="/api/posture-snapshots", tags=["posture-snapshots"])
 def create_posture_snapshot(
     payload: PostureSnapshotCreateRequest,
     store: DatabaseStore = Depends(get_store),
+    principal: Principal = Depends(current_principal),
 ) -> dict[str, object]:
     endpoint_id = normalize_required_string(payload.endpoint_id, "endpoint_id")
+    enforce_device_endpoint(principal, endpoint_id)
     platform_profile = normalize_required_string(payload.platform_profile, "platform_profile")
     observed_at = to_utc_z(payload.observed_at)
 
@@ -33,6 +41,9 @@ def create_posture_snapshot(
             endpoint = session.get(Endpoint, endpoint_id)
             if endpoint is None:
                 raise HTTPException(status_code=404, detail="endpoint not found")
+            enforce_endpoint_credential_mode(principal, endpoint.credential_mode)
+            if endpoint.status == "pending":
+                raise HTTPException(status_code=403, detail="endpoint approval is pending")
 
             if not payload.results:
                 raise HTTPException(status_code=422, detail="results must not be empty")

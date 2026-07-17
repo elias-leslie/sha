@@ -10,7 +10,13 @@ from sqlalchemy.exc import IntegrityError
 
 from app.api.endpoints.approvals import _sync_expired_grants
 from app.api.endpoints.endpoints import _parse_declared_capabilities
-from app.auth import Principal, require_operator_principal
+from app.auth import (
+    Principal,
+    current_principal,
+    enforce_device_endpoint,
+    enforce_endpoint_credential_mode,
+)
+from app.authorization import record_audit_event, require_permission, scope_clause
 from app.control_registry import require_control_action
 from app.db import DatabaseStore, get_store
 from app.models import ApprovalGrant, Endpoint, ResponseAction
@@ -148,7 +154,7 @@ def _validate_grant_scope(
 def create_response_action(
     payload: ResponseActionCreateRequest,
     store: DatabaseStore = Depends(get_store),
-    principal: Principal = Depends(require_operator_principal),
+    principal: Principal = Depends(require_permission("response_action.create")),
 ) -> dict[str, object]:
     endpoint_id = normalize_endpoint_id(payload.endpoint_id)
     approval_grant_id = normalize_required_string(payload.approval_grant_id, "approval_grant_id")
@@ -169,7 +175,17 @@ def create_response_action(
     with store.session() as session:
         with session.begin():
             _sync_expired_grants(session, now_str=now_str)
-            endpoint = session.get(Endpoint, endpoint_id)
+            endpoint = session.scalar(
+                select(Endpoint).where(
+                    Endpoint.endpoint_id == endpoint_id,
+                    scope_clause(
+                        principal,
+                        "response_action.create",
+                        Endpoint.client_id,
+                        Endpoint.location_id,
+                    ),
+                )
+            )
             if endpoint is None:
                 raise HTTPException(status_code=404, detail="endpoint not found")
             if action in _HARDENING_ACTIONS and control_id is not None:
@@ -187,7 +203,17 @@ def create_response_action(
                 control_id=control_id,
             ):
                 raise HTTPException(status_code=422, detail="endpoint has not declared action capability")
-            grant = session.get(ApprovalGrant, approval_grant_id)
+            grant = session.scalar(
+                select(ApprovalGrant).where(
+                    ApprovalGrant.approval_grant_id == approval_grant_id,
+                    ApprovalGrant.scope_state == "active",
+                    ApprovalGrant.client_id == endpoint.client_id,
+                    or_(
+                        ApprovalGrant.location_id.is_(None),
+                        ApprovalGrant.location_id == endpoint.location_id,
+                    ),
+                )
+            )
             if grant is None:
                 raise HTTPException(status_code=404, detail="approval grant not found")
             _validate_grant_scope(
@@ -267,6 +293,18 @@ def create_response_action(
                 ) from None
             else:
                 savepoint.commit()
+            record_audit_event(
+                session,
+                event_type="response_action_created",
+                principal=principal,
+                client_id=endpoint.client_id,
+                location_id=endpoint.location_id,
+                endpoint_id=endpoint.endpoint_id,
+                target_type="response_action",
+                target_id=response_action.response_action_id,
+                metadata={"action": response_action.action},
+                created_at=now_str,
+            )
             return _response_action_payload(response_action)
 
 
@@ -277,8 +315,10 @@ def create_response_action(
 def claim_endpoint_response_action(
     endpoint_id: str,
     store: DatabaseStore = Depends(get_store),
+    principal: Principal = Depends(current_principal),
 ) -> dict[str, list[dict[str, object]]]:
     endpoint_id = normalize_endpoint_id(endpoint_id)
+    enforce_device_endpoint(principal, endpoint_id)
     now_dt = utc_now()
     now_str = to_utc_z(now_dt)
     lease_expires_at = to_utc_z(now_dt + timedelta(seconds=_LEASE_SECONDS))
@@ -288,8 +328,12 @@ def claim_endpoint_response_action(
     with store.session() as session:
         with session.begin():
             _sync_expired_grants(session, now_str=now_str)
-            if session.get(Endpoint, endpoint_id) is None:
+            endpoint = session.get(Endpoint, endpoint_id)
+            if endpoint is None:
                 raise HTTPException(status_code=404, detail="endpoint not found")
+            enforce_endpoint_credential_mode(principal, endpoint.credential_mode)
+            if endpoint.status == "pending":
+                raise HTTPException(status_code=403, detail="endpoint approval is pending")
 
             claimable = or_(
                 ResponseAction.status == "queued",
@@ -346,13 +390,24 @@ def list_endpoint_response_actions(
     endpoint_id: str,
     include_terminal: bool = Query(False),
     store: DatabaseStore = Depends(get_store),
+    principal: Principal = Depends(require_permission("response_action.read")),
 ) -> dict[str, list[dict[str, object]]]:
     endpoint_id = normalize_endpoint_id(endpoint_id)
     now_str = to_utc_z(utc_now())
     with store.session() as session:
         with session.begin():
             _sync_expired_grants(session, now_str=now_str)
-        if session.get(Endpoint, endpoint_id) is None:
+        if session.scalar(
+            select(Endpoint).where(
+                Endpoint.endpoint_id == endpoint_id,
+                scope_clause(
+                    principal,
+                    "response_action.read",
+                    Endpoint.client_id,
+                    Endpoint.location_id,
+                ),
+            )
+        ) is None:
             raise HTTPException(status_code=404, detail="endpoint not found")
         query = select(ResponseAction).where(ResponseAction.endpoint_id == endpoint_id)
         if not include_terminal:
@@ -373,6 +428,7 @@ def complete_response_action(
     response_action_id: str,
     payload: ResponseActionResultRequest,
     store: DatabaseStore = Depends(get_store),
+    principal: Principal = Depends(current_principal),
 ) -> dict[str, object]:
     response_action_id = normalize_required_string(response_action_id, "response_action_id")
     result_status = payload.status.value
@@ -387,6 +443,13 @@ def complete_response_action(
             response_action = session.get(ResponseAction, response_action_id)
             if response_action is None:
                 raise HTTPException(status_code=404, detail="response action not found")
+            enforce_device_endpoint(principal, response_action.endpoint_id)
+            endpoint = session.get(Endpoint, response_action.endpoint_id)
+            if endpoint is None:
+                raise HTTPException(status_code=404, detail="endpoint not found")
+            enforce_endpoint_credential_mode(principal, endpoint.credential_mode)
+            if endpoint.status == "pending":
+                raise HTTPException(status_code=403, detail="endpoint approval is pending")
             lease_matches = bool(
                 response_action.lease_token_hash
                 and compare_digest(lease_token_hash, response_action.lease_token_hash)
@@ -410,4 +473,16 @@ def complete_response_action(
             response_action.updated_at = now_str
             response_action.completed_at = now_str
             session.flush()
+            record_audit_event(
+                session,
+                event_type="response_action_completed",
+                principal=principal,
+                client_id=endpoint.client_id,
+                location_id=endpoint.location_id,
+                endpoint_id=endpoint.endpoint_id,
+                target_type="response_action",
+                target_id=response_action.response_action_id,
+                metadata={"status": response_action.status},
+                created_at=now_str,
+            )
             return _response_action_payload(response_action)

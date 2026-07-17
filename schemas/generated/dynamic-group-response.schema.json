@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "AuthorizationScopeType": {
+      "enum": [
+        "global",
+        "client",
+        "location"
+      ],
+      "title": "AuthorizationScopeType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "client_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Client Id"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Description"
+    },
+    "dynamic_group_id": {
+      "title": "Dynamic Group Id",
+      "type": "string"
+    },
+    "filter_hash": {
+      "title": "Filter Hash",
+      "type": "string"
+    },
+    "location_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Location Id"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "owner_actor": {
+      "title": "Owner Actor",
+      "type": "string"
+    },
+    "owner_user_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Owner User Id"
+    },
+    "saved_view_id": {
+      "title": "Saved View Id",
+      "type": "string"
+    },
+    "saved_view_version": {
+      "title": "Saved View Version",
+      "type": "integer"
+    },
+    "scope_type": {
+      "$ref": "#/$defs/AuthorizationScopeType"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "dynamic_group_id",
+    "name",
+    "description",
+    "scope_type",
+    "client_id",
+    "location_id",
+    "saved_view_id",
+    "saved_view_version",
+    "filter_hash",
+    "owner_user_id",
+    "owner_actor",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "DynamicGroupResponse",
+  "type": "object"
+}

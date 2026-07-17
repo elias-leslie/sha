@@ -1,0 +1,110 @@
+{
+  "$defs": {
+    "EndpointFilterDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "match": {
+          "$ref": "#/$defs/EndpointFilterMatch",
+          "default": "all"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/EndpointFilterRule"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Rules",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "rules"
+      ],
+      "title": "EndpointFilterDefinition",
+      "type": "object"
+    },
+    "EndpointFilterField": {
+      "enum": [
+        "endpoint_id",
+        "hostname",
+        "platform",
+        "status",
+        "connectivity_status",
+        "agent_version",
+        "client_id",
+        "location_id",
+        "tag"
+      ],
+      "title": "EndpointFilterField",
+      "type": "string"
+    },
+    "EndpointFilterMatch": {
+      "enum": [
+        "all",
+        "any"
+      ],
+      "title": "EndpointFilterMatch",
+      "type": "string"
+    },
+    "EndpointFilterOperator": {
+      "enum": [
+        "eq",
+        "neq",
+        "contains",
+        "starts_with",
+        "in"
+      ],
+      "title": "EndpointFilterOperator",
+      "type": "string"
+    },
+    "EndpointFilterRule": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/EndpointFilterField"
+        },
+        "op": {
+          "$ref": "#/$defs/EndpointFilterOperator"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "field",
+        "op",
+        "value"
+      ],
+      "title": "EndpointFilterRule",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "filter": {
+      "$ref": "#/$defs/EndpointFilterDefinition"
+    }
+  },
+  "required": [
+    "filter"
+  ],
+  "title": "SavedViewUpdateRequest",
+  "type": "object"
+}

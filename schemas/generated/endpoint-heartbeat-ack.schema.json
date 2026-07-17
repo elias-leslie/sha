@@ -1,5 +1,42 @@
 {
   "$defs": {
+    "AgentProtocolCompatibility": {
+      "additionalProperties": false,
+      "properties": {
+        "minimum_version": {
+          "maxLength": 32,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "title": "Minimum Version",
+          "type": "string"
+        },
+        "negotiated_version": {
+          "maxLength": 32,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "title": "Negotiated Version",
+          "type": "string"
+        },
+        "supported_versions": {
+          "items": {
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Supported Versions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "negotiated_version",
+        "minimum_version",
+        "supported_versions"
+      ],
+      "title": "AgentProtocolCompatibility",
+      "type": "object"
+    },
     "ConnectivityStatus": {
       "enum": [
         "online",
@@ -46,6 +83,9 @@
       "title": "Pending Action Count",
       "type": "integer"
     },
+    "protocol": {
+      "$ref": "#/$defs/AgentProtocolCompatibility"
+    },
     "status": {
       "$ref": "#/$defs/EndpointStatus"
     },
@@ -62,6 +102,7 @@
     "last_heartbeat_at",
     "accepted_capability_count",
     "pending_action_count",
+    "protocol",
     "created_at",
     "updated_at"
   ],

@@ -20,6 +20,16 @@ async function proxyRequest(request: NextRequest, path: string[]) {
     redirect: "manual",
   });
   const responseHeaders = new Headers(response.headers);
+  const getSetCookie = (
+    response.headers as Headers & { getSetCookie?: () => string[] }
+  ).getSetCookie;
+  if (getSetCookie) {
+    const setCookies = getSetCookie.call(response.headers);
+    responseHeaders.delete("set-cookie");
+    for (const cookie of setCookies) {
+      responseHeaders.append("set-cookie", cookie);
+    }
+  }
   responseHeaders.delete("content-encoding");
   responseHeaders.delete("content-length");
   return new Response(await response.arrayBuffer(), {

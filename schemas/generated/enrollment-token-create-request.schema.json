@@ -1,0 +1,84 @@
+{
+  "$defs": {
+    "EndpointPlatform": {
+      "enum": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "title": "EndpointPlatform",
+      "type": "string"
+    },
+    "EnrollmentApprovalPolicy": {
+      "enum": [
+        "pending",
+        "approved"
+      ],
+      "title": "EnrollmentApprovalPolicy",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "approval_policy": {
+      "$ref": "#/$defs/EnrollmentApprovalPolicy",
+      "default": "pending"
+    },
+    "client_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Client Id",
+      "type": "string"
+    },
+    "expires_in_minutes": {
+      "default": 60,
+      "maximum": 1440,
+      "minimum": 1,
+      "title": "Expires In Minutes",
+      "type": "integer"
+    },
+    "installer_profile_id": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Installer Profile Id"
+    },
+    "location_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Location Id",
+      "type": "string"
+    },
+    "max_uses": {
+      "default": 1,
+      "maximum": 1000,
+      "minimum": 1,
+      "title": "Max Uses",
+      "type": "integer"
+    },
+    "platform": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EndpointPlatform"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "client_id",
+    "location_id"
+  ],
+  "title": "EnrollmentTokenCreateRequest",
+  "type": "object"
+}

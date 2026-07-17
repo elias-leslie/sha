@@ -1,0 +1,81 @@
+{
+  "$defs": {
+    "HierarchyState": {
+      "enum": [
+        "active",
+        "archived",
+        "migration_quarantine"
+      ],
+      "title": "HierarchyState",
+      "type": "string"
+    },
+    "LocationResponse": {
+      "properties": {
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "is_system": {
+          "title": "Is System",
+          "type": "boolean"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Key"
+        },
+        "location_id": {
+          "title": "Location Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/HierarchyState"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "location_id",
+        "client_id",
+        "key",
+        "name",
+        "state",
+        "is_system",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "LocationResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/LocationResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "LocationListResponse",
+  "type": "object"
+}

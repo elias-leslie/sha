@@ -1,6 +1,7 @@
 export type Platform = "windows" | "linux" | "macos";
 export type EndpointStatus = "pending" | "active" | "stale";
 export type ConnectivityStatus = "online" | "degraded" | null;
+export type HierarchyState = "active" | "archived" | "migration_quarantine";
 export type PostureStatus = "pass" | "fail" | "warn" | "error" | "not_applicable";
 export type Tone = "success" | "warning" | "danger" | "info";
 export type InstallerChannel = "stable" | "preview";
@@ -27,6 +28,168 @@ export type TroubleshootingScope =
 
 export type ControlRegistryAction = Extract<ApprovalAction, "apply_control" | "rollback_control">;
 export type ControlRegistryKind = "benchmark_control" | "operational_observation";
+
+export const QUARANTINE_CLIENT_ID = "cl_legacy_quarantine";
+export const QUARANTINE_LOCATION_ID = "loc_legacy_quarantine";
+
+export interface ScopeSelection {
+  client_id: string | null;
+  location_id: string | null;
+}
+
+export interface AuthScopeBinding {
+  binding_id: string;
+  role: string;
+  scope_type: "global" | "client" | "location";
+  client_id: string | null;
+  location_id: string | null;
+  permissions: string[];
+}
+
+export interface AuthSession {
+  subject: string;
+  display_name: string;
+  status: string;
+  authentication_method: string;
+  bindings: AuthScopeBinding[];
+  csrf_token: string | null;
+}
+
+export interface Client {
+  client_id: string;
+  key: string | null;
+  name: string;
+  state: HierarchyState;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Location {
+  location_id: string;
+  client_id: string;
+  key: string | null;
+  name: string;
+  state: HierarchyState;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClientCreatePayload {
+  key: string;
+  name: string;
+}
+
+export interface LocationCreatePayload {
+  key: string;
+  name: string;
+}
+
+export type FleetResourceScopeType = "global" | "client" | "location";
+export type SavedViewVisibility = "private" | "shared";
+export type EndpointFilterField =
+  | "endpoint_id"
+  | "hostname"
+  | "platform"
+  | "status"
+  | "connectivity_status"
+  | "agent_version"
+  | "client_id"
+  | "location_id"
+  | "tag";
+export type EndpointFilterOperator = "eq" | "neq" | "contains" | "starts_with" | "in";
+
+export interface EndpointFilterRule {
+  field: EndpointFilterField;
+  op: EndpointFilterOperator;
+  value: string | string[];
+}
+
+export interface EndpointFilterDefinition {
+  schema_version: 1;
+  match: "all" | "any";
+  rules: EndpointFilterRule[];
+}
+
+export interface FleetResourceScope {
+  scope_type: FleetResourceScopeType;
+  client_id: string | null;
+  location_id: string | null;
+}
+
+export interface EndpointTag extends FleetResourceScope {
+  tag_id: string;
+  name: string;
+  description: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssignedEndpointTag extends EndpointTag {
+  assigned_by: string;
+  assigned_at: string;
+}
+
+export interface SavedView extends FleetResourceScope {
+  saved_view_id: string;
+  name: string;
+  description: string | null;
+  visibility: SavedViewVisibility;
+  owner_user_id: string | null;
+  owner_actor: string;
+  current_version: number;
+  current_filter: EndpointFilterDefinition;
+  content_hash: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DynamicGroup extends FleetResourceScope {
+  dynamic_group_id: string;
+  name: string;
+  description: string | null;
+  saved_view_id: string;
+  saved_view_version: number;
+  filter_hash: string;
+  owner_user_id: string | null;
+  owner_actor: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DynamicGroupPreview {
+  dynamic_group_id: string;
+  saved_view_id: string;
+  saved_view_version: number;
+  filter_hash: string;
+  evaluated_endpoint_count: number;
+  matched_endpoint_count: number;
+  result_limit: number;
+  truncated: boolean;
+  items: Array<{
+    endpoint_id: string;
+    hostname: string;
+    platform: Platform;
+    status: EndpointStatus;
+    connectivity_status: ConnectivityStatus;
+    client_id: string;
+    location_id: string;
+  }>;
+}
+
+export interface EndpointTagCreatePayload extends FleetResourceScope {
+  name: string;
+  description?: string | null;
+}
+
+export interface SavedViewCreatePayload extends FleetResourceScope {
+  name: string;
+  description?: string | null;
+  visibility: SavedViewVisibility;
+  filter: EndpointFilterDefinition;
+}
 
 export interface ControlRegistryItem {
   control_id: string;
@@ -134,6 +297,8 @@ export interface EndpointInventoryItem {
   platform: Platform;
   platform_version: string | null;
   agent_version: string;
+  client_id: string;
+  location_id: string;
   tenant_id: string | null;
   site_id: string | null;
   status: EndpointStatus;
@@ -234,6 +399,8 @@ export interface InstallerProfile {
   channel: InstallerChannel;
   control_plane_url: string;
   policy_mode: InstallerPolicyMode;
+  client_id: string;
+  location_id: string;
   tenant_id: string | null;
   site_id: string | null;
   created_at: string;
@@ -246,8 +413,8 @@ export interface InstallerProfileCreatePayload {
   channel: InstallerChannel;
   control_plane_url: string;
   policy_mode: InstallerPolicyMode;
-  tenant_id?: string | null;
-  site_id?: string | null;
+  client_id: string;
+  location_id: string;
 }
 
 export interface ApprovalRequestCreatePayload {
@@ -426,6 +593,8 @@ const FIXTURE_ENDPOINT_DETAILS: Record<string, EndpointDetail> = {
     platform: "linux",
     platform_version: "Ubuntu 24.04 LTS",
     agent_version: "1.3.2",
+    client_id: "cl_demo",
+    location_id: "loc_demo_west",
     tenant_id: "tenant-demo",
     site_id: "site-demo-west",
     status: "active",
@@ -498,6 +667,8 @@ const FIXTURE_ENDPOINT_DETAILS: Record<string, EndpointDetail> = {
     platform: "windows",
     platform_version: "Windows 11 24H2",
     agent_version: "1.3.2",
+    client_id: "cl_demo",
+    location_id: "loc_demo_lab",
     tenant_id: "tenant-demo",
     site_id: "site-demo-lab",
     status: "active",
@@ -570,6 +741,8 @@ const FIXTURE_ENDPOINT_DETAILS: Record<string, EndpointDetail> = {
     platform: "windows",
     platform_version: "Windows 11 24H2",
     agent_version: "1.3.1",
+    client_id: "cl_demo",
+    location_id: "loc_demo_ops",
     tenant_id: "tenant-demo",
     site_id: "site-demo-ops",
     status: "active",
@@ -913,6 +1086,80 @@ const FIXTURE_RESPONSE_ACTIONS = [
   },
 ] satisfies readonly ResponseAction[];
 
+const FIXTURE_CLIENTS = [
+  {
+    client_id: "cl_demo",
+    key: "tenant-demo",
+    name: "Demo client",
+    state: "active",
+    is_system: false,
+    created_at: "2026-04-18T18:00:00Z",
+    updated_at: "2026-04-18T18:00:00Z",
+  },
+  {
+    client_id: QUARANTINE_CLIENT_ID,
+    key: null,
+    name: "Legacy scope quarantine",
+    state: "migration_quarantine",
+    is_system: true,
+    created_at: "2026-04-18T18:00:00Z",
+    updated_at: "2026-04-18T18:00:00Z",
+  },
+] satisfies readonly Client[];
+
+const FIXTURE_LOCATIONS = [
+  {
+    location_id: "loc_demo_lab",
+    client_id: "cl_demo",
+    key: "site-demo-lab",
+    name: "Demo lab",
+    state: "active",
+    is_system: false,
+    created_at: "2026-04-18T18:00:00Z",
+    updated_at: "2026-04-18T18:00:00Z",
+  },
+  {
+    location_id: "loc_demo_ops",
+    client_id: "cl_demo",
+    key: "site-demo-ops",
+    name: "Demo operations",
+    state: "active",
+    is_system: false,
+    created_at: "2026-04-18T18:00:00Z",
+    updated_at: "2026-04-18T18:00:00Z",
+  },
+  {
+    location_id: "loc_demo_west",
+    client_id: "cl_demo",
+    key: "site-demo-west",
+    name: "Demo west",
+    state: "active",
+    is_system: false,
+    created_at: "2026-04-18T18:00:00Z",
+    updated_at: "2026-04-18T18:00:00Z",
+  },
+  {
+    location_id: "loc_demo_mac",
+    client_id: "cl_demo",
+    key: "site-demo-mac",
+    name: "Demo Mac",
+    state: "active",
+    is_system: false,
+    created_at: "2026-04-18T18:00:00Z",
+    updated_at: "2026-04-18T18:00:00Z",
+  },
+  {
+    location_id: QUARANTINE_LOCATION_ID,
+    client_id: QUARANTINE_CLIENT_ID,
+    key: null,
+    name: "Unassigned",
+    state: "migration_quarantine",
+    is_system: true,
+    created_at: "2026-04-18T18:00:00Z",
+    updated_at: "2026-04-18T18:00:00Z",
+  },
+] satisfies readonly Location[];
+
 const FIXTURE_INSTALLER_PROFILES = [
   {
     id: "ip_windows_workstation",
@@ -921,6 +1168,8 @@ const FIXTURE_INSTALLER_PROFILES = [
     channel: "stable",
     control_plane_url: "https://sha.example.test",
     policy_mode: "approval_required",
+    client_id: "cl_demo",
+    location_id: "loc_demo_lab",
     tenant_id: "tenant-demo",
     site_id: "site-demo-lab",
     created_at: "2026-04-18T19:10:00Z",
@@ -933,6 +1182,8 @@ const FIXTURE_INSTALLER_PROFILES = [
     channel: "preview",
     control_plane_url: "https://sha.example.test",
     policy_mode: "safe_auto",
+    client_id: "cl_demo",
+    location_id: "loc_demo_west",
     tenant_id: "tenant-demo",
     site_id: "site-demo-west",
     created_at: "2026-04-18T19:18:00Z",
@@ -945,6 +1196,8 @@ const FIXTURE_INSTALLER_PROFILES = [
     channel: "preview",
     control_plane_url: "https://sha.example.test",
     policy_mode: "observe",
+    client_id: "cl_demo",
+    location_id: "loc_demo_mac",
     tenant_id: "tenant-demo",
     site_id: "site-demo-mac",
     created_at: "2026-04-18T19:28:00Z",
@@ -980,6 +1233,24 @@ export function isDemoMode() {
   return process.env.NEXT_PUBLIC_SHA_DEMO_MODE === "true";
 }
 
+export class ApiRequestError extends Error {
+  readonly status: number;
+  readonly detail: string;
+
+  constructor(status: number, detail: string) {
+    const message =
+      status === 401
+        ? `Authentication required. Sign in to continue. ${detail}`
+        : status === 403
+          ? `Access denied for the current identity and scope. ${detail}`
+          : detail;
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 async function parseApiError(response: Response) {
   try {
     const body = (await response.json()) as { detail?: string };
@@ -989,8 +1260,129 @@ async function parseApiError(response: Response) {
   }
 }
 
-export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+let authSessionCache: AuthSession | null | undefined;
+let authSessionRequest: Promise<AuthSession | null> | null = null;
+let authSessionGeneration = 0;
+const authSessionListeners = new Set<(session: AuthSession | null) => void>();
+
+function publishAuthSession(session: AuthSession | null) {
+  for (const listener of authSessionListeners) {
+    listener(session);
+  }
+}
+
+function isAuthSession(value: unknown): value is AuthSession {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const candidate = value as Partial<AuthSession>;
+  return (
+    typeof candidate.subject === "string" &&
+    typeof candidate.display_name === "string" &&
+    typeof candidate.status === "string" &&
+    typeof candidate.authentication_method === "string" &&
+    Array.isArray(candidate.bindings) &&
+    (typeof candidate.csrf_token === "string" || candidate.csrf_token === null)
+  );
+}
+
+async function loadAuthSession(generation: number): Promise<AuthSession | null> {
+  const response = await fetch("/api/auth/session", {
+    cache: "no-store",
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    method: "GET",
+  });
+  if (response.status === 401) {
+    if (generation === authSessionGeneration) {
+      authSessionCache = null;
+      publishAuthSession(null);
+    }
+    return null;
+  }
+  if (!response.ok) {
+    throw new ApiRequestError(response.status, await parseApiError(response));
+  }
+  const body = (await response.json()) as unknown;
+  if (!isAuthSession(body)) {
+    throw new Error("authentication session response is invalid");
+  }
+  if (generation === authSessionGeneration) {
+    authSessionCache = body;
+    publishAuthSession(body);
+  }
+  return body;
+}
+
+export function subscribeAuthSession(listener: (session: AuthSession | null) => void) {
+  authSessionListeners.add(listener);
+  return () => authSessionListeners.delete(listener);
+}
+
+export function clearAuthSessionCache() {
+  authSessionGeneration += 1;
+  authSessionCache = null;
+  authSessionRequest = null;
+  publishAuthSession(null);
+}
+
+export async function getAuthSession(options: { refresh?: boolean } = {}) {
+  if (options.refresh) {
+    authSessionGeneration += 1;
+    authSessionCache = undefined;
+    authSessionRequest = null;
+  }
+  if (authSessionCache !== undefined) {
+    return authSessionCache;
+  }
+  if (!authSessionRequest) {
+    const generation = authSessionGeneration;
+    let request: Promise<AuthSession | null>;
+    request = loadAuthSession(generation).finally(() => {
+      if (authSessionRequest === request) {
+        authSessionRequest = null;
+      }
+    });
+    authSessionRequest = request;
+  }
+  return authSessionRequest;
+}
+
+async function requestApi(path: string, init: RequestInit = {}) {
+  if (!/^\/api(?:\/|\?|$)/.test(path) || path.startsWith("//") || /[\\\u0000-\u001f]/.test(path)) {
+    throw new Error("API requests must use a same-origin /api path");
+  }
+  const method = (init.method ?? "GET").toUpperCase();
+  let headers = init.headers;
+  if (method !== "GET" && method !== "HEAD") {
+    let session: AuthSession | null = null;
+    try {
+      session = await getAuthSession();
+    } catch {
+      // The API remains authoritative. A browser session without a CSRF value
+      // will be rejected instead of silently gaining a weaker request path.
+    }
+    const mutationHeaders = new Headers(init.headers);
+    mutationHeaders.delete("X-SHA-CSRF");
+    if (session?.csrf_token) {
+      mutationHeaders.set("X-SHA-CSRF", session.csrf_token);
+    }
+    headers = Object.fromEntries(mutationHeaders.entries());
+  }
+
   const response = await fetch(path, {
+    ...init,
+    credentials: "same-origin",
+    headers,
+  });
+  if (response.status === 401) {
+    clearAuthSessionCache();
+  }
+  return response;
+}
+
+export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await requestApi(path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -999,21 +1391,21 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   });
 
   if (!response.ok) {
-    throw new Error(await parseApiError(response));
+    throw new ApiRequestError(response.status, await parseApiError(response));
   }
 
   return (await response.json()) as T;
 }
 
 export async function fetchText(path: string, init?: RequestInit): Promise<{ content: string; response: Response }> {
-  const response = await fetch(path, {
+  const response = await requestApi(path, {
     ...init,
     headers: {
       ...(init?.headers ?? {}),
     },
   });
   if (!response.ok) {
-    throw new Error(await parseApiError(response));
+    throw new ApiRequestError(response.status, await parseApiError(response));
   }
   return {
     content: await response.text(),
@@ -1021,9 +1413,190 @@ export async function fetchText(path: string, init?: RequestInit): Promise<{ con
   };
 }
 
-export async function listEndpoints() {
-  const data = await fetchJson<{ items: EndpointInventoryItem[] }>("/api/endpoints");
+export async function logoutCurrentSession() {
+  return fetchJson<{ status: string }>("/api/auth/logout", { method: "POST" });
+}
+
+export async function logoutAllSessions() {
+  return fetchJson<{ status: string }>("/api/auth/logout-all", { method: "POST" });
+}
+
+export function safeReturnPath(value: string | null | undefined) {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+    return "/";
+  }
+  try {
+    const base = "https://sha.invalid";
+    const parsed = new URL(value, base);
+    if (parsed.origin !== base) {
+      return "/";
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return "/";
+  }
+}
+
+export function scopeHref(path: string, scope: ScopeSelection) {
+  const [basePath, existingQuery = ""] = path.split("?", 2);
+  const params = new URLSearchParams(existingQuery);
+  if (scope.client_id) {
+    params.set("client_id", scope.client_id);
+  } else {
+    params.delete("client_id");
+  }
+  if (scope.client_id && scope.location_id) {
+    params.set("location_id", scope.location_id);
+  } else {
+    params.delete("location_id");
+  }
+  const query = params.toString();
+  return query ? `${basePath}?${query}` : basePath;
+}
+
+export async function listClients() {
+  const data = await fetchJson<{ items: Client[] }>("/api/clients");
   return data.items;
+}
+
+export async function createClient(payload: ClientCreatePayload) {
+  return fetchJson<Client>("/api/clients", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listLocations(clientId: string) {
+  const data = await fetchJson<{ items: Location[] }>(
+    `/api/clients/${encodeURIComponent(clientId)}/locations`,
+  );
+  return data.items;
+}
+
+export async function createLocation(clientId: string, payload: LocationCreatePayload) {
+  return fetchJson<Location>(`/api/clients/${encodeURIComponent(clientId)}/locations`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+const ENDPOINT_REQUEST_DEDUPLICATION_MS = 1_000;
+const endpointListRequests = new Map<
+  string,
+  {
+    fetchImplementation: typeof globalThis.fetch;
+    startedAt: number;
+    token: object;
+    promise: Promise<EndpointInventoryItem[]>;
+  }
+>();
+
+export function listEndpoints(scope: ScopeSelection = { client_id: null, location_id: null }) {
+  const path = scopeHref("/api/endpoints", scope);
+  const now = Date.now();
+  const fetchImplementation = globalThis.fetch;
+  const existing = endpointListRequests.get(path);
+  if (
+    existing &&
+    existing.fetchImplementation === fetchImplementation &&
+    now - existing.startedAt <= ENDPOINT_REQUEST_DEDUPLICATION_MS
+  ) {
+    return existing.promise;
+  }
+
+  const token = {};
+  const promise = fetchJson<{ items: EndpointInventoryItem[] }>(path)
+    .then((data) => data.items)
+    .finally(() => {
+      if (endpointListRequests.get(path)?.token === token) {
+        endpointListRequests.delete(path);
+      }
+    });
+  endpointListRequests.set(path, { fetchImplementation, startedAt: now, token, promise });
+  return promise;
+}
+
+export async function listTags(scope: ScopeSelection = { client_id: null, location_id: null }) {
+  const data = await fetchJson<{ items: EndpointTag[] }>(scopeHref("/api/tags", scope));
+  return data.items;
+}
+
+export async function createTag(payload: EndpointTagCreatePayload) {
+  return fetchJson<EndpointTag>("/api/tags", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listEndpointTags(endpointId: string) {
+  const data = await fetchJson<{ items: AssignedEndpointTag[] }>(
+    `/api/endpoints/${encodeURIComponent(endpointId)}/tags`,
+  );
+  return data.items;
+}
+
+export async function assignEndpointTag(endpointId: string, tagId: string) {
+  return fetchJson<AssignedEndpointTag>(
+    `/api/endpoints/${encodeURIComponent(endpointId)}/tags`,
+    { method: "POST", body: JSON.stringify({ tag_id: tagId }) },
+  );
+}
+
+export async function removeEndpointTag(endpointId: string, tagId: string) {
+  await fetchText(
+    `/api/endpoints/${encodeURIComponent(endpointId)}/tags/${encodeURIComponent(tagId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function listSavedViews(
+  scope: ScopeSelection = { client_id: null, location_id: null },
+) {
+  const data = await fetchJson<{ items: SavedView[] }>(scopeHref("/api/saved-views", scope));
+  return data.items;
+}
+
+export async function createSavedView(payload: SavedViewCreatePayload) {
+  return fetchJson<SavedView>("/api/saved-views", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateSavedView(
+  savedViewId: string,
+  filter: EndpointFilterDefinition,
+) {
+  return fetchJson<SavedView>(`/api/saved-views/${encodeURIComponent(savedViewId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ filter }),
+  });
+}
+
+export async function listDynamicGroups(
+  scope: ScopeSelection = { client_id: null, location_id: null },
+) {
+  const data = await fetchJson<{ items: DynamicGroup[] }>(
+    scopeHref("/api/dynamic-groups", scope),
+  );
+  return data.items;
+}
+
+export async function createDynamicGroup(payload: {
+  name: string;
+  description?: string | null;
+  saved_view_id: string;
+}) {
+  return fetchJson<DynamicGroup>("/api/dynamic-groups", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function previewDynamicGroup(dynamicGroupId: string, limit = 100) {
+  return fetchJson<DynamicGroupPreview>(
+    `/api/dynamic-groups/${encodeURIComponent(dynamicGroupId)}/preview?limit=${limit}`,
+  );
 }
 
 export async function listControlRegistry() {
@@ -1100,8 +1673,12 @@ export async function createApprovalGrant(payload: ApprovalGrantCreatePayload) {
   });
 }
 
-export async function listInstallerProfiles() {
-  const data = await fetchJson<{ items: InstallerProfile[] }>("/api/installer-profiles");
+export async function listInstallerProfiles(
+  scope: ScopeSelection = { client_id: null, location_id: null },
+) {
+  const data = await fetchJson<{ items: InstallerProfile[] }>(
+    scopeHref("/api/installer-profiles", scope),
+  );
   return data.items;
 }
 
@@ -1138,6 +1715,14 @@ export async function createInstallerProfile(payload: InstallerProfileCreatePayl
 
 export function getFixtureEndpoints() {
   return clone(Object.values(FIXTURE_ENDPOINT_DETAILS).map(toInventoryItem));
+}
+
+export function getFixtureClients() {
+  return clone([...FIXTURE_CLIENTS]);
+}
+
+export function getFixtureLocations(clientId: string) {
+  return clone(FIXTURE_LOCATIONS.filter((location) => location.client_id === clientId));
 }
 
 export function getFixtureEndpoint(endpointId: string) {

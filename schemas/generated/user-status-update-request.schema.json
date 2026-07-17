@@ -1,0 +1,24 @@
+{
+  "$defs": {
+    "AuthUserStatus": {
+      "enum": [
+        "pending",
+        "active",
+        "disabled"
+      ],
+      "title": "AuthUserStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "$ref": "#/$defs/AuthUserStatus"
+    }
+  },
+  "required": [
+    "status"
+  ],
+  "title": "UserStatusUpdateRequest",
+  "type": "object"
+}

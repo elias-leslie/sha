@@ -31,6 +31,10 @@
         "channel": {
           "$ref": "#/$defs/InstallerChannel"
         },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
         "control_plane_url": {
           "title": "Control Plane Url",
           "type": "string"
@@ -43,6 +47,10 @@
           "title": "Id",
           "type": "string"
         },
+        "location_id": {
+          "title": "Location Id",
+          "type": "string"
+        },
         "name": {
           "title": "Name",
           "type": "string"
@@ -52,6 +60,9 @@
         },
         "policy_mode": {
           "$ref": "#/$defs/InstallerPolicyMode"
+        },
+        "runtime_kind": {
+          "$ref": "#/$defs/InstallerRuntimeKind"
         },
         "site_id": {
           "anyOf": [
@@ -87,6 +98,9 @@
         "channel",
         "control_plane_url",
         "policy_mode",
+        "runtime_kind",
+        "client_id",
+        "location_id",
         "tenant_id",
         "site_id",
         "created_at",
@@ -94,6 +108,14 @@
       ],
       "title": "InstallerProfileResponse",
       "type": "object"
+    },
+    "InstallerRuntimeKind": {
+      "enum": [
+        "go_agent",
+        "legacy_reporter"
+      ],
+      "title": "InstallerRuntimeKind",
+      "type": "string"
     }
   },
   "properties": {

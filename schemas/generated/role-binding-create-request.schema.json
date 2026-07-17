@@ -1,0 +1,57 @@
+{
+  "$defs": {
+    "AuthorizationScopeType": {
+      "enum": [
+        "global",
+        "client",
+        "location"
+      ],
+      "title": "AuthorizationScopeType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "client_id": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Client Id"
+    },
+    "location_id": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Location Id"
+    },
+    "role_key": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Role Key",
+      "type": "string"
+    },
+    "scope_type": {
+      "$ref": "#/$defs/AuthorizationScopeType"
+    }
+  },
+  "required": [
+    "role_key",
+    "scope_type"
+  ],
+  "title": "RoleBindingCreateRequest",
+  "type": "object"
+}

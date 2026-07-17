@@ -1,0 +1,337 @@
+{
+  "$defs": {
+    "AgentProtocolCompatibility": {
+      "additionalProperties": false,
+      "properties": {
+        "minimum_version": {
+          "maxLength": 32,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "title": "Minimum Version",
+          "type": "string"
+        },
+        "negotiated_version": {
+          "maxLength": 32,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "title": "Negotiated Version",
+          "type": "string"
+        },
+        "supported_versions": {
+          "items": {
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Supported Versions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "negotiated_version",
+        "minimum_version",
+        "supported_versions"
+      ],
+      "title": "AgentProtocolCompatibility",
+      "type": "object"
+    },
+    "DeviceCredentialResponse": {
+      "properties": {
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "credential_id": {
+          "title": "Credential Id",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Expires At"
+        },
+        "last_used_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Used At"
+        },
+        "replaced_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Replaced At"
+        },
+        "replaced_by_credential_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Replaced By Credential Id"
+        },
+        "revoked_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Revoked At"
+        },
+        "status": {
+          "$ref": "#/$defs/DeviceCredentialStatus"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "credential_id",
+        "endpoint_id",
+        "status",
+        "replaced_by_credential_id",
+        "last_used_at",
+        "expires_at",
+        "created_at",
+        "updated_at",
+        "replaced_at",
+        "revoked_at"
+      ],
+      "title": "DeviceCredentialResponse",
+      "type": "object"
+    },
+    "DeviceCredentialStatus": {
+      "enum": [
+        "active",
+        "replaced",
+        "revoked"
+      ],
+      "title": "DeviceCredentialStatus",
+      "type": "string"
+    },
+    "DeviceEndpointResponse": {
+      "properties": {
+        "agent_fingerprint": {
+          "title": "Agent Fingerprint",
+          "type": "string"
+        },
+        "agent_version": {
+          "title": "Agent Version",
+          "type": "string"
+        },
+        "architecture": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "minLength": 1,
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Architecture"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "credential_mode": {
+          "$ref": "#/$defs/EndpointCredentialMode"
+        },
+        "endpoint_id": {
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "enrollment_token_id": {
+          "title": "Enrollment Token Id",
+          "type": "string"
+        },
+        "hostname": {
+          "title": "Hostname",
+          "type": "string"
+        },
+        "installation_id": {
+          "title": "Installation Id",
+          "type": "string"
+        },
+        "last_seen_at": {
+          "title": "Last Seen At",
+          "type": "string"
+        },
+        "location_id": {
+          "title": "Location Id",
+          "type": "string"
+        },
+        "migration_eligible": {
+          "title": "Migration Eligible",
+          "type": "boolean"
+        },
+        "migration_state": {
+          "$ref": "#/$defs/EndpointAgentMigrationState"
+        },
+        "platform": {
+          "$ref": "#/$defs/EndpointPlatform"
+        },
+        "platform_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Platform Version"
+        },
+        "protocol_version": {
+          "maxLength": 32,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "site_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Site Id"
+        },
+        "status": {
+          "$ref": "#/$defs/EndpointStatus"
+        },
+        "tenant_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tenant Id"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "agent_fingerprint",
+        "hostname",
+        "platform",
+        "platform_version",
+        "agent_version",
+        "protocol_version",
+        "architecture",
+        "installation_id",
+        "credential_mode",
+        "enrollment_token_id",
+        "migration_state",
+        "migration_eligible",
+        "client_id",
+        "location_id",
+        "tenant_id",
+        "site_id",
+        "status",
+        "last_seen_at",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "DeviceEndpointResponse",
+      "type": "object"
+    },
+    "EndpointAgentMigrationState": {
+      "enum": [
+        "canonical",
+        "legacy_reporter"
+      ],
+      "title": "EndpointAgentMigrationState",
+      "type": "string"
+    },
+    "EndpointCredentialMode": {
+      "enum": [
+        "legacy_shared",
+        "device"
+      ],
+      "title": "EndpointCredentialMode",
+      "type": "string"
+    },
+    "EndpointPlatform": {
+      "enum": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "title": "EndpointPlatform",
+      "type": "string"
+    },
+    "EndpointStatus": {
+      "enum": [
+        "pending",
+        "active",
+        "stale"
+      ],
+      "title": "EndpointStatus",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "credential": {
+      "$ref": "#/$defs/DeviceCredentialResponse"
+    },
+    "endpoint": {
+      "$ref": "#/$defs/DeviceEndpointResponse"
+    },
+    "protocol": {
+      "$ref": "#/$defs/AgentProtocolCompatibility"
+    }
+  },
+  "required": [
+    "endpoint",
+    "credential",
+    "protocol"
+  ],
+  "title": "AgentMeResponse",
+  "type": "object"
+}

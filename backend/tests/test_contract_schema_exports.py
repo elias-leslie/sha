@@ -6,7 +6,10 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from app.schemas.contracts import (
+    AgentMeResponse,
     AgentCapability,
+    AuthSessionResponse,
+    AuditEventListResponse,
     ApprovalDecisionRequest,
     ApprovalGrantCreateRequest,
     ApprovalGrantListResponse,
@@ -14,16 +17,36 @@ from app.schemas.contracts import (
     ApprovalRequestCreateRequest,
     ApprovalRequestListResponse,
     ApprovalRequestResponse,
+    ClientCreateRequest,
+    ClientListResponse,
+    ClientResponse,
     ControlRegistryResponse,
+    DeviceCredentialMaterialRequest,
+    DeviceCredentialResponse,
+    DynamicGroupCreateRequest,
+    DynamicGroupListResponse,
+    DynamicGroupPreviewResponse,
+    DynamicGroupResponse,
     EndpointDetailResponse,
     EndpointEnrollRequest,
     EndpointHeartbeatAck,
     EndpointHeartbeatRequest,
     EndpointInventoryListResponse,
     EndpointResponse,
+    EndpointTagAssignmentRequest,
+    EndpointTagListResponse,
+    EnrollmentExchangeRequest,
+    EnrollmentExchangeResponse,
+    EnrollmentTokenCreateRequest,
+    EnrollmentTokenCreateResponse,
+    EnrollmentTokenListResponse,
+    EnrollmentTokenResponse,
     InstallerProfileCreateRequest,
     InstallerProfileListResponse,
     InstallerProfileResponse,
+    LocationCreateRequest,
+    LocationListResponse,
+    LocationResponse,
     PostureSnapshotAck,
     PostureSnapshotCreateRequest,
     ResponseActionCreateRequest,
@@ -31,6 +54,15 @@ from app.schemas.contracts import (
     ResponseActionListResponse,
     ResponseActionResponse,
     ResponseActionResultRequest,
+    RoleBindingCreateRequest,
+    SavedViewCreateRequest,
+    SavedViewListResponse,
+    SavedViewResponse,
+    SavedViewUpdateRequest,
+    TagCreateRequest,
+    TagListResponse,
+    TagResponse,
+    UserStatusUpdateRequest,
 )
 
 
@@ -38,10 +70,42 @@ def shared_contract_models() -> tuple[tuple[str, type[BaseModel]], ...]:
     return (
         ("endpoint-enroll-request.schema.json", EndpointEnrollRequest),
         ("endpoint-response.schema.json", EndpointResponse),
+        ("enrollment-token-create-request.schema.json", EnrollmentTokenCreateRequest),
+        ("enrollment-token-create-response.schema.json", EnrollmentTokenCreateResponse),
+        ("enrollment-token-response.schema.json", EnrollmentTokenResponse),
+        ("enrollment-token-list-response.schema.json", EnrollmentTokenListResponse),
+        ("enrollment-exchange-request.schema.json", EnrollmentExchangeRequest),
+        ("enrollment-exchange-response.schema.json", EnrollmentExchangeResponse),
+        ("device-credential-material-request.schema.json", DeviceCredentialMaterialRequest),
+        ("device-credential-response.schema.json", DeviceCredentialResponse),
+        ("agent-me-response.schema.json", AgentMeResponse),
+        ("auth-session-response.schema.json", AuthSessionResponse),
+        ("audit-event-list-response.schema.json", AuditEventListResponse),
+        ("user-status-update-request.schema.json", UserStatusUpdateRequest),
+        ("role-binding-create-request.schema.json", RoleBindingCreateRequest),
         ("endpoint-heartbeat-request.schema.json", EndpointHeartbeatRequest),
         ("endpoint-heartbeat-ack.schema.json", EndpointHeartbeatAck),
         ("endpoint-inventory-list-response.schema.json", EndpointInventoryListResponse),
         ("endpoint-detail-response.schema.json", EndpointDetailResponse),
+        ("client-create-request.schema.json", ClientCreateRequest),
+        ("client-response.schema.json", ClientResponse),
+        ("client-list-response.schema.json", ClientListResponse),
+        ("location-create-request.schema.json", LocationCreateRequest),
+        ("location-response.schema.json", LocationResponse),
+        ("location-list-response.schema.json", LocationListResponse),
+        ("tag-create-request.schema.json", TagCreateRequest),
+        ("tag-response.schema.json", TagResponse),
+        ("tag-list-response.schema.json", TagListResponse),
+        ("endpoint-tag-assignment-request.schema.json", EndpointTagAssignmentRequest),
+        ("endpoint-tag-list-response.schema.json", EndpointTagListResponse),
+        ("saved-view-create-request.schema.json", SavedViewCreateRequest),
+        ("saved-view-update-request.schema.json", SavedViewUpdateRequest),
+        ("saved-view-response.schema.json", SavedViewResponse),
+        ("saved-view-list-response.schema.json", SavedViewListResponse),
+        ("dynamic-group-create-request.schema.json", DynamicGroupCreateRequest),
+        ("dynamic-group-response.schema.json", DynamicGroupResponse),
+        ("dynamic-group-list-response.schema.json", DynamicGroupListResponse),
+        ("dynamic-group-preview-response.schema.json", DynamicGroupPreviewResponse),
         ("posture-snapshot-create-request.schema.json", PostureSnapshotCreateRequest),
         ("posture-snapshot-ack.schema.json", PostureSnapshotAck),
         ("installer-profile-create-request.schema.json", InstallerProfileCreateRequest),
@@ -118,12 +182,30 @@ def test_endpoint_response_models_require_explicit_nullable_keys():
     endpoint_detail_schema = EndpointDetailResponse.model_json_schema(ref_template="#/$defs/{model}")
     installer_profile_schema = InstallerProfileResponse.model_json_schema(ref_template="#/$defs/{model}")
 
-    for required_field in ("platform_version", "tenant_id", "site_id"):
+    for required_field in (
+        "platform_version",
+        "protocol_version",
+        "architecture",
+        "installation_id",
+        "credential_mode",
+        "enrollment_token_id",
+        "client_id",
+        "location_id",
+        "tenant_id",
+        "site_id",
+    ):
         assert required_field in endpoint_response_schema["required"]
 
     inventory_item_required = endpoint_inventory_schema["$defs"]["EndpointInventoryItemResponse"]["required"]
     for required_field in (
         "platform_version",
+        "protocol_version",
+        "architecture",
+        "installation_id",
+        "credential_mode",
+        "enrollment_token_id",
+        "client_id",
+        "location_id",
         "tenant_id",
         "site_id",
         "connectivity_status",
@@ -131,11 +213,14 @@ def test_endpoint_response_models_require_explicit_nullable_keys():
         "last_platform_profile",
         "execution_hooks",
         "latest_posture_summary",
+        "active_credential",
     ):
         assert required_field in inventory_item_required
 
     for required_field in (
         "platform_version",
+        "client_id",
+        "location_id",
         "tenant_id",
         "site_id",
         "connectivity_status",
@@ -147,8 +232,19 @@ def test_endpoint_response_models_require_explicit_nullable_keys():
     ):
         assert required_field in endpoint_detail_schema["required"]
 
-    for required_field in ("tenant_id", "site_id"):
+    for required_field in ("client_id", "location_id", "tenant_id", "site_id"):
         assert required_field in installer_profile_schema["required"]
+
+
+def test_device_bootstrap_schema_requires_capability_identity_and_marks_secrets_write_only():
+    exchange_schema = EnrollmentExchangeRequest.model_json_schema(ref_template="#/$defs/{model}")
+    assert {"protocol_version", "architecture", "credential_id", "credential_secret"} <= set(
+        exchange_schema["required"]
+    )
+    assert exchange_schema["properties"]["credential_secret"]["writeOnly"] is True
+
+    token_schema = EnrollmentTokenCreateResponse.model_json_schema(ref_template="#/$defs/{model}")
+    assert token_schema["properties"]["token"]["writeOnly"] is True
 
 
 def test_response_action_claim_schema_requires_one_time_lease_token():

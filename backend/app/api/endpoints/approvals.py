@@ -8,7 +8,14 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import Principal, require_operator_principal
+from app.auth import Principal
+from app.authorization import (
+    Permission,
+    record_audit_event,
+    require_permission,
+    require_scope,
+    scope_clause,
+)
 from app.control_registry import ControlAction, require_control_action
 from app.db import DatabaseStore, get_store
 from app.models import ApprovalGrant, ApprovalRequest, ApprovalRequestEvent, Endpoint
@@ -93,6 +100,9 @@ def _approval_request_payload(
 ) -> dict[str, object]:
     return {
         "approval_request_id": request.approval_request_id,
+        "scope_state": request.scope_state,
+        "client_id": request.client_id,
+        "location_id": request.location_id,
         "endpoint_ids": list(request.endpoint_ids),
         "request_kind": request.request_kind,
         "requested_actions": list(request.requested_actions),
@@ -116,6 +126,9 @@ def _approval_request_payload(
 def _approval_grant_payload(grant: ApprovalGrant) -> dict[str, object]:
     return {
         "approval_grant_id": grant.approval_grant_id,
+        "scope_state": grant.scope_state,
+        "client_id": grant.client_id,
+        "location_id": grant.location_id,
         "approval_request_id": grant.approval_request_id,
         "endpoint_ids": list(grant.endpoint_ids),
         "allowed_actions": list(grant.allowed_actions),
@@ -142,6 +155,32 @@ def _normalize_endpoint_ids(session: Session, raw_endpoint_ids: list[str]) -> li
     if has_duplicates(endpoint_ids):
         raise HTTPException(status_code=422, detail="duplicate endpoint_ids are not allowed")
     return endpoint_ids
+
+
+def _approval_scope(
+    session: Session,
+    endpoint_ids: list[str],
+    principal: Principal,
+    permission: Permission,
+) -> tuple[str, str | None]:
+    endpoints = session.scalars(
+        select(Endpoint).where(Endpoint.endpoint_id.in_(endpoint_ids))
+    ).all()
+    if len(endpoints) != len(endpoint_ids):
+        raise HTTPException(status_code=422, detail="one or more endpoint_ids were not found")
+    client_ids = {endpoint.client_id for endpoint in endpoints}
+    if len(client_ids) != 1:
+        raise HTTPException(status_code=422, detail="approval requests cannot cross client boundaries")
+    client_id = next(iter(client_ids))
+    location_ids = {endpoint.location_id for endpoint in endpoints}
+    location_id = next(iter(location_ids)) if len(location_ids) == 1 else None
+    require_scope(
+        principal,
+        permission,
+        client_id=client_id,
+        location_id=location_id,
+    )
+    return client_id, location_id
 
 
 def _normalize_control_ids(raw_control_ids: list[str]) -> list[str]:
@@ -365,13 +404,22 @@ def _collect_request_events(
 @router.get("/api/approval-requests", response_model=ApprovalRequestListResponse)
 def list_approval_requests(
     store: DatabaseStore = Depends(get_store),
+    principal: Principal = Depends(require_permission("approval.read")),
 ) -> dict[str, list[dict[str, object]]]:
     now_str = to_utc_z(utc_now())
     with store.session() as session:
         with session.begin():
             _sync_expired_grants(session, now_str=now_str)
         requests = session.scalars(
-            select(ApprovalRequest).order_by(
+            select(ApprovalRequest).where(
+                ApprovalRequest.scope_state == "active",
+                scope_clause(
+                    principal,
+                    "approval.read",
+                    ApprovalRequest.client_id,
+                    ApprovalRequest.location_id,
+                ),
+            ).order_by(
                 ApprovalRequest.created_at.asc(),
                 ApprovalRequest.approval_request_id.asc(),
             )
@@ -396,7 +444,7 @@ def list_approval_requests(
 def create_approval_request(
     payload: ApprovalRequestCreateRequest,
     store: DatabaseStore = Depends(get_store),
-    principal: Principal = Depends(require_operator_principal),
+    principal: Principal = Depends(require_permission("approval.request")),
 ) -> dict[str, object]:
     request_kind = normalize_approval_request_kind(payload.request_kind.value)
     requested_actions = _normalize_actions([action.value for action in payload.requested_actions])
@@ -420,6 +468,12 @@ def create_approval_request(
     with store.session() as session:
         with session.begin():
             endpoint_ids = _normalize_endpoint_ids(session, payload.endpoint_ids)
+            client_id, location_id = _approval_scope(
+                session,
+                endpoint_ids,
+                principal,
+                "approval.request",
+            )
             _validate_control_actions_for_endpoints(
                 session,
                 endpoint_ids=endpoint_ids,
@@ -428,6 +482,9 @@ def create_approval_request(
             )
             request = ApprovalRequest(
                 approval_request_id=generate_prefixed_id("apr"),
+                scope_state="active",
+                client_id=client_id,
+                location_id=location_id,
                 endpoint_ids=endpoint_ids,
                 request_kind=request_kind,
                 requested_actions=requested_actions,
@@ -455,6 +512,17 @@ def create_approval_request(
                 comment=reason,
                 created_at=now_str,
             )
+            record_audit_event(
+                session,
+                event_type="approval_requested",
+                principal=principal,
+                client_id=client_id,
+                location_id=location_id,
+                target_type="approval_request",
+                target_id=request.approval_request_id,
+                metadata={"risk": request.risk, "request_kind": request.request_kind},
+                created_at=now_str,
+            )
             return _approval_request_payload(request, [event])
 
 
@@ -466,7 +534,7 @@ def decide_approval_request(
     approval_request_id: str,
     payload: ApprovalDecisionRequest,
     store: DatabaseStore = Depends(get_store),
-    principal: Principal = Depends(require_operator_principal),
+    principal: Principal = Depends(require_permission("approval.decide")),
 ) -> dict[str, object]:
     approval_request_id = normalize_required_string(approval_request_id, "approval_request_id")
     decision = normalize_approval_decision(payload.decision.value)
@@ -478,7 +546,20 @@ def decide_approval_request(
     with store.session() as session:
         with session.begin():
             _sync_expired_grants(session, now_str=now_str)
-            request = session.get(ApprovalRequest, approval_request_id)
+            request = session.scalar(
+                select(ApprovalRequest)
+                .where(
+                    ApprovalRequest.approval_request_id == approval_request_id,
+                    ApprovalRequest.scope_state == "active",
+                    scope_clause(
+                        principal,
+                        "approval.decide",
+                        ApprovalRequest.client_id,
+                        ApprovalRequest.location_id,
+                    ),
+                )
+                .with_for_update()
+            )
             if request is None:
                 raise HTTPException(status_code=404, detail="approval request not found")
 
@@ -498,6 +579,9 @@ def decide_approval_request(
                 grant = ApprovalGrant(
                     approval_grant_id=generate_prefixed_id("grant"),
                     approval_request_id=request.approval_request_id,
+                    scope_state="active",
+                    client_id=request.client_id,
+                    location_id=request.location_id,
                     endpoint_ids=list(request.endpoint_ids),
                     allowed_actions=list(request.requested_actions),
                     control_ids=list(request.control_ids),
@@ -628,6 +712,16 @@ def decide_approval_request(
                     comment=decision_comment,
                     created_at=now_str,
                 )
+            record_audit_event(
+                session,
+                event_type=f"approval_{decision}",
+                principal=principal,
+                client_id=request.client_id,
+                location_id=request.location_id,
+                target_type="approval_request",
+                target_id=request.approval_request_id,
+                created_at=now_str,
+            )
             session.flush()
             session.expire_all()
             request = session.get(ApprovalRequest, approval_request_id)
@@ -640,13 +734,22 @@ def decide_approval_request(
 @router.get("/api/approval-grants", response_model=ApprovalGrantListResponse)
 def list_approval_grants(
     store: DatabaseStore = Depends(get_store),
+    principal: Principal = Depends(require_permission("approval.read")),
 ) -> dict[str, list[dict[str, object]]]:
     now_str = to_utc_z(utc_now())
     with store.session() as session:
         with session.begin():
             _sync_expired_grants(session, now_str=now_str)
         grants = session.scalars(
-            select(ApprovalGrant).order_by(
+            select(ApprovalGrant).where(
+                ApprovalGrant.scope_state == "active",
+                scope_clause(
+                    principal,
+                    "approval.read",
+                    ApprovalGrant.client_id,
+                    ApprovalGrant.location_id,
+                ),
+            ).order_by(
                 ApprovalGrant.created_at.asc(),
                 ApprovalGrant.approval_grant_id.asc(),
             )
@@ -658,7 +761,7 @@ def list_approval_grants(
 def create_approval_grant(
     payload: ApprovalGrantCreateRequest,
     store: DatabaseStore = Depends(get_store),
-    principal: Principal = Depends(require_operator_principal),
+    principal: Principal = Depends(require_permission("approval.grant")),
 ) -> dict[str, object]:
     allowed_actions = _normalize_actions([action.value for action in payload.allowed_actions])
     control_ids = _normalize_control_ids(payload.control_ids)
@@ -682,6 +785,12 @@ def create_approval_grant(
     with store.session() as session:
         with session.begin():
             endpoint_ids = _normalize_endpoint_ids(session, payload.endpoint_ids)
+            client_id, location_id = _approval_scope(
+                session,
+                endpoint_ids,
+                principal,
+                "approval.grant",
+            )
             _validate_manual_grant_shape(allowed_actions, control_ids, troubleshooting_scopes)
             _validate_control_actions_for_endpoints(
                 session,
@@ -692,6 +801,9 @@ def create_approval_grant(
             grant = ApprovalGrant(
                 approval_grant_id=generate_prefixed_id("grant"),
                 approval_request_id=None,
+                scope_state="active",
+                client_id=client_id,
+                location_id=location_id,
                 endpoint_ids=endpoint_ids,
                 allowed_actions=allowed_actions,
                 control_ids=control_ids,
@@ -706,4 +818,14 @@ def create_approval_grant(
             )
             session.add(grant)
             session.flush()
+            record_audit_event(
+                session,
+                event_type="approval_granted_manually",
+                principal=principal,
+                client_id=client_id,
+                location_id=location_id,
+                target_type="approval_grant",
+                target_id=grant.approval_grant_id,
+                created_at=now_str,
+            )
             return _approval_grant_payload(grant)

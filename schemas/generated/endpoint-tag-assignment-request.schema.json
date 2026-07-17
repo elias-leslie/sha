@@ -1,0 +1,16 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "tag_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Tag Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tag_id"
+  ],
+  "title": "EndpointTagAssignmentRequest",
+  "type": "object"
+}

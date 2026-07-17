@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import {
   connectivityDisplay,
@@ -15,10 +15,12 @@ import {
   isDemoMode,
   listEndpoints,
   platformDisplayName,
+  QUARANTINE_CLIENT_ID,
   type EndpointInventoryItem,
   type Platform,
 } from "../lib/api";
 import { Badge, EmptyState, Panel, SectionHeader, StatCard } from "./console-primitives";
+import { useScope } from "./scope-context";
 
 type FleetConsoleProps = {
   initialEndpoints?: EndpointInventoryItem[];
@@ -34,6 +36,13 @@ const FILTERS = [
 ] as const;
 
 export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode() }: FleetConsoleProps) {
+  const {
+    scope,
+    href,
+    ready: scopeReady,
+    selectedClient,
+    selectedLocation,
+  } = useScope();
   const [endpoints, setEndpoints] = useState(() => initialEndpoints ?? (demoMode ? getFixtureEndpoints() : []));
   const [source, setSource] = useState<"loading" | "demo" | "live" | "error">(
     demoMode ? "demo" : initialEndpoints ? "live" : "loading",
@@ -43,19 +52,61 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const activeScopeRef = useRef(scope);
+  activeScopeRef.current = scope;
   const [enrollForm, setEnrollForm] = useState({
     hostname: "demo-lab-linux-01",
     agent_fingerprint: "demo-fingerprint-demo-lab-linux-01",
     platform: "linux" as Platform,
     platform_version: "Ubuntu 24.04 LTS",
     agent_version: "1.0.0",
-    tenant_id: "tenant-demo",
-    site_id: "site-demo-lab-linux",
+    tenant_id: "",
+    site_id: "",
   });
+  const boundTenantAlias =
+    selectedClient?.state === "active" && !selectedClient.is_system
+      ? selectedClient.key
+      : null;
+  const boundLocationAlias =
+    selectedLocation?.state === "active" && !selectedLocation.is_system
+      ? selectedLocation.key
+      : null;
+  const compatibilityEnrollmentBound = Boolean(
+    scopeReady &&
+      scope.client_id &&
+      scope.location_id &&
+      selectedClient?.client_id === scope.client_id &&
+      selectedLocation?.client_id === scope.client_id &&
+      selectedLocation.location_id === scope.location_id &&
+      boundTenantAlias &&
+      boundLocationAlias,
+  );
 
   useEffect(() => {
+    setEnrollForm((current) => ({
+      ...current,
+      tenant_id: compatibilityEnrollmentBound ? (boundTenantAlias ?? "") : "",
+      site_id: compatibilityEnrollmentBound ? (boundLocationAlias ?? "") : "",
+    }));
+  }, [boundLocationAlias, boundTenantAlias, compatibilityEnrollmentBound]);
+
+  useEffect(() => {
+    if (!scopeReady) {
+      setEndpoints([]);
+      if (!demoMode) {
+        setSource("loading");
+      }
+      return;
+    }
     if (demoMode) {
-      setEndpoints(initialEndpoints ?? getFixtureEndpoints());
+      const demoEndpoints = initialEndpoints ?? getFixtureEndpoints();
+      setEndpoints(
+        demoEndpoints.filter(
+          (endpoint) =>
+            (!scope.client_id || endpoint.client_id === scope.client_id) &&
+            (!scope.location_id || endpoint.location_id === scope.location_id),
+        ),
+      );
       setSource("demo");
       setError(null);
       return;
@@ -64,7 +115,7 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
     let cancelled = false;
     setSource("loading");
     setError(null);
-    listEndpoints()
+    listEndpoints(scope)
       .then((items) => {
         if (cancelled) {
           return;
@@ -83,7 +134,7 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
     return () => {
       cancelled = true;
     };
-  }, [demoMode, initialEndpoints]);
+  }, [demoMode, initialEndpoints, scope.client_id, scope.location_id, scopeReady]);
 
   const summary = useMemo(() => fleetSummary(endpoints), [endpoints]);
 
@@ -109,7 +160,14 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
         if (!query) {
           return true;
         }
-        return [endpoint.hostname, endpoint.endpoint_id, endpoint.site_id ?? "", endpoint.tenant_id ?? ""]
+        return [
+          endpoint.hostname,
+          endpoint.endpoint_id,
+          endpoint.client_id,
+          endpoint.location_id,
+          endpoint.site_id ?? "",
+          endpoint.tenant_id ?? "",
+        ]
           .join(" ")
           .toLowerCase()
           .includes(query);
@@ -123,7 +181,12 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
 
   async function handleEnroll(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (source !== "live") {
+    if (
+      source !== "live" ||
+      !compatibilityEnrollmentBound ||
+      !boundTenantAlias ||
+      !boundLocationAlias
+    ) {
       return;
     }
     setPending(true);
@@ -131,7 +194,33 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
     setError(null);
 
     try {
-      const enrolled = await enrollEndpoint(enrollForm);
+      const submissionScope = {
+        client_id: scope.client_id,
+        location_id: scope.location_id,
+      };
+      const enrolled = await enrollEndpoint({
+        ...enrollForm,
+        tenant_id: boundTenantAlias,
+        site_id: boundLocationAlias,
+      });
+      const belongsToSelectedScope =
+        enrolled.client_id === submissionScope.client_id &&
+        enrolled.location_id === submissionScope.location_id;
+      if (!belongsToSelectedScope) {
+        setError(
+          "Enrollment response did not match the selected client and location. The endpoint was not added to this view; investigate its quarantine assignment.",
+        );
+        return;
+      }
+      if (
+        activeScopeRef.current.client_id !== submissionScope.client_id ||
+        activeScopeRef.current.location_id !== submissionScope.location_id
+      ) {
+        setError(
+          "Enrollment completed for the previously selected scope. The endpoint was not added to the current view.",
+        );
+        return;
+      }
       setEndpoints((current) => [enrolled, ...current.filter((item) => item.endpoint_id !== enrolled.endpoint_id)]);
       setSource("live");
       setMessage(`Endpoint ${enrolled.hostname} enrolled.`);
@@ -224,6 +313,9 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
                   <div>
                     <strong>{platformDisplayName(endpoint.platform)}</strong>
                     <p>{endpoint.site_id ?? endpoint.tenant_id ?? "Unscoped"}</p>
+                    {endpoint.client_id === QUARANTINE_CLIENT_ID ? (
+                      <Badge tone="warning">Migration quarantine</Badge>
+                    ) : null}
                   </div>
                   <div>
                     <Badge tone={endpointTone(endpoint)}>{endpointStateLabel(endpoint)}</Badge>
@@ -238,7 +330,10 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
                     <p>agent {endpoint.agent_version}</p>
                   </div>
                   <div>
-                    <a className="action-button action-button--secondary" href={`/endpoints/${endpoint.endpoint_id}`}>
+                    <a
+                      className="action-button action-button--secondary"
+                      href={href(`/endpoints/${endpoint.endpoint_id}`)}
+                    >
                       Open endpoint {endpoint.hostname}
                     </a>
                   </div>
@@ -257,7 +352,7 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
           <SectionHeader
             eyebrow="Enrollment"
             title="Register a new endpoint"
-            description="Use the live enroll API to add a device directly from the control plane."
+            description="Compatibility enrollment is bound to the selected active client and location aliases. Global, all-location, archived, and quarantine viewpoints cannot enroll."
           />
           <form className="form-grid" onSubmit={handleEnroll}>
             <label className="field" htmlFor="enroll-hostname">
@@ -315,26 +410,38 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
               />
             </label>
             <label className="field" htmlFor="enroll-tenant-id">
-              <span className="field__label">Tenant id</span>
+              <span className="field__label">Bound client alias</span>
               <input
                 className="field__control"
                 id="enroll-tenant-id"
-                onChange={(event) => setEnrollForm((current) => ({ ...current, tenant_id: event.target.value }))}
+                readOnly
                 value={enrollForm.tenant_id}
               />
             </label>
             <label className="field" htmlFor="enroll-site-id">
-              <span className="field__label">Site id</span>
+              <span className="field__label">Bound location alias</span>
               <input
                 className="field__control"
                 id="enroll-site-id"
-                onChange={(event) => setEnrollForm((current) => ({ ...current, site_id: event.target.value }))}
+                readOnly
                 value={enrollForm.site_id}
               />
             </label>
             <div className="form-actions">
-              <button className="action-button action-button--primary" disabled={pending || source !== "live"} type="submit">
-                {pending ? "Enrolling…" : source === "demo" ? "Enrollment disabled in demo" : source === "live" ? "Enroll endpoint" : "Waiting for live inventory"}
+              <button
+                className="action-button action-button--primary"
+                disabled={pending || source !== "live" || !compatibilityEnrollmentBound}
+                type="submit"
+              >
+                {pending
+                  ? "Enrolling…"
+                  : source === "demo"
+                    ? "Enrollment disabled in demo"
+                    : source !== "live"
+                      ? "Waiting for live inventory"
+                      : compatibilityEnrollmentBound
+                        ? "Enroll endpoint"
+                        : "Select an active client and location"}
               </button>
               {message ? <span className="inline-feedback inline-feedback--success">{message}</span> : null}
               {error ? <span className="inline-feedback inline-feedback--danger">{error}</span> : null}

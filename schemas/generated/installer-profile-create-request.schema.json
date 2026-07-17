@@ -31,9 +31,33 @@
     "channel": {
       "$ref": "#/$defs/InstallerChannel"
     },
+    "client_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Client Id"
+    },
     "control_plane_url": {
       "title": "Control Plane Url",
       "type": "string"
+    },
+    "location_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Location Id"
     },
     "name": {
       "title": "Name",

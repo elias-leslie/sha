@@ -78,6 +78,17 @@
           "title": "Audit Events",
           "type": "array"
         },
+        "client_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Client Id"
+        },
         "control_ids": {
           "items": {
             "type": "string"
@@ -132,6 +143,17 @@
           "title": "Endpoint Ids",
           "type": "array"
         },
+        "location_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Location Id"
+        },
         "reason": {
           "title": "Reason",
           "type": "string"
@@ -157,6 +179,9 @@
         "risk": {
           "$ref": "#/$defs/ApprovalRisk"
         },
+        "scope_state": {
+          "$ref": "#/$defs/ApprovalScopeState"
+        },
         "status": {
           "$ref": "#/$defs/ApprovalRequestStatus"
         },
@@ -174,6 +199,9 @@
       },
       "required": [
         "approval_request_id",
+        "scope_state",
+        "client_id",
+        "location_id",
         "endpoint_ids",
         "request_kind",
         "requested_actions",
@@ -210,6 +238,14 @@
         "critical"
       ],
       "title": "ApprovalRisk",
+      "type": "string"
+    },
+    "ApprovalScopeState": {
+      "enum": [
+        "active",
+        "migration_quarantine"
+      ],
+      "title": "ApprovalScopeState",
       "type": "string"
     },
     "TroubleshootingScope": {

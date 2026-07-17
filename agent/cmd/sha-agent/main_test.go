@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +12,95 @@ import (
 	"testing"
 	"time"
 )
+
+func TestRunAgentLoopRetriesWithBoundedBackoffAndRecovers(t *testing.T) {
+	cycleError := errors.New("control plane unavailable")
+	stopError := errors.New("test loop complete")
+	attempts := 0
+	reported := 0
+	interval := 17 * time.Minute
+	var waits []time.Duration
+	intervalWaits := 0
+
+	err := runAgent(
+		context.Background(),
+		true,
+		interval,
+		func() error {
+			attempts++
+			if attempts == 9 || attempts == 11 {
+				return nil
+			}
+			return cycleError
+		},
+		func(_ context.Context, delay time.Duration) error {
+			waits = append(waits, delay)
+			if delay == interval {
+				intervalWaits++
+				if intervalWaits == 2 {
+					return stopError
+				}
+			}
+			return nil
+		},
+		func(err error) {
+			if !errors.Is(err, cycleError) {
+				t.Fatalf("unexpected reported error: %v", err)
+			}
+			reported++
+		},
+	)
+	if !errors.Is(err, stopError) {
+		t.Fatalf("loop returned %v, want test stop error", err)
+	}
+	if attempts != 11 || reported != 9 {
+		t.Fatalf("attempts=%d reported=%d, want attempts=11 reported=9", attempts, reported)
+	}
+	wantWaits := []time.Duration{
+		5 * time.Second,
+		10 * time.Second,
+		20 * time.Second,
+		40 * time.Second,
+		80 * time.Second,
+		160 * time.Second,
+		maximumLoopRetryDelay,
+		maximumLoopRetryDelay,
+		interval,
+		initialLoopRetryDelay,
+		interval,
+	}
+	if len(waits) != len(wantWaits) {
+		t.Fatalf("waits=%v, want %v", waits, wantWaits)
+	}
+	for index := range wantWaits {
+		if waits[index] != wantWaits[index] {
+			t.Fatalf("wait %d=%s, want %s; all waits=%v", index, waits[index], wantWaits[index], waits)
+		}
+	}
+}
+
+func TestRunAgentOneShotReturnsCycleFailureWithoutRetry(t *testing.T) {
+	cycleError := errors.New("control plane unavailable")
+	waited := false
+	reported := false
+	err := runAgent(
+		context.Background(),
+		false,
+		time.Minute,
+		func() error { return cycleError },
+		func(context.Context, time.Duration) error {
+			waited = true
+			return nil
+		},
+		func(error) { reported = true },
+	)
+	if !errors.Is(err, cycleError) {
+		t.Fatalf("one-shot returned %v, want cycle failure", err)
+	}
+	if waited || reported {
+		t.Fatalf("one-shot retried or reported retry: waited=%t reported=%t", waited, reported)
+	}
+}
 
 func TestLinuxAgentRejectsStaleMutationWithoutFilesystemOrCommandChanges(t *testing.T) {
 	tmp := t.TempDir()

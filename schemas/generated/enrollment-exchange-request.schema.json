@@ -1,0 +1,96 @@
+{
+  "$defs": {
+    "EndpointPlatform": {
+      "enum": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "title": "EndpointPlatform",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "agent_fingerprint": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Agent Fingerprint",
+      "type": "string"
+    },
+    "agent_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Agent Version",
+      "type": "string"
+    },
+    "architecture": {
+      "maxLength": 32,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+      "title": "Architecture",
+      "type": "string"
+    },
+    "credential_id": {
+      "maxLength": 67,
+      "minLength": 19,
+      "title": "Credential Id",
+      "type": "string"
+    },
+    "credential_secret": {
+      "format": "password",
+      "maxLength": 128,
+      "minLength": 43,
+      "title": "Credential Secret",
+      "type": "string",
+      "writeOnly": true
+    },
+    "hostname": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Hostname",
+      "type": "string"
+    },
+    "installation_id": {
+      "maxLength": 128,
+      "minLength": 16,
+      "title": "Installation Id",
+      "type": "string"
+    },
+    "platform": {
+      "$ref": "#/$defs/EndpointPlatform"
+    },
+    "platform_version": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Platform Version"
+    },
+    "protocol_version": {
+      "maxLength": 32,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+      "title": "Protocol Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "credential_id",
+    "credential_secret",
+    "installation_id",
+    "agent_fingerprint",
+    "hostname",
+    "platform",
+    "agent_version",
+    "protocol_version",
+    "architecture"
+  ],
+  "title": "EnrollmentExchangeRequest",
+  "type": "object"
+}

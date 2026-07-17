@@ -21,6 +21,14 @@
       "title": "ApprovalGrantStatus",
       "type": "string"
     },
+    "ApprovalScopeState": {
+      "enum": [
+        "active",
+        "migration_quarantine"
+      ],
+      "title": "ApprovalScopeState",
+      "type": "string"
+    },
     "TroubleshootingScope": {
       "enum": [
         "service_status",
@@ -62,6 +70,17 @@
       "title": "Approved By",
       "type": "string"
     },
+    "client_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Client Id"
+    },
     "control_ids": {
       "items": {
         "type": "string"
@@ -84,6 +103,17 @@
       "title": "Expires At",
       "type": "string"
     },
+    "location_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Location Id"
+    },
     "reason": {
       "title": "Reason",
       "type": "string"
@@ -91,6 +121,9 @@
     "requested_by": {
       "title": "Requested By",
       "type": "string"
+    },
+    "scope_state": {
+      "$ref": "#/$defs/ApprovalScopeState"
     },
     "status": {
       "$ref": "#/$defs/ApprovalGrantStatus"
@@ -109,6 +142,9 @@
   },
   "required": [
     "approval_grant_id",
+    "scope_state",
+    "client_id",
+    "location_id",
     "endpoint_ids",
     "allowed_actions",
     "control_ids",

@@ -32,13 +32,24 @@ with socket.socket() as sock:
 PY
 )
 fi
+umask 077
 mkdir -p "$SECRET_DIR"
+chmod 700 "$SECRET_DIR"
 printf '%s' "$POSTGRES_PASSWORD" > "$SECRET_DIR/postgres_password"
 printf 'postgresql+psycopg://sha:%s@postgres:5432/sha' "$POSTGRES_PASSWORD" > "$SECRET_DIR/sha_database_url"
 printf '%s' "$OPERATOR_TOKEN" > "$SECRET_DIR/sha_api_token"
 printf '%s' "$READONLY_TOKEN" > "$SECRET_DIR/sha_readonly_api_token"
 printf '%s' "$AGENT_TOKEN" > "$SECRET_DIR/sha_agent_api_token"
 printf '%s' "$EXTERNAL_AUTH_TOKEN" > "$SECRET_DIR/sha_external_auth_trusted_token"
+head -c 48 /dev/urandom > "$SECRET_DIR/sha_credential_hmac_key"
+chmod 600 \
+  "$SECRET_DIR/postgres_password" \
+  "$SECRET_DIR/sha_database_url" \
+  "$SECRET_DIR/sha_api_token" \
+  "$SECRET_DIR/sha_readonly_api_token" \
+  "$SECRET_DIR/sha_agent_api_token" \
+  "$SECRET_DIR/sha_external_auth_trusted_token" \
+  "$SECRET_DIR/sha_credential_hmac_key"
 
 compose() {
   POSTGRES_PASSWORD=overridden-by-postgres-secret-file \
@@ -51,6 +62,7 @@ compose() {
   SHA_READONLY_API_TOKEN_SECRET_FILE="$SECRET_DIR/sha_readonly_api_token" \
   SHA_AGENT_API_TOKEN_SECRET_FILE="$SECRET_DIR/sha_agent_api_token" \
   SHA_EXTERNAL_AUTH_TRUSTED_TOKEN_SECRET_FILE="$SECRET_DIR/sha_external_auth_trusted_token" \
+  SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE="$SECRET_DIR/sha_credential_hmac_key" \
   SHA_PUBLIC_PORT="$PORT" \
   docker compose -p "$PROJECT" \
     -f "$ROOT_DIR/deploy/ha/docker-compose.yml" \
@@ -85,6 +97,7 @@ PROJECT="$PROJECT" SHA_COMPOSE_FILES="$COMPOSE_FILES_SPEC" \
   SHA_READONLY_API_TOKEN_SECRET_FILE="$SECRET_DIR/sha_readonly_api_token" \
   SHA_AGENT_API_TOKEN_SECRET_FILE="$SECRET_DIR/sha_agent_api_token" \
   SHA_EXTERNAL_AUTH_TRUSTED_TOKEN_SECRET_FILE="$SECRET_DIR/sha_external_auth_trusted_token" \
+  SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE="$SECRET_DIR/sha_credential_hmac_key" \
   SHA_PUBLIC_PORT="$PORT" BACKUP_DIR="$BACKUP_DIR" "$ROOT_DIR/scripts/backup-ha-postgres.sh"
 BACKUP_FILE=$(ls "$BACKUP_DIR"/sha-postgres-*.dump)
 CONFIRM_RESTORE=sha-restore PROJECT="$PROJECT" SHA_COMPOSE_FILES="$COMPOSE_FILES_SPEC" \
@@ -99,6 +112,7 @@ CONFIRM_RESTORE=sha-restore PROJECT="$PROJECT" SHA_COMPOSE_FILES="$COMPOSE_FILES
   SHA_READONLY_API_TOKEN_SECRET_FILE="$SECRET_DIR/sha_readonly_api_token" \
   SHA_AGENT_API_TOKEN_SECRET_FILE="$SECRET_DIR/sha_agent_api_token" \
   SHA_EXTERNAL_AUTH_TRUSTED_TOKEN_SECRET_FILE="$SECRET_DIR/sha_external_auth_trusted_token" \
+  SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE="$SECRET_DIR/sha_credential_hmac_key" \
   SHA_PUBLIC_PORT="$PORT" "$ROOT_DIR/scripts/restore-ha-postgres.sh" "$BACKUP_FILE"
 BASE_URL="http://127.0.0.1:${PORT}"
 curl -fsS "$BASE_URL/health" >/dev/null
@@ -124,12 +138,15 @@ req.add_header("X-SHA-External-User", "secrets-e2e@example.test")
 with request.urlopen(req, timeout=30) as response:
     assert response.status == 200
 PY
-python3 - "$BASE_URL" "$OPERATOR_TOKEN" "$AGENT_TOKEN" <<'PY'
+python3 - "$BASE_URL" "$SECRET_DIR/sha_api_token" "$SECRET_DIR/sha_agent_api_token" <<'PY'
 import json
+from pathlib import Path
 import sys
 from urllib import request
 
-base_url, token, agent_token = sys.argv[1:]
+base_url, token_file, agent_token_file = sys.argv[1:]
+token = Path(token_file).read_text(encoding="utf-8")
+agent_token = Path(agent_token_file).read_text(encoding="utf-8")
 req = request.Request(base_url + "/api/installer-profiles", data=json.dumps({
     "name": "HA Secrets Linux E2E",
     "platform": "linux",
@@ -148,5 +165,96 @@ with request.urlopen(req, timeout=30) as response:
     assert response.headers["Cache-Control"] == "private, no-store"
 assert f'"api_token": "{agent_token}"' in artifact
 print(json.dumps({"profile_id": profile["id"], "agent_secret_embedded": True}, sort_keys=True))
+PY
+python3 - "$BASE_URL" "$SECRET_DIR/sha_api_token" <<'PY'
+import json
+from pathlib import Path
+from secrets import token_urlsafe
+import sys
+from urllib import error, request
+
+base_url, operator_token_file = sys.argv[1:]
+operator_token = Path(operator_token_file).read_text(encoding="utf-8")
+
+
+def call(method, path, token, payload=None):
+    data = None if payload is None else json.dumps(payload).encode()
+    req = request.Request(base_url + path, data=data, method=method)
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Accept", "application/json")
+    if data is not None:
+        req.add_header("Content-Type", "application/json")
+    with request.urlopen(req, timeout=30) as response:
+        headers = {key.lower(): value for key, value in response.headers.items()}
+        return response.status, headers, json.load(response)
+
+
+_, _, client = call("POST", "/api/clients", operator_token, {
+    "key": "ha-secret-device-e2e",
+    "name": "HA Secret Device E2E",
+})
+_, _, location = call(
+    "POST",
+    f"/api/clients/{client['client_id']}/locations",
+    operator_token,
+    {"key": "primary", "name": "Primary"},
+)
+status, headers, token_record = call("POST", "/api/enrollment-tokens", operator_token, {
+    "client_id": client["client_id"],
+    "location_id": location["location_id"],
+    "platform": "linux",
+    "approval_policy": "approved",
+    "expires_in_minutes": 15,
+    "max_uses": 1,
+})
+assert status == 201
+assert "no-store" in headers.get("cache-control", "")
+enrollment_token = token_record["token"]
+credential_id = "dc_ha_secret_e2e_0123456789abcdef"
+credential_secret = token_urlsafe(32)
+bootstrap_payload = {
+    "installation_id": "install-ha-secret-e2e-0001",
+    "credential_id": credential_id,
+    "credential_secret": credential_secret,
+    "agent_fingerprint": "ha-secret-device-fingerprint",
+    "hostname": "ha-secret-device",
+    "platform": "linux",
+    "platform_version": "Ubuntu 24.04",
+    "agent_version": "ha-secret-e2e",
+    "protocol_version": "sha-agent-v1",
+    "architecture": "amd64",
+}
+status, headers, enrolled = call(
+    "POST", "/api/agent/bootstrap", enrollment_token, bootstrap_payload
+)
+assert status == 201
+assert "no-store" in headers.get("cache-control", "")
+device_token = f"sha_device.{credential_id}.{credential_secret}"
+_, headers, identity = call("GET", "/api/agent/me", device_token)
+assert "no-store" in headers.get("cache-control", "")
+assert identity["endpoint"]["endpoint_id"] == enrolled["endpoint"]["endpoint_id"]
+assert identity["endpoint"]["client_id"] == client["client_id"]
+_, _, listed_tokens = call("GET", "/api/enrollment-tokens", operator_token)
+serialized_listing = json.dumps(listed_tokens, sort_keys=True)
+assert enrollment_token not in serialized_listing
+assert credential_secret not in serialized_listing
+_, _, revoked = call(
+    "POST", f"/api/device-credentials/{credential_id}/revoke", operator_token
+)
+assert revoked["status"] == "revoked"
+try:
+    call("GET", "/api/agent/me", device_token)
+except error.HTTPError as exc:
+    assert exc.code == 401
+    body = exc.read().decode()
+    assert enrollment_token not in body
+    assert credential_secret not in body
+else:
+    raise AssertionError("revoked device credential remained active")
+print(json.dumps({
+    "device_identity_secret_file": True,
+    "device_revocation_immediate": True,
+    "endpoint_id": enrolled["endpoint"]["endpoint_id"],
+}, sort_keys=True))
 PY
 printf 'HA_COMPOSE_SECRETS_E2E_OK port=%s project=%s\n' "$PORT" "$PROJECT"

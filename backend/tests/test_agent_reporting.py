@@ -63,6 +63,11 @@ def test_endpoint_heartbeat_persists_capabilities_and_execution_hooks(db_path, m
         "last_heartbeat_at": "2026-04-18T22:00:00Z",
         "accepted_capability_count": 5,
         "pending_action_count": 0,
+        "protocol": {
+            "negotiated_version": "legacy-v1",
+            "minimum_version": "legacy-v1",
+            "supported_versions": ["legacy-v1"],
+        },
         "created_at": response.json()["created_at"],
         "updated_at": "2026-04-18T22:00:00Z",
     }
@@ -166,6 +171,15 @@ def test_endpoint_collection_and_detail_include_latest_posture_summary_and_resul
                 "platform": "linux",
                 "platform_version": "Ubuntu 24.04.1 LTS",
                 "agent_version": "1.0.1",
+                "protocol_version": "legacy-v1",
+                "architecture": None,
+                "installation_id": None,
+                "credential_mode": "legacy_shared",
+                "enrollment_token_id": None,
+                "migration_state": "legacy_reporter",
+                "migration_eligible": True,
+                "client_id": "cl_legacy_quarantine",
+                "location_id": "loc_legacy_quarantine",
                 "tenant_id": "tenant-a",
                 "site_id": "site-a",
                 "status": "active",
@@ -183,6 +197,7 @@ def test_endpoint_collection_and_detail_include_latest_posture_summary_and_resul
                     "request_elevated_troubleshooting",
                     "rollback_control:linux.ssh.password-authentication-disabled",
                 ],
+                "capability_manifest": None,
                 "execution_hooks": {
                     "captures_rollback_artifacts": False,
                     "reports_execution_results": True,
@@ -199,6 +214,7 @@ def test_endpoint_collection_and_detail_include_latest_posture_summary_and_resul
                     "not_applicable_count": 0,
                     "reboot_required_count": 0,
                 },
+                "active_credential": None,
             }
         ]
     }

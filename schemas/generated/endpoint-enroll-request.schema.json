@@ -19,6 +19,21 @@
       "title": "Agent Version",
       "type": "string"
     },
+    "architecture": {
+      "anyOf": [
+        {
+          "maxLength": 32,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Architecture"
+    },
     "hostname": {
       "title": "Hostname",
       "type": "string"
@@ -37,6 +52,14 @@
       ],
       "default": null,
       "title": "Platform Version"
+    },
+    "protocol_version": {
+      "default": "legacy-v1",
+      "maxLength": 32,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+      "title": "Protocol Version",
+      "type": "string"
     },
     "site_id": {
       "anyOf": [

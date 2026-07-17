@@ -1,0 +1,36 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "description": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "name": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "saved_view_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Saved View Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "saved_view_id"
+  ],
+  "title": "DynamicGroupCreateRequest",
+  "type": "object"
+}

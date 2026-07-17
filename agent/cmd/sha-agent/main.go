@@ -24,22 +24,34 @@ const (
 	legacyGoSSHHardeningPayload = "# Managed by SHA Go agent\nPasswordAuthentication no\n"
 	linuxLegacySSHControlID     = "linux.ssh.password-authentication-disabled"
 	windowsFirewallControlID    = "control.windows.firewall-all-profiles"
+	initialLoopRetryDelay       = 5 * time.Second
+	maximumLoopRetryDelay       = 5 * time.Minute
 )
+
+var utf8ByteOrderMark = []byte{0xef, 0xbb, 0xbf}
 
 type Config struct {
 	ControlPlaneURL             string  `json:"control_plane_url"`
 	APIToken                    string  `json:"api_token"`
+	EnrollmentToken             string  `json:"enrollment_token"`
+	StatePath                   string  `json:"state_path"`
+	AllowInsecureLoopback       bool    `json:"allow_insecure_loopback"`
+	CABundlePath                string  `json:"ca_bundle_path"`
 	TenantID                    *string `json:"tenant_id"`
 	SiteID                      *string `json:"site_id"`
 	ProfileID                   string  `json:"profile_id"`
 	AgentVersion                string  `json:"agent_version"`
+	ServiceContext              string  `json:"service_context"`
 	SSHDHardeningPath           string  `json:"sshd_hardening_path"`
 	WindowsFirewallRollbackPath string  `json:"windows_firewall_rollback_path"`
 }
 
 type Agent struct {
-	config Config
-	client *http.Client
+	config         Config
+	client         *http.Client
+	configPath     string
+	stateStore     *stateStore
+	requestContext context.Context
 }
 
 type endpointResponse struct {
@@ -75,23 +87,42 @@ var (
 
 func main() {
 	configPath := flag.String("config", firstNonEmpty(os.Getenv("SHA_AGENT_CONFIG"), "/etc/sha/agent-config.json"), "agent config JSON path")
+	action := flag.String("action", "run", "agent action: run, service, status, or rotate-credential")
 	loop := flag.Bool("loop", false, "run forever instead of once")
 	interval := flag.Duration("interval", 15*time.Minute, "loop interval")
 	flag.Parse()
 
-	config, err := loadConfig(*configPath)
+	absoluteConfigPath, err := filepath.Abs(*configPath)
+	if err != nil {
+		fatal(fmt.Errorf("resolve config path: %w", err))
+	}
+	config, err := loadConfig(absoluteConfigPath)
 	if err != nil {
 		fatal(err)
 	}
-	agent := Agent{config: config, client: &http.Client{Timeout: 30 * time.Second}}
-	for {
-		if err := agent.RunOnce(); err != nil {
+	if config.StatePath == "" {
+		config.StatePath, err = defaultStatePath(absoluteConfigPath)
+		if err != nil {
 			fatal(err)
 		}
-		if !*loop {
-			return
-		}
-		time.Sleep(*interval)
+	}
+	store, err := newStateStore(config.StatePath)
+	if err != nil {
+		fatal(err)
+	}
+	client, err := newHTTPClient(config)
+	if err != nil {
+		fatal(err)
+	}
+	agent := Agent{config: config, client: client, configPath: absoluteConfigPath, stateStore: store}
+	if err := dispatchAgentAction(
+		context.Background(),
+		*action,
+		*loop,
+		*interval,
+		newAgentActionHandlers(&agent, os.Stdout, os.Stderr),
+	); err != nil {
+		fatal(err)
 	}
 }
 
@@ -101,20 +132,31 @@ func fatal(err error) {
 }
 
 func loadConfig(path string) (Config, error) {
-	content, err := os.ReadFile(path)
+	content, err := readPrivateFile(path, maximumConfigFileBytes)
 	if err != nil {
 		return Config{}, err
 	}
+	content = bytes.TrimPrefix(content, utf8ByteOrderMark)
 	var config Config
 	if err := json.Unmarshal(content, &config); err != nil {
 		return Config{}, err
 	}
-	config.ControlPlaneURL = strings.TrimRight(strings.TrimSpace(config.ControlPlaneURL), "/")
-	if config.ControlPlaneURL == "" {
-		return Config{}, errors.New("control_plane_url is required")
+	normalizedURL, err := normalizeControlPlaneURL(config.ControlPlaneURL, config.AllowInsecureLoopback)
+	if err != nil {
+		return Config{}, err
 	}
+	config.ControlPlaneURL = normalizedURL
+	config.CABundlePath = strings.TrimSpace(config.CABundlePath)
+	config.EnrollmentToken = strings.TrimSpace(config.EnrollmentToken)
+	config.StatePath = strings.TrimSpace(config.StatePath)
 	if config.AgentVersion == "" {
 		config.AgentVersion = defaultAgentVersion
+	}
+	if config.ServiceContext == "" {
+		config.ServiceContext = "unknown"
+	}
+	if config.ServiceContext != "unknown" && config.ServiceContext != "system_service" && config.ServiceContext != "interactive" {
+		return Config{}, errors.New("service_context must be unknown, system_service, or interactive")
 	}
 	if config.SSHDHardeningPath == "" {
 		config.SSHDHardeningPath = "/etc/ssh/sshd_config.d/99-sha-hardening.conf"
@@ -125,12 +167,127 @@ func loadConfig(path string) (Config, error) {
 	return config, nil
 }
 
-func (a Agent) RunOnce() error {
+func runAgent(
+	ctx context.Context,
+	loop bool,
+	interval time.Duration,
+	runOnce func() error,
+	wait func(context.Context, time.Duration) error,
+	reportRetry func(error),
+) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	retryDelay := initialLoopRetryDelay
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err := runOnce()
+		if err != nil {
+			if contextErr := ctx.Err(); contextErr != nil {
+				return contextErr
+			}
+			if !loop {
+				return err
+			}
+			if reportRetry != nil {
+				reportRetry(err)
+			}
+			if err := wait(ctx, retryDelay); err != nil {
+				return err
+			}
+			retryDelay = nextLoopRetryDelay(retryDelay)
+			continue
+		}
+
+		if !loop {
+			return nil
+		}
+		retryDelay = initialLoopRetryDelay
+		if err := wait(ctx, interval); err != nil {
+			return err
+		}
+	}
+}
+
+func nextLoopRetryDelay(current time.Duration) time.Duration {
+	if current >= maximumLoopRetryDelay/2 {
+		return maximumLoopRetryDelay
+	}
+	return current * 2
+}
+
+func waitForAgentInterval(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func (a *Agent) RunOnce() error {
+	return a.RunOnceContext(context.Background())
+}
+
+func (a *Agent) RunOnceContext(ctx context.Context) error {
+	return a.runWithContext(ctx, a.runOnce)
+}
+
+func (a *Agent) runWithContext(ctx context.Context, operation func() error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	previous := a.requestContext
+	a.requestContext = ctx
+	defer func() { a.requestContext = previous }()
+	return operation()
+}
+
+func (a Agent) context() context.Context {
+	if a.requestContext != nil {
+		return a.requestContext
+	}
+	return context.Background()
+}
+
+func (a *Agent) runOnce() error {
+	hostname, platformVersion := localIdentityFacts()
+	useDeviceIdentity, err := a.shouldUseDeviceIdentity()
+	if err != nil {
+		return err
+	}
+	if useDeviceIdentity {
+		session, err := a.ensureDeviceIdentity(hostname, platformVersion)
+		if err != nil {
+			return err
+		}
+		return a.runEndpointCycle(
+			session.identity.Endpoint.EndpointID,
+			platformVersion,
+			session.state.Credential.bearer(),
+			true,
+			session.identity.Endpoint.Status,
+		)
+	}
+	return a.runLegacyCycle(hostname, platformVersion)
+}
+
+func localIdentityFacts() (string, string) {
 	hostname, _ := os.Hostname()
-	if hostname == "" {
+	if strings.TrimSpace(hostname) == "" {
 		hostname = "unknown-host"
 	}
-	platformVersion := platformVersion()
+	return hostname, platformVersion()
+}
+
+func (a *Agent) runLegacyCycle(hostname, platformVersion string) error {
+	if strings.TrimSpace(a.config.APIToken) == "" {
+		return errors.New("api_token or enrollment_token/device state is required")
+	}
 	endpoint := endpointResponse{}
 	if err := a.doJSON("POST", "/api/endpoints/enroll", map[string]any{
 		"agent_fingerprint": fingerprint(hostname, a.config.ProfileID),
@@ -143,26 +300,45 @@ func (a Agent) RunOnce() error {
 	}, &endpoint); err != nil {
 		return err
 	}
-	if err := a.doJSON("POST", "/api/endpoints/"+endpoint.EndpointID+"/heartbeat", map[string]any{
+	return a.runEndpointCycle(endpoint.EndpointID, platformVersion, a.config.APIToken, false, "active")
+}
+
+func (a *Agent) runEndpointCycle(
+	endpointID string,
+	platformVersion string,
+	bearer string,
+	deviceIdentity bool,
+	endpointStatus string,
+) error {
+	heartbeat := map[string]any{
 		"agent_version":         a.config.AgentVersion,
 		"platform_version":      platformVersion,
 		"platform_profile":      currentPlatformName() + "-go-agent",
 		"connectivity_status":   "online",
 		"declared_capabilities": declaredCapabilities(),
 		"execution_hooks":       executionHooks(),
-	}, nil); err != nil {
+	}
+	if deviceIdentity {
+		heartbeat["protocol_version"] = agentProtocolVersion
+		heartbeat["architecture"] = runtime.GOARCH
+		heartbeat["capability_manifest"] = buildCapabilityManifest(a.config.ServiceContext)
+	}
+	if err := a.doJSONWithBearer("POST", "/api/endpoints/"+endpointID+"/heartbeat", heartbeat, nil, bearer); err != nil {
 		return err
 	}
-	if err := a.doJSON("POST", "/api/posture-snapshots", map[string]any{
-		"endpoint_id":      endpoint.EndpointID,
+	if deviceIdentity && endpointStatus == "pending" {
+		return nil
+	}
+	if err := a.doJSONWithBearer("POST", "/api/posture-snapshots", map[string]any{
+		"endpoint_id":      endpointID,
 		"observed_at":      time.Now().UTC().Format(time.RFC3339),
 		"platform_profile": currentPlatformName() + "-go-agent",
 		"results":          a.postureResults(),
-	}, nil); err != nil {
+	}, nil, bearer); err != nil {
 		return err
 	}
 	var actions actionList
-	if err := a.doJSON("POST", "/api/endpoints/"+endpoint.EndpointID+"/response-actions/claim", map[string]any{}, &actions); err != nil {
+	if err := a.doJSONWithBearer("POST", "/api/endpoints/"+endpointID+"/response-actions/claim", map[string]any{}, &actions, bearer); err != nil {
 		return err
 	}
 	for _, action := range actions.Items {
@@ -170,11 +346,11 @@ func (a Agent) RunOnce() error {
 			return fmt.Errorf("response action %s claim is missing lease_token", action.ResponseActionID)
 		}
 		status, summary := a.executeAction(action)
-		if err := a.doJSON("POST", "/api/response-actions/"+action.ResponseActionID+"/result", map[string]any{
+		if err := a.doJSONWithBearer("POST", "/api/response-actions/"+action.ResponseActionID+"/result", map[string]any{
 			"status":         status,
 			"result_summary": summary,
 			"lease_token":    action.LeaseToken,
-		}, nil); err != nil {
+		}, nil, bearer); err != nil {
 			return err
 		}
 	}
@@ -205,6 +381,10 @@ func executionHooks() map[string]bool {
 }
 
 func (a Agent) doJSON(method, path string, body any, out any) error {
+	return a.doJSONWithBearer(method, path, body, out, a.config.APIToken)
+}
+
+func (a Agent) doJSONWithBearer(method, path string, body any, out any, bearer string) error {
 	var reader io.Reader
 	if body != nil {
 		payload, err := json.Marshal(body)
@@ -213,27 +393,46 @@ func (a Agent) doJSON(method, path string, body any, out any) error {
 		}
 		reader = bytes.NewReader(payload)
 	}
-	request, err := http.NewRequest(method, a.config.ControlPlaneURL+path, reader)
+	request, err := http.NewRequestWithContext(a.context(), method, a.config.ControlPlaneURL+path, reader)
 	if err != nil {
 		return err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	if a.config.APIToken != "" {
-		request.Header.Set("Authorization", "Bearer "+a.config.APIToken)
+	if bearer != "" {
+		request.Header.Set("Authorization", "Bearer "+bearer)
 	}
 	response, err := a.client.Do(request)
 	if err != nil {
 		return err
 	}
 	defer response.Body.Close()
-	content, _ := io.ReadAll(response.Body)
+	content, readErr := io.ReadAll(io.LimitReader(response.Body, 64*1024+1))
+	if readErr != nil {
+		return fmt.Errorf("read %s %s response: %w", method, path, readErr)
+	}
+	if len(content) > 64*1024 {
+		return fmt.Errorf("%s %s response exceeds size limit", method, path)
+	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("%s %s failed: %d %s", method, path, response.StatusCode, strings.TrimSpace(string(content)))
+		return &HTTPStatusError{
+			Method:     method,
+			Path:       path,
+			StatusCode: response.StatusCode,
+			Detail:     sanitizedHTTPErrorDetail(content),
+		}
 	}
 	if out == nil || len(content) == 0 {
 		return nil
 	}
 	return json.Unmarshal(content, out)
+}
+
+func sanitizedHTTPErrorDetail(content []byte) string {
+	// Server-generated error bodies are deliberately not reflected. A proxy or
+	// future endpoint could echo request material, including enrollment or
+	// device secrets. Method, path, and status remain sufficient for diagnosis.
+	_ = content
+	return "control plane rejected the request"
 }
 
 func (a Agent) postureResults() []postureResult {
@@ -395,7 +594,7 @@ func (a Agent) windowsPostureResults() []postureResult {
 	current := "unknown"
 	status := "warn"
 	evidence := "Windows Firewall profile state could not be inspected."
-	output, err := runPowerShell("$disabled = @(Get-NetFirewallProfile -Name Domain,Private,Public | Where-Object { -not $_.Enabled }); if ($disabled.Count -eq 0) { 'enabled' } else { ($disabled | ForEach-Object { $_.Name }) -join ',' }")
+	output, err := a.runPowerShell("$disabled = @(Get-NetFirewallProfile -Name Domain,Private,Public | Where-Object { -not $_.Enabled }); if ($disabled.Count -eq 0) { 'enabled' } else { ($disabled | ForEach-Object { $_.Name }) -join ',' }")
 	if err == nil {
 		current = strings.TrimSpace(output)
 		if current == "enabled" {
@@ -432,7 +631,7 @@ func (a Agent) applyWindowsFirewallAllProfiles() (string, string) {
 		"if (Test-Path -LiteralPath $rollback) { throw \"Refusing to overwrite existing SHA firewall rollback artifact at $rollback\" }; " +
 		"Get-NetFirewallProfile -Name Domain,Private,Public | Select-Object Name,Enabled | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $rollback -Encoding UTF8; " +
 		"Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True"
-	if output, err := runPowerShell(script); err != nil {
+	if output, err := a.runPowerShell(script); err != nil {
 		return "failed", strings.TrimSpace(output + " " + err.Error())
 	}
 	return "succeeded", "Enabled Windows Firewall Domain, Private, and Public profiles; rollback saved to " + a.config.WindowsFirewallRollbackPath + "."
@@ -447,7 +646,7 @@ func (a Agent) rollbackWindowsFirewallAllProfiles() (string, string) {
 		"if ($profiles.Count -ne 3 -or @($profiles.Name | Sort-Object -Unique).Count -ne 3) { throw 'SHA firewall rollback artifact has an invalid profile set' }; " +
 		"foreach ($profile in $profiles) { if ($expected -notcontains [string]$profile.Name -or $profile.Enabled -isnot [bool]) { throw 'SHA firewall rollback artifact has invalid data' }; $enabled = if ($profile.Enabled) { 'True' } else { 'False' }; Set-NetFirewallProfile -Profile ([string]$profile.Name) -Enabled $enabled }; " +
 		"Remove-Item -LiteralPath $rollback -Force"
-	if output, err := runPowerShell(script); err != nil {
+	if output, err := a.runPowerShell(script); err != nil {
 		return "failed", strings.TrimSpace(output + " " + err.Error())
 	}
 	return "succeeded", "Restored Windows Firewall profile states from SHA rollback artifact."
@@ -457,8 +656,19 @@ func runPowerShell(script string) (string, error) {
 	return runCommand("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
 }
 
+func (a Agent) runPowerShell(script string) (string, error) {
+	if a.requestContext == nil {
+		return runPowerShell(script)
+	}
+	return runCommandWithContext(a.requestContext, "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
+}
+
 func runCommandWithTimeout(name string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	return runCommandWithContext(context.Background(), name, args...)
+}
+
+func runCommandWithContext(parent context.Context, name string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 	output, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
 	if ctx.Err() != nil {

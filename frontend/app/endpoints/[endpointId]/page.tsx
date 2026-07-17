@@ -39,6 +39,7 @@ export default function EndpointDetailPage({
   return (
     <NavShell
       currentPath="/fleet"
+      scopeNotice="Endpoint-specific view. Client and location viewpoint filters do not apply; endpoint identity and server authorization govern this page."
       title={<EndpointShellTitle demoMode={demoMode} endpointId={endpointId} initialHostname={endpoint?.hostname} />}
       description="Endpoint drill-down with live heartbeat and posture write surfaces for operator validation and controlled testing."
     >

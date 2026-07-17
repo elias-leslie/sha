@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "AuthorizationScopeType": {
+      "enum": [
+        "global",
+        "client",
+        "location"
+      ],
+      "title": "AuthorizationScopeType",
+      "type": "string"
+    },
+    "EndpointTagResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "assigned_at": {
+          "title": "Assigned At",
+          "type": "string"
+        },
+        "assigned_by": {
+          "title": "Assigned By",
+          "type": "string"
+        },
+        "client_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Client Id"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "created_by": {
+          "title": "Created By",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Description"
+        },
+        "location_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Location Id"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "scope_type": {
+          "$ref": "#/$defs/AuthorizationScopeType"
+        },
+        "tag_id": {
+          "title": "Tag Id",
+          "type": "string"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tag_id",
+        "name",
+        "description",
+        "scope_type",
+        "client_id",
+        "location_id",
+        "created_by",
+        "created_at",
+        "updated_at",
+        "assigned_by",
+        "assigned_at"
+      ],
+      "title": "EndpointTagResponse",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/EndpointTagResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "EndpointTagListResponse",
+  "type": "object"
+}

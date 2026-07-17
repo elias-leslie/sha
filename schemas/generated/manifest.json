@@ -9,6 +9,58 @@
       "model": "EndpointResponse"
     },
     {
+      "filename": "enrollment-token-create-request.schema.json",
+      "model": "EnrollmentTokenCreateRequest"
+    },
+    {
+      "filename": "enrollment-token-create-response.schema.json",
+      "model": "EnrollmentTokenCreateResponse"
+    },
+    {
+      "filename": "enrollment-token-response.schema.json",
+      "model": "EnrollmentTokenResponse"
+    },
+    {
+      "filename": "enrollment-token-list-response.schema.json",
+      "model": "EnrollmentTokenListResponse"
+    },
+    {
+      "filename": "enrollment-exchange-request.schema.json",
+      "model": "EnrollmentExchangeRequest"
+    },
+    {
+      "filename": "enrollment-exchange-response.schema.json",
+      "model": "EnrollmentExchangeResponse"
+    },
+    {
+      "filename": "device-credential-material-request.schema.json",
+      "model": "DeviceCredentialMaterialRequest"
+    },
+    {
+      "filename": "device-credential-response.schema.json",
+      "model": "DeviceCredentialResponse"
+    },
+    {
+      "filename": "agent-me-response.schema.json",
+      "model": "AgentMeResponse"
+    },
+    {
+      "filename": "auth-session-response.schema.json",
+      "model": "AuthSessionResponse"
+    },
+    {
+      "filename": "audit-event-list-response.schema.json",
+      "model": "AuditEventListResponse"
+    },
+    {
+      "filename": "user-status-update-request.schema.json",
+      "model": "UserStatusUpdateRequest"
+    },
+    {
+      "filename": "role-binding-create-request.schema.json",
+      "model": "RoleBindingCreateRequest"
+    },
+    {
       "filename": "endpoint-heartbeat-request.schema.json",
       "model": "EndpointHeartbeatRequest"
     },
@@ -23,6 +75,82 @@
     {
       "filename": "endpoint-detail-response.schema.json",
       "model": "EndpointDetailResponse"
+    },
+    {
+      "filename": "client-create-request.schema.json",
+      "model": "ClientCreateRequest"
+    },
+    {
+      "filename": "client-response.schema.json",
+      "model": "ClientResponse"
+    },
+    {
+      "filename": "client-list-response.schema.json",
+      "model": "ClientListResponse"
+    },
+    {
+      "filename": "location-create-request.schema.json",
+      "model": "LocationCreateRequest"
+    },
+    {
+      "filename": "location-response.schema.json",
+      "model": "LocationResponse"
+    },
+    {
+      "filename": "location-list-response.schema.json",
+      "model": "LocationListResponse"
+    },
+    {
+      "filename": "tag-create-request.schema.json",
+      "model": "TagCreateRequest"
+    },
+    {
+      "filename": "tag-response.schema.json",
+      "model": "TagResponse"
+    },
+    {
+      "filename": "tag-list-response.schema.json",
+      "model": "TagListResponse"
+    },
+    {
+      "filename": "endpoint-tag-assignment-request.schema.json",
+      "model": "EndpointTagAssignmentRequest"
+    },
+    {
+      "filename": "endpoint-tag-list-response.schema.json",
+      "model": "EndpointTagListResponse"
+    },
+    {
+      "filename": "saved-view-create-request.schema.json",
+      "model": "SavedViewCreateRequest"
+    },
+    {
+      "filename": "saved-view-update-request.schema.json",
+      "model": "SavedViewUpdateRequest"
+    },
+    {
+      "filename": "saved-view-response.schema.json",
+      "model": "SavedViewResponse"
+    },
+    {
+      "filename": "saved-view-list-response.schema.json",
+      "model": "SavedViewListResponse"
+    },
+    {
+      "filename": "dynamic-group-create-request.schema.json",
+      "model": "DynamicGroupCreateRequest"
+    },
+    {
+      "filename": "dynamic-group-response.schema.json",
+      "model": "DynamicGroupResponse"
+    },
+    {
+      "filename": "dynamic-group-list-response.schema.json",
+      "model": "DynamicGroupListResponse"
+    },
+    {
+      "filename": "dynamic-group-preview-response.schema.json",
+      "model": "DynamicGroupPreviewResponse"
     },
     {
       "filename": "posture-snapshot-create-request.schema.json",

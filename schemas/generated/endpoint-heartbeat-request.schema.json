@@ -15,6 +15,215 @@
       "title": "AgentCapability",
       "type": "string"
     },
+    "AgentCapabilityDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentCapability"
+            },
+            {
+              "pattern": "^(?:apply_control|rollback_control):[a-z0-9]+(?:[.-][a-z0-9]+)+$",
+              "type": "string"
+            }
+          ],
+          "title": "Id"
+        },
+        "kind": {
+          "$ref": "#/$defs/AgentCapabilityKind"
+        },
+        "versions": {
+          "items": {
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$",
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Versions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "versions"
+      ],
+      "title": "AgentCapabilityDescriptor",
+      "type": "object"
+    },
+    "AgentCapabilityFeatures": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_upload": {
+          "title": "Evidence Upload",
+          "type": "boolean"
+        },
+        "terminal": {
+          "title": "Terminal",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "evidence_upload",
+        "terminal"
+      ],
+      "title": "AgentCapabilityFeatures",
+      "type": "object"
+    },
+    "AgentCapabilityHealth": {
+      "additionalProperties": false,
+      "properties": {
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "title": "Reasons",
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/AgentHealthState"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "AgentCapabilityHealth",
+      "type": "object"
+    },
+    "AgentCapabilityKind": {
+      "enum": [
+        "core",
+        "collector",
+        "action"
+      ],
+      "title": "AgentCapabilityKind",
+      "type": "string"
+    },
+    "AgentCapabilityManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "items": {
+            "$ref": "#/$defs/AgentCapabilityDescriptor"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "features": {
+          "$ref": "#/$defs/AgentCapabilityFeatures"
+        },
+        "health": {
+          "$ref": "#/$defs/AgentCapabilityHealth"
+        },
+        "resource_limits": {
+          "$ref": "#/$defs/AgentCapabilityResourceLimits"
+        },
+        "runtime": {
+          "$ref": "#/$defs/AgentCapabilityRuntime"
+        },
+        "schema_version": {
+          "const": "sha-agent-capabilities-v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "capabilities",
+        "runtime",
+        "features",
+        "resource_limits",
+        "health"
+      ],
+      "title": "AgentCapabilityManifest",
+      "type": "object"
+    },
+    "AgentCapabilityResourceLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "command_timeout_seconds": {
+          "maximum": 86400,
+          "minimum": 1,
+          "title": "Command Timeout Seconds",
+          "type": "integer"
+        },
+        "max_concurrent_jobs": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Max Concurrent Jobs",
+          "type": "integer"
+        },
+        "max_output_bytes": {
+          "maximum": 1073741824,
+          "minimum": 0,
+          "title": "Max Output Bytes",
+          "type": "integer"
+        },
+        "max_upload_bytes": {
+          "maximum": 10737418240,
+          "minimum": 0,
+          "title": "Max Upload Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_concurrent_jobs",
+        "max_output_bytes",
+        "max_upload_bytes",
+        "command_timeout_seconds"
+      ],
+      "title": "AgentCapabilityResourceLimits",
+      "type": "object"
+    },
+    "AgentCapabilityRuntime": {
+      "additionalProperties": false,
+      "properties": {
+        "privilege": {
+          "$ref": "#/$defs/AgentPrivilegeContext"
+        },
+        "service_context": {
+          "$ref": "#/$defs/AgentServiceContext"
+        }
+      },
+      "required": [
+        "privilege",
+        "service_context"
+      ],
+      "title": "AgentCapabilityRuntime",
+      "type": "object"
+    },
+    "AgentHealthState": {
+      "enum": [
+        "healthy",
+        "degraded"
+      ],
+      "title": "AgentHealthState",
+      "type": "string"
+    },
+    "AgentPrivilegeContext": {
+      "enum": [
+        "elevated",
+        "user",
+        "unknown"
+      ],
+      "title": "AgentPrivilegeContext",
+      "type": "string"
+    },
+    "AgentServiceContext": {
+      "enum": [
+        "system_service",
+        "interactive",
+        "unknown"
+      ],
+      "title": "AgentServiceContext",
+      "type": "string"
+    },
     "ConnectivityStatus": {
       "enum": [
         "online",
@@ -51,6 +260,32 @@
     "agent_version": {
       "title": "Agent Version",
       "type": "string"
+    },
+    "architecture": {
+      "anyOf": [
+        {
+          "maxLength": 32,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Architecture"
+    },
+    "capability_manifest": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentCapabilityManifest"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "connectivity_status": {
       "$ref": "#/$defs/ConnectivityStatus"
@@ -89,6 +324,14 @@
       ],
       "default": null,
       "title": "Platform Version"
+    },
+    "protocol_version": {
+      "default": "legacy-v1",
+      "maxLength": 32,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+      "title": "Protocol Version",
+      "type": "string"
     }
   },
   "required": [

@@ -1,9 +1,61 @@
 # SHA incident-response and compliance operations roadmap
 
-Status: Active; Phase 0 complete, Phase 1 next  
+Status: Active; Phase 0 complete, Phase 1 in progress
 Date: 2026-07-17  
 Execution authority: Invoked by the user as the active goal on 2026-07-17  
 Supersedes after approval: docs/plans/2026-04-18-sha-roadmap.md
+
+## Current execution checkpoint — read before resuming
+
+This file is the canonical `/goal` source and the complete resume entry point. A new agent should read this section, then the Phase 1 deliverables and acceptance criteria, then [the Phase 1 verification record](../verification/2026-07-17-phase1-foundation.md). Detailed product research and source links already live later in this file; do not repeat that research unless a referenced product or signing tool has materially changed.
+
+Repository checkpoint:
+
+- branch: `main`;
+- Phase 0 is published in commit `12347d1` (`Stabilize SHA security and execution foundations`);
+- the Phase 1 stopping checkpoint is the newest published `main` commit containing this section;
+- the expected resume state is a clean worktree; preserve and investigate any unexpected local changes rather than discarding them;
+- Phase 1 remains in progress. Phases 2 through 7 have not started and must not start until every mandatory Phase 1 acceptance item has evidence.
+
+Durable Phase 1 work present at this checkpoint:
+
+- migration `20260717_0005`: relational Global → Client → Location → Endpoint ownership, legacy alias backfill/quarantine, scoped APIs, and the persisted global/client/location UI viewpoint;
+- migration `20260717_0006`: short-lived scope-bound enrollment tokens, pending/approved enrollment, unique device credentials hashed at rest, rotation/revocation, endpoint-bound agent routes, Go-agent enrollment recovery, restrictive POSIX state, Windows DPAPI/ACL state, HTTPS-only production transport, TLS 1.2 minimum, hostname/chain validation, redirect refusal, and private-CA support;
+- migration `20260717_0007`: provider-neutral OIDC authorization-code flow with PKCE/nonce/state, opaque secure browser sessions, CSRF/origin enforcement, users/identities/roles/granular permissions/global-client-location bindings, pending users with zero authority, fail-closed API-route classification, scoped query predicates, bootstrap-admin recovery, and database-enforced append-only audit events;
+- migration `20260717_0008`: relational endpoint tags, immutable saved-view versions, bounded allowlisted endpoint-filter AST, dynamic groups, tenant-safe scope FKs, scoped/audited APIs, and fleet metadata UI;
+- migration `20260717_0009`: current protocol negotiation, versioned capability manifests, device-credential last-use/expiry, legacy-reporter migration state, a deadline-bound centrally enforced shared-token kill switch, in-place legacy endpoint conversion, new-profile `go_agent` defaults, and a configured signed generic-package provider;
+- deterministic signed Linux amd64/arm64 and Windows amd64 Go-agent archives, signed release index, detached RSA/SHA-256 manifests, external trust policy with overlapping key rotation and revocation, signed personalized bootstrap manifests, embedded-token profile archives, generic token flag/file/stdin inputs, tamper/path/reparse checks, idempotent repair/uninstall, Linux systemd, and Windows native `SHAAgent` SCM service behavior;
+- same-origin frontend API/session behavior with no browser token storage, explicit unauthenticated/forbidden states, scoped client/location navigation, installer scope selection, and fleet metadata management.
+
+Verified evidence already obtained:
+
+- the signed release/package clean-room regression ended with `SHA_AGENT_RELEASE_TEST_OK` after tamper, wrong-key, revoked-key, token-mode, staging, repair, and uninstall cases;
+- Go Linux tests, vet, race tests, Windows amd64 compile, and Windows vet passed after native SCM/cancellation work;
+- focused OIDC/security tests passed, including concurrent first login, expiry, stale-cookie clearing, logout-all, exact issuer/subject identity, cross-client concealment, CSRF, bootstrap refusal, audit immutability, and secret-file modes;
+- focused fleet-metadata backend, migration, authorization, schema, frontend, TypeScript, Ruff, and Biome gates passed;
+- an earlier private-CA two-replica HTTPS exercise proved enrollment, heartbeat/posture, credential rotation, restart reconnect, backup/restore, revocation, wrong-CA, wrong-host, incomplete-chain, redirect, and plaintext-HTTP failures. It predates migrations `0007` through `0009`, so it must be rerun at current head;
+- exact current-head gate state belongs in the linked verification record. Do not infer Phase 1 completion from focused tests.
+
+Mandatory Phase 1 work still open, in resume order:
+
+1. Finish the personalized package control-plane lifecycle: POST-based minting through the canonical enrollment-token service, signed body generation without returning raw token JSON, opaque/private/no-store download handling, expiry/revocation/cleanup, approval/max-use binding, audit, UI controls, and deployment configuration. Before enabling the provider, enforce trusted owners/modes and canonical path components for the trust policy, signing key, tool, CA, and spool; re-hash package bytes against signed metadata at read time; stream with a bound instead of loading a 512 MiB body into memory; and test swap/symlink/TOCTOU failures. Never fall back to generated reporters or a shared agent token for a new profile.
+2. Complete native delivery: deterministic DEB/RPM where practical and a quiet Windows signed bootstrap executable or MSI, with external publisher-signing hooks and production fail-closed behavior. Current `.tar.gz`/`.zip` archives are real signed standalone paths, not substitutes for OS publisher trust.
+3. Review and test inherited fleet-metadata semantics before relying on groups for targeting: global resources should have an explicit documented relationship to client/location viewpoints and assignment authority; no child-scoped principal may mutate a broader resource or infer unauthorized endpoints.
+4. Run one settled full backend/frontend/Go/schema/release gate. Re-run PostgreSQL upgrade/downgrade/drift, two-replica HA, file-secret, TLS, backup/restore, and failure-path tests at migration `0009` or later.
+5. Rebuild through the managed SHA service path and exercise health, OIDC/session behavior, hierarchy, fleet metadata, enrollment, package download, heartbeat, rotation/revocation, and existing action paths against the real runtime.
+6. Exercise the actual UI in an isolated managed browser: login/session state, Global → Client → Location persistence, cross-scope concealment, clients, fleet metadata, installers, endpoint detail, and clean console/network behavior.
+7. Use fresh disposable Proxmox VMs for Linux and Windows. Prove generic and embedded-token installs, public/private CA paths, service restart/reconnect, capability advertisement, credential rotation/revocation, reinstall idempotence, token erasure, file permissions/ACL/DPAPI, uninstall/repair, and negative TLS cases. Connect through the established `davion-gem` Proxmox access path; never repurpose or destroy an existing VM. No macOS runtime is required now.
+8. Update the verification record with exact observed commands/results and change Phase 1 status only when every item in the Phase 1 acceptance list is evidenced. Then, and only then, start Phase 2.
+
+Non-negotiable continuation constraints:
+
+- keep legacy reporters disabled by default; migration mode requires an explicit deadline and exists only for conversion;
+- keep HTTPS, certificate verification, device identity, scope predicates, append-only audit, and restrictive secret handling fail-closed;
+- do not add a second agent, scope model, audit model, queue, scheduler, action model, or package trust model;
+- do not unlock raw command, shell, or terminal work before its scheduled phase and prerequisites;
+- do not store or commit enrollment tokens, device secrets, private signing keys, OIDC secrets, real certificates, or VM credentials;
+- use current project `st` lifecycle and managed runtime capabilities supplied to the executing agent; do not replace them with ad hoc test/build/service commands;
+- preserve useful failure evidence, update this checkpoint when material facts change, and publish coherent checkpoints rather than leaving undocumented residue.
 
 ## Goal
 
@@ -937,6 +989,8 @@ Not in this phase:
 ### Phase 1 — Establish hierarchy, identity, authorization, and the canonical agent
 
 Purpose: create the durable ownership and trust model every later feature depends on.
+
+Verification record: [Phase 1 foundation evidence](../verification/2026-07-17-phase1-foundation.md). This record stays in progress until the full phase acceptance set passes; an implemented hierarchy or transport slice alone does not complete Phase 1.
 
 Deliverables:
 

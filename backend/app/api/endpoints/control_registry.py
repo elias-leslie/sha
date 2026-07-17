@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.auth import Principal
+from app.authorization import require_permission
 from app.control_registry import control_registry
 from app.schemas.contracts import (
     ControlRegistryAction,
@@ -20,7 +22,9 @@ _ACTION_ORDER = {
 
 
 @router.get("", response_model=ControlRegistryResponse)
-def list_control_registry() -> ControlRegistryResponse:
+def list_control_registry(
+    _principal: Principal = Depends(require_permission("catalog.read")),
+) -> ControlRegistryResponse:
     registry = control_registry()
     return ControlRegistryResponse(
         items=[

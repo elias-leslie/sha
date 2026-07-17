@@ -1,0 +1,133 @@
+{
+  "$defs": {
+    "ConnectivityStatus": {
+      "enum": [
+        "online",
+        "degraded"
+      ],
+      "title": "ConnectivityStatus",
+      "type": "string"
+    },
+    "DynamicGroupMemberResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "connectivity_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConnectivityStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "endpoint_id": {
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "hostname": {
+          "title": "Hostname",
+          "type": "string"
+        },
+        "location_id": {
+          "title": "Location Id",
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/EndpointPlatform"
+        },
+        "status": {
+          "$ref": "#/$defs/EndpointStatus"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "hostname",
+        "platform",
+        "status",
+        "connectivity_status",
+        "client_id",
+        "location_id"
+      ],
+      "title": "DynamicGroupMemberResponse",
+      "type": "object"
+    },
+    "EndpointPlatform": {
+      "enum": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "title": "EndpointPlatform",
+      "type": "string"
+    },
+    "EndpointStatus": {
+      "enum": [
+        "pending",
+        "active",
+        "stale"
+      ],
+      "title": "EndpointStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "dynamic_group_id": {
+      "title": "Dynamic Group Id",
+      "type": "string"
+    },
+    "evaluated_endpoint_count": {
+      "title": "Evaluated Endpoint Count",
+      "type": "integer"
+    },
+    "filter_hash": {
+      "title": "Filter Hash",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/DynamicGroupMemberResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "matched_endpoint_count": {
+      "title": "Matched Endpoint Count",
+      "type": "integer"
+    },
+    "result_limit": {
+      "title": "Result Limit",
+      "type": "integer"
+    },
+    "saved_view_id": {
+      "title": "Saved View Id",
+      "type": "string"
+    },
+    "saved_view_version": {
+      "title": "Saved View Version",
+      "type": "integer"
+    },
+    "truncated": {
+      "title": "Truncated",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "dynamic_group_id",
+    "saved_view_id",
+    "saved_view_version",
+    "filter_hash",
+    "evaluated_endpoint_count",
+    "matched_endpoint_count",
+    "result_limit",
+    "truncated",
+    "items"
+  ],
+  "title": "DynamicGroupPreviewResponse",
+  "type": "object"
+}

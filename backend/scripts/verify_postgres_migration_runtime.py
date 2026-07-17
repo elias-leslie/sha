@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Connection, make_url
+from sqlalchemy.exc import DBAPIError
 
 from app.config import get_settings
 from app.db import DatabaseStore
@@ -15,7 +17,7 @@ from app.migrations import database_revisions
 _ALEMBIC_INI = Path(__file__).resolve().parents[1] / "alembic.ini"
 _BASELINE_REVISION = "20260717_0001"
 _PRE_LEASE_REVISION = "20260717_0002"
-_HEAD_REVISION = "20260717_0004"
+_HEAD_REVISION = "20260717_0009"
 
 
 def _config(database_url: str, connection: Connection) -> Config:
@@ -35,11 +37,36 @@ def _seed_representative_unversioned_database(database_url: str) -> None:
                     """
                     INSERT INTO endpoints (
                         endpoint_id, agent_fingerprint, hostname, platform,
-                        agent_version, status, last_seen_at, created_at, updated_at
+                        agent_version, tenant_id, site_id, status, last_seen_at,
+                        created_at, updated_at
                     ) VALUES (
                         'ep_pg_upgrade', 'postgres-upgrade-fixture',
-                        'postgres-upgrade-fixture', 'windows', '0.1.0', 'active',
+                        'postgres-upgrade-fixture', 'windows', '0.1.0',
+                        'Tenant-PG', 'shared-site', 'active',
                         '2026-07-17T12:00:00Z', '2026-07-17T12:00:00Z',
+                        '2026-07-17T12:00:00Z'
+                    ), (
+                        'ep_pg_upgrade_lower', 'postgres-upgrade-fixture-lower',
+                        'postgres-upgrade-fixture-lower', 'linux', '0.1.0',
+                        'tenant-pg', 'shared-site', 'active',
+                        '2026-07-17T12:00:00Z', '2026-07-17T12:00:00Z',
+                        '2026-07-17T12:00:00Z'
+                    )
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO installer_profiles (
+                        id, name, name_normalized, platform, channel,
+                        control_plane_url, policy_mode, tenant_id, site_id,
+                        created_at, updated_at
+                    ) VALUES (
+                        'ip_pg_upgrade', 'PostgreSQL migration profile',
+                        'postgresql migration profile', 'windows', 'stable',
+                        'https://sha.example.test', 'observe', 'Tenant-PG',
+                        'shared-site', '2026-07-17T12:00:00Z',
                         '2026-07-17T12:00:00Z'
                     )
                     """
@@ -157,6 +184,66 @@ def _verify_head(database_url: str) -> None:
                     """
                 )
             ).one() == ("act_pg_upgrade", 0, "queued")
+            assert {
+                "tags",
+                "endpoint_tag_assignments",
+                "saved_views",
+                "saved_view_versions",
+                "dynamic_groups",
+            } <= set(inspect(connection).get_table_names())
+            assert connection.execute(
+                text(
+                    """
+                    SELECT COUNT(*) FROM role_permissions
+                    WHERE permission IN (
+                        'tag.read', 'tag.manage', 'saved_view.read',
+                        'saved_view.manage', 'dynamic_group.read',
+                        'dynamic_group.manage'
+                    )
+                    """
+                )
+            ).scalar_one() == 24
+            scope_rows = connection.execute(
+                text(
+                    """
+                    SELECT endpoint_id, client_id, location_id, tenant_id, site_id
+                    FROM endpoints
+                    WHERE endpoint_id IN ('ep_pg_upgrade', 'ep_pg_upgrade_lower')
+                    ORDER BY endpoint_id
+                    """
+                )
+            ).all()
+            assert [row[3:] for row in scope_rows] == [
+                ("Tenant-PG", "shared-site"),
+                ("tenant-pg", "shared-site"),
+            ]
+            assert scope_rows[0][1] != scope_rows[1][1]
+            assert scope_rows[0][2] != scope_rows[1][2]
+            assert connection.execute(
+                text(
+                    """
+                    SELECT credential_mode, protocol_version, architecture,
+                           installation_id, enrollment_token_id
+                    FROM endpoints
+                    WHERE endpoint_id = 'ep_pg_upgrade'
+                    """
+                )
+            ).one() == ("legacy_shared", "legacy-v1", None, None, None)
+            profile_scope = connection.execute(
+                text(
+                    """
+                    SELECT client_id, location_id, tenant_id, site_id
+                    FROM installer_profiles
+                    WHERE id = 'ip_pg_upgrade'
+                    """
+                )
+            ).one()
+            assert profile_scope == (
+                scope_rows[0][1],
+                scope_rows[0][2],
+                "Tenant-PG",
+                "shared-site",
+            )
             columns = {column["name"] for column in inspect(connection).get_columns("response_actions")}
             assert {
                 "idempotency_key",
@@ -165,7 +252,137 @@ def _verify_head(database_url: str) -> None:
                 "leased_at",
                 "attempt_count",
             } <= columns
+            assert {
+                "sha_audit_events_no_update",
+                "sha_audit_events_no_delete",
+            } <= {
+                str(row[0])
+                for row in connection.execute(
+                    text(
+                        """
+                        SELECT tgname FROM pg_trigger
+                        WHERE tgrelid = 'audit_events'::regclass
+                          AND NOT tgisinternal
+                        """
+                    )
+                )
+            }
             command.check(_config(database_url, connection))
+    finally:
+        engine.dispose()
+
+
+def _verify_audit_immutability(database_url: str) -> None:
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            outer = connection.begin()
+            try:
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO audit_events (
+                            audit_event_id, event_type, outcome, actor,
+                            auth_method, metadata_json, created_at
+                        ) VALUES (
+                            'aud_pg_append_only', 'test_event', 'success',
+                            'postgres-verifier', 'test', '{}'::json,
+                            '2026-07-17T12:00:00Z'
+                        )
+                        """
+                    )
+                )
+                for mutation in (
+                    "UPDATE audit_events SET outcome = 'failure' "
+                    "WHERE audit_event_id = 'aud_pg_append_only'",
+                    "DELETE FROM audit_events WHERE audit_event_id = 'aud_pg_append_only'",
+                ):
+                    savepoint = connection.begin_nested()
+                    try:
+                        connection.execute(text(mutation))
+                    except DBAPIError:
+                        savepoint.rollback()
+                    else:
+                        raise AssertionError("audit event mutation unexpectedly succeeded")
+            finally:
+                outer.rollback()
+    finally:
+        engine.dispose()
+
+
+def _verify_enrollment_use_limit_concurrency(database_url: str) -> None:
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            scope = connection.execute(
+                text(
+                    """
+                    SELECT client_id, location_id
+                    FROM endpoints
+                    WHERE endpoint_id = 'ep_pg_upgrade'
+                    """
+                )
+            ).one()
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO enrollment_tokens (
+                        token_id, secret_hash, hash_key_id, client_id, location_id,
+                        approval_policy, expires_at, max_uses, use_count, created_by,
+                        created_at, updated_at
+                    ) VALUES (
+                        'et_pg_concurrency', :secret_hash, 'primary', :client_id,
+                        :location_id, 'approved', '2099-01-01T00:00:00Z', 1, 0,
+                        'runtime-verifier', '2026-07-17T12:00:00Z',
+                        '2026-07-17T12:00:00Z'
+                    )
+                    """
+                ),
+                {
+                    "secret_hash": "d" * 64,
+                    "client_id": scope.client_id,
+                    "location_id": scope.location_id,
+                },
+            )
+
+        def consume_once() -> int | None:
+            with engine.begin() as connection:
+                return connection.execute(
+                    text(
+                        """
+                        UPDATE enrollment_tokens
+                        SET use_count = use_count + 1,
+                            updated_at = '2026-07-17T12:01:00Z'
+                        WHERE token_id = 'et_pg_concurrency'
+                          AND revoked_at IS NULL
+                          AND expires_at > '2026-07-17T12:01:00Z'
+                          AND use_count < max_uses
+                        RETURNING use_count
+                        """
+                    )
+                ).scalar_one_or_none()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda _attempt: consume_once(), range(2)))
+        assert sorted(results, key=lambda value: value is None) == [1, None]
+
+        with engine.begin() as connection:
+            assert connection.execute(
+                text(
+                    """
+                    SELECT use_count FROM enrollment_tokens
+                    WHERE token_id = 'et_pg_concurrency'
+                    """
+                )
+            ).scalar_one() == 1
+            connection.execute(
+                text(
+                    """
+                    DELETE FROM enrollment_tokens
+                    WHERE token_id = 'et_pg_concurrency'
+                    """
+                )
+            )
     finally:
         engine.dispose()
 
@@ -203,6 +420,7 @@ def _verify_downgrade_and_reupgrade(database_url: str) -> None:
 
     _upgrade_with_runtime(database_url)
     _verify_head(database_url)
+    _verify_audit_immutability(database_url)
 
 
 def main() -> None:
@@ -213,6 +431,7 @@ def main() -> None:
     _seed_representative_unversioned_database(database_url)
     _upgrade_with_runtime(database_url)
     _verify_head(database_url)
+    _verify_enrollment_use_limit_concurrency(database_url)
     _verify_downgrade_and_reupgrade(database_url)
     print(
         json.dumps(
@@ -220,6 +439,10 @@ def main() -> None:
                 "adopted_unversioned_schema": True,
                 "alias_rows_normalized": True,
                 "downgrade_requeued_lease": True,
+                "hierarchy_backfill_preserved": True,
+                "enrollment_use_limit_atomic": True,
+                "audit_events_append_only": True,
+                "fleet_metadata_upgrade_downgrade": True,
                 "head": _HEAD_REVISION,
                 "schema_drift": False,
             },

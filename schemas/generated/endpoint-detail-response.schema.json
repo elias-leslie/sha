@@ -15,12 +15,338 @@
       "title": "AgentCapability",
       "type": "string"
     },
+    "AgentCapabilityDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentCapability"
+            },
+            {
+              "pattern": "^(?:apply_control|rollback_control):[a-z0-9]+(?:[.-][a-z0-9]+)+$",
+              "type": "string"
+            }
+          ],
+          "title": "Id"
+        },
+        "kind": {
+          "$ref": "#/$defs/AgentCapabilityKind"
+        },
+        "versions": {
+          "items": {
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$",
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Versions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "versions"
+      ],
+      "title": "AgentCapabilityDescriptor",
+      "type": "object"
+    },
+    "AgentCapabilityFeatures": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_upload": {
+          "title": "Evidence Upload",
+          "type": "boolean"
+        },
+        "terminal": {
+          "title": "Terminal",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "evidence_upload",
+        "terminal"
+      ],
+      "title": "AgentCapabilityFeatures",
+      "type": "object"
+    },
+    "AgentCapabilityHealth": {
+      "additionalProperties": false,
+      "properties": {
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "title": "Reasons",
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/AgentHealthState"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "AgentCapabilityHealth",
+      "type": "object"
+    },
+    "AgentCapabilityKind": {
+      "enum": [
+        "core",
+        "collector",
+        "action"
+      ],
+      "title": "AgentCapabilityKind",
+      "type": "string"
+    },
+    "AgentCapabilityManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "items": {
+            "$ref": "#/$defs/AgentCapabilityDescriptor"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "features": {
+          "$ref": "#/$defs/AgentCapabilityFeatures"
+        },
+        "health": {
+          "$ref": "#/$defs/AgentCapabilityHealth"
+        },
+        "resource_limits": {
+          "$ref": "#/$defs/AgentCapabilityResourceLimits"
+        },
+        "runtime": {
+          "$ref": "#/$defs/AgentCapabilityRuntime"
+        },
+        "schema_version": {
+          "const": "sha-agent-capabilities-v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "capabilities",
+        "runtime",
+        "features",
+        "resource_limits",
+        "health"
+      ],
+      "title": "AgentCapabilityManifest",
+      "type": "object"
+    },
+    "AgentCapabilityResourceLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "command_timeout_seconds": {
+          "maximum": 86400,
+          "minimum": 1,
+          "title": "Command Timeout Seconds",
+          "type": "integer"
+        },
+        "max_concurrent_jobs": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Max Concurrent Jobs",
+          "type": "integer"
+        },
+        "max_output_bytes": {
+          "maximum": 1073741824,
+          "minimum": 0,
+          "title": "Max Output Bytes",
+          "type": "integer"
+        },
+        "max_upload_bytes": {
+          "maximum": 10737418240,
+          "minimum": 0,
+          "title": "Max Upload Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_concurrent_jobs",
+        "max_output_bytes",
+        "max_upload_bytes",
+        "command_timeout_seconds"
+      ],
+      "title": "AgentCapabilityResourceLimits",
+      "type": "object"
+    },
+    "AgentCapabilityRuntime": {
+      "additionalProperties": false,
+      "properties": {
+        "privilege": {
+          "$ref": "#/$defs/AgentPrivilegeContext"
+        },
+        "service_context": {
+          "$ref": "#/$defs/AgentServiceContext"
+        }
+      },
+      "required": [
+        "privilege",
+        "service_context"
+      ],
+      "title": "AgentCapabilityRuntime",
+      "type": "object"
+    },
+    "AgentHealthState": {
+      "enum": [
+        "healthy",
+        "degraded"
+      ],
+      "title": "AgentHealthState",
+      "type": "string"
+    },
+    "AgentPrivilegeContext": {
+      "enum": [
+        "elevated",
+        "user",
+        "unknown"
+      ],
+      "title": "AgentPrivilegeContext",
+      "type": "string"
+    },
+    "AgentServiceContext": {
+      "enum": [
+        "system_service",
+        "interactive",
+        "unknown"
+      ],
+      "title": "AgentServiceContext",
+      "type": "string"
+    },
     "ConnectivityStatus": {
       "enum": [
         "online",
         "degraded"
       ],
       "title": "ConnectivityStatus",
+      "type": "string"
+    },
+    "DeviceCredentialResponse": {
+      "properties": {
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "credential_id": {
+          "title": "Credential Id",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Expires At"
+        },
+        "last_used_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Used At"
+        },
+        "replaced_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Replaced At"
+        },
+        "replaced_by_credential_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Replaced By Credential Id"
+        },
+        "revoked_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Revoked At"
+        },
+        "status": {
+          "$ref": "#/$defs/DeviceCredentialStatus"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "credential_id",
+        "endpoint_id",
+        "status",
+        "replaced_by_credential_id",
+        "last_used_at",
+        "expires_at",
+        "created_at",
+        "updated_at",
+        "replaced_at",
+        "revoked_at"
+      ],
+      "title": "DeviceCredentialResponse",
+      "type": "object"
+    },
+    "DeviceCredentialStatus": {
+      "enum": [
+        "active",
+        "replaced",
+        "revoked"
+      ],
+      "title": "DeviceCredentialStatus",
+      "type": "string"
+    },
+    "EndpointAgentMigrationState": {
+      "enum": [
+        "canonical",
+        "legacy_reporter"
+      ],
+      "title": "EndpointAgentMigrationState",
+      "type": "string"
+    },
+    "EndpointCredentialMode": {
+      "enum": [
+        "legacy_shared",
+        "device"
+      ],
+      "title": "EndpointCredentialMode",
       "type": "string"
     },
     "EndpointExecutionHooks": {
@@ -193,8 +519,46 @@
     }
   },
   "properties": {
+    "active_credential": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DeviceCredentialResponse"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "agent_version": {
       "title": "Agent Version",
+      "type": "string"
+    },
+    "architecture": {
+      "anyOf": [
+        {
+          "maxLength": 32,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Architecture"
+    },
+    "capability_manifest": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentCapabilityManifest"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "client_id": {
+      "title": "Client Id",
       "type": "string"
     },
     "connectivity_status": {
@@ -210,6 +574,9 @@
     "created_at": {
       "title": "Created At",
       "type": "string"
+    },
+    "credential_mode": {
+      "$ref": "#/$defs/EndpointCredentialMode"
     },
     "declared_capabilities": {
       "items": {
@@ -230,6 +597,17 @@
       "title": "Endpoint Id",
       "type": "string"
     },
+    "enrollment_token_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Enrollment Token Id"
+    },
     "execution_hooks": {
       "anyOf": [
         {
@@ -243,6 +621,17 @@
     "hostname": {
       "title": "Hostname",
       "type": "string"
+    },
+    "installation_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Installation Id"
     },
     "last_heartbeat_at": {
       "anyOf": [
@@ -287,6 +676,17 @@
       "title": "Latest Results",
       "type": "array"
     },
+    "location_id": {
+      "title": "Location Id",
+      "type": "string"
+    },
+    "migration_eligible": {
+      "title": "Migration Eligible",
+      "type": "boolean"
+    },
+    "migration_state": {
+      "$ref": "#/$defs/EndpointAgentMigrationState"
+    },
     "platform": {
       "$ref": "#/$defs/EndpointPlatform"
     },
@@ -300,6 +700,13 @@
         }
       ],
       "title": "Platform Version"
+    },
+    "protocol_version": {
+      "maxLength": 32,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+      "title": "Protocol Version",
+      "type": "string"
     },
     "site_id": {
       "anyOf": [
@@ -337,6 +744,15 @@
     "platform",
     "platform_version",
     "agent_version",
+    "protocol_version",
+    "architecture",
+    "installation_id",
+    "credential_mode",
+    "enrollment_token_id",
+    "migration_state",
+    "migration_eligible",
+    "client_id",
+    "location_id",
     "tenant_id",
     "site_id",
     "status",
@@ -347,8 +763,10 @@
     "updated_at",
     "last_platform_profile",
     "declared_capabilities",
+    "capability_manifest",
     "execution_hooks",
     "latest_posture_summary",
+    "active_credential",
     "latest_results"
   ],
   "title": "EndpointDetailResponse",

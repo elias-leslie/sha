@@ -52,17 +52,23 @@ def test_enrollment_is_idempotent_and_normalizes_fingerprint(db_path, make_clien
     assert second.json()["platform_version"] == "11 23H2"
 
 
-def test_reenroll_can_clear_optional_fields_with_explicit_null(db_path, make_client):
+def test_reenroll_cannot_clear_immutable_scope_with_explicit_null(db_path, make_client):
     client = make_client(db_path)
 
     first = enroll_endpoint(client)
     second = enroll_endpoint(client, platform_version=None, tenant_id=None, site_id=None)
 
     assert first.status_code == 201
-    assert second.status_code == 200
-    assert second.json()["platform_version"] is None
-    assert second.json()["tenant_id"] is None
-    assert second.json()["site_id"] is None
+    assert second.status_code == 409
+    assert second.json() == {
+        "detail": "re-enrollment cannot change endpoint client or location"
+    }
+
+    current = client.get(f"/api/endpoints/{first.json()['endpoint_id']}")
+    assert current.status_code == 200
+    assert current.json()["platform_version"] == "11 23H2"
+    assert current.json()["tenant_id"] == "tenant-a"
+    assert current.json()["site_id"] == "site-a"
 
 
 def test_reenroll_rejects_cross_platform_fingerprint_reuse(db_path, make_client):
@@ -162,7 +168,7 @@ def test_prepare_upgrades_legacy_platform_constraints_for_macos(db_path, make_cl
             ("20260630_0001_macos_platform_constraints",)
         ]
         assert connection.execute("SELECT version_num FROM alembic_version").fetchall() == [
-            ("20260717_0004",)
+            ("20260717_0009",)
         ]
 
 
@@ -174,7 +180,7 @@ def test_prepare_records_alembic_revision_on_new_database(db_path, make_client):
     with sqlite3.connect(db_path) as connection:
         rows = connection.execute("SELECT version_num FROM alembic_version").fetchall()
 
-    assert rows == [("20260717_0004",)]
+    assert rows == [("20260717_0009",)]
 
 
 def test_database_migration_is_repeatable_and_check_mode_accepts_head(db_path):

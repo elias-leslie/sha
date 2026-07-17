@@ -22,7 +22,7 @@ Implemented:
 - deterministic Linux, Windows, and macOS compatibility reporter generation for installer profiles, served as private, non-cacheable downloads with attachment, digest, no-sniff, and no-referrer headers; token-bearing bodies are not previewed in the dashboard
 - generated Linux, Windows, and macOS reporters atomically claim approval-backed response actions under short leases; all complete bounded incident-response context/evidence collection, while Linux and Windows each have reversible typed hardening controls
 - cross-compiled Go endpoint agent release path with Linux systemd, macOS launchd, and Windows scheduled-task packaging for enroll, heartbeat, posture upload, leased response-action claim/result, explicit unsupported-action results, and Windows Firewall all-profile apply/rollback; only the Windows Go agent advertises mutation and rollback-artifact support
-- fail-closed protected authentication with separate operator, read-only, and agent principals; the local-only `development_open` mode is explicit
+- fail-closed protected authentication with provider-neutral OIDC browser sessions, global/client/location role bindings, separate legacy operator/read-only/agent credentials, CSRF/origin enforcement, and an explicit local-only `development_open` mode
 - a human-in-the-loop approval workflow with two typed request kinds (`hardening_change`, `elevated_troubleshooting`), bounded grant TTLs (15–240 min), manual emergency grants, append-only audit events, and concurrency-safe state transitions
 - an approval-backed response-action queue with request idempotency, atomic claim, opaque hashed lease credentials, expiry/reclaim, and lease-bound idempotent result reporting
 - Alembic-managed SQLite/PostgreSQL schemas, including a one-shot migration/check split for the HA deployment
@@ -32,7 +32,7 @@ Implemented:
 
 Not yet production-ready:
 
-- no OIDC browser session or scoped client/location authorization yet; API tokens are the current protected-mode credentials, and trusted external-proxy headers are accepted only on a separately protected direct API path
+- OIDC configuration is not yet wired into the starter HA Compose manifests; deployments must mount its client/session secrets and configure their provider explicitly. Legacy API tokens remain available for compatibility, while direct external-proxy roles are disabled whenever scoped OIDC is enabled.
 - no short-lived enrollment tokens, unique per-device credentials, signed packages, or signed bootstrap manifests; generated compatibility reporters use the shared agent token in protected mode and are not production installers
 - Linux and Windows privileged runtime have fresh Proxmox evidence in `docs/verification/2026-07-17-phase0-runtime.md`; macOS is build/contract verified only
 - no fully managed production HA offering; a starter PostgreSQL/nginx compose path is checked in for HA-ready self-hosting
@@ -148,6 +148,18 @@ Backend settings use the `SHA_` prefix:
 - `SHA_AGENT_API_TOKEN_FILE` — optional file-mounted secret alternative to `SHA_AGENT_API_TOKEN`
 - `SHA_EXTERNAL_AUTH_TRUSTED_TOKEN` — optional shared secret for a trusted identity proxy; direct requests must include `X-SHA-External-Auth`, `X-SHA-External-Role: operator|readonly`, and a non-empty `X-SHA-External-User`. Only use this when the backend is reachable solely through that proxy.
 - `SHA_EXTERNAL_AUTH_TRUSTED_TOKEN_FILE` — optional file-mounted secret alternative to `SHA_EXTERNAL_AUTH_TRUSTED_TOKEN`
+- `SHA_PUBLIC_BASE_URL` — root HTTPS browser origin for OIDC callbacks and CSRF origin checks; paths, query strings, fragments, and user information are rejected
+- `SHA_OIDC_ISSUER` — exact HTTPS issuer expected in discovery and ID-token claims
+- `SHA_OIDC_METADATA_URL` — HTTPS OpenID Provider metadata URL
+- `SHA_OIDC_CLIENT_ID` — provider client identifier
+- `SHA_OIDC_CLIENT_SECRET` / `SHA_OIDC_CLIENT_SECRET_FILE` — provider client secret; prefer the canonical absolute file form outside local development. Secret files must have no group/other permission bits and may not traverse symlinks unless the resolved path is on an immutable read-only container mount.
+- `SHA_OIDC_CA_BUNDLE_FILE` — optional secure absolute PEM bundle for a private provider CA; it must be size-bounded, parseable, non-symlinked, safely owned, and not group/world writable
+- `SHA_BROWSER_SESSION_KEY_FILE` — required with OIDC; canonical absolute file containing at least 32 durable random bytes used for transaction encryption and keyed session/state hashes, with the same strict secret ownership, permissions, and path checks
+- `SHA_SESSION_IDLE_MINUTES` — browser-session idle timeout, default `30`
+- `SHA_SESSION_ABSOLUTE_HOURS` — browser-session absolute lifetime, default `12`
+- `SHA_OIDC_LOGIN_TTL_MINUTES` — one-shot OIDC transaction lifetime, default `10`
+- `SHA_CREDENTIAL_HMAC_KEY_FILE` — canonical absolute path to the durable 32-4096 byte key used to hash enrollment tokens and per-device credentials. The backend refuses non-regular files, writable symlink paths, group/other permission bits, or untrusted owners. Every replica and restored database must use the same key.
+- `SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE` — host-side file mounted as the credential-HMAC key by the HA Compose stack. Required for every HA launch, including TLS and file-secret overlays; database backup does not include this file.
 
 Frontend settings:
 
@@ -155,6 +167,16 @@ Frontend settings:
 - `NEXT_PUBLIC_SHA_DEMO_MODE` — build-time fixture-only mode; defaults off, visibly labels fixture data, and disables mutations
 
 The stock frontend forwards caller authorization, strips every caller-supplied `X-SHA-External-*` header, does not follow credentialed redirects, and has no ambient operator token. Trusted-proxy headers therefore require a separate protected direct API ingress or a future session adapter; they cannot be smuggled through the stock browser proxy.
+
+After migrating an empty authorization database, bind the first Admin by exact immutable issuer and subject from `backend/`:
+
+```bash
+uv run python scripts/bootstrap_admin.py \
+  --issuer 'https://idp.example.test/tenant' \
+  --subject 'provider-subject'
+```
+
+The command refuses to create a second active global Admin. Unknown OIDC identities otherwise enter `pending` with zero authority until an Admin activates and binds them.
 
 Optional operator/agentic automation concepts such as SHAna are documented as product direction only. The checked-in app runs without private agent infrastructure or external AI credentials.
 
@@ -230,16 +252,17 @@ scripts/test-ha-compose.sh
 
 HA PostgreSQL backup/restore:
 
-Export the same `POSTGRES_PASSWORD`, `SHA_API_TOKEN`, `SHA_READONLY_API_TOKEN`, and `SHA_AGENT_API_TOKEN` values used by the running stack before invoking these commands. Backup and restore have no fallback credentials. `SHA_COMPOSE_FILES` is required and must list, in launch order, the exact compose files for the deployment as a colon-separated string. This prevents restore from silently dropping a TLS or file-secret overlay.
+Export the same `POSTGRES_PASSWORD`, `SHA_API_TOKEN`, `SHA_READONLY_API_TOKEN`, `SHA_AGENT_API_TOKEN`, and `SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE` values used by the running stack before invoking these commands. Backup and restore have no fallback credentials. Preserve the credential-HMAC key separately from the database dump: changing it makes existing enrollment tokens and device credentials unusable. `SHA_COMPOSE_FILES` is required and must list, in launch order, the exact compose files for the deployment as a colon-separated string. This prevents restore from silently dropping a TLS or file-secret overlay.
 
 ```bash
 export SHA_COMPOSE_FILES="$PWD/deploy/ha/docker-compose.yml"
+export SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE="/absolute/path/to/sha-credential-hmac-key"
 PROJECT=ha scripts/backup-ha-postgres.sh
 # Restore verifies backups/<dump>.sha256 before contacting Docker; set SHA_FILE only for a non-default sidecar path.
 CONFIRM_RESTORE=sha-restore PROJECT=ha scripts/restore-ha-postgres.sh backups/sha-postgres-YYYYmmddHHMMSS.dump
 ```
 
-For TLS, use `SHA_COMPOSE_FILES="$PWD/deploy/ha/docker-compose.yml:$PWD/deploy/ha/docker-compose.tls.yml"` and preserve `SHA_TLS_CERT_DIR` and `SHA_TLS_PORT`. For file-secret deployments, select `docker-compose.secrets.yml` instead and preserve every `*_SECRET_FILE` path plus the same base-file interpolation values used at launch. Backups default to the ignored, Docker-excluded `backups/` directory with mode 0700; dump and digest files use mode 0600.
+For TLS, use `SHA_COMPOSE_FILES="$PWD/deploy/ha/docker-compose.yml:$PWD/deploy/ha/docker-compose.tls.yml"` and preserve `SHA_TLS_CERT_DIR`, `SHA_TLS_PORT`, and `SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE`. For file-secret deployments, select `docker-compose.secrets.yml` instead and preserve every `*_SECRET_FILE` path plus the same base-file interpolation values used at launch. Backups default to the ignored, Docker-excluded `backups/` directory with mode 0700; dump and digest files use mode 0600.
 
 HA TLS E2E:
 

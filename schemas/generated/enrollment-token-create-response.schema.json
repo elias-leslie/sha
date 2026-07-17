@@ -1,0 +1,131 @@
+{
+  "$defs": {
+    "EndpointPlatform": {
+      "enum": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "title": "EndpointPlatform",
+      "type": "string"
+    },
+    "EnrollmentApprovalPolicy": {
+      "enum": [
+        "pending",
+        "approved"
+      ],
+      "title": "EnrollmentApprovalPolicy",
+      "type": "string"
+    },
+    "EnrollmentTokenState": {
+      "enum": [
+        "active",
+        "expired",
+        "exhausted",
+        "revoked"
+      ],
+      "title": "EnrollmentTokenState",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "approval_policy": {
+      "$ref": "#/$defs/EnrollmentApprovalPolicy"
+    },
+    "client_id": {
+      "title": "Client Id",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by": {
+      "title": "Created By",
+      "type": "string"
+    },
+    "expires_at": {
+      "title": "Expires At",
+      "type": "string"
+    },
+    "installer_profile_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Installer Profile Id"
+    },
+    "location_id": {
+      "title": "Location Id",
+      "type": "string"
+    },
+    "max_uses": {
+      "title": "Max Uses",
+      "type": "integer"
+    },
+    "platform": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EndpointPlatform"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "revoked_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Revoked At"
+    },
+    "state": {
+      "$ref": "#/$defs/EnrollmentTokenState"
+    },
+    "token": {
+      "title": "Token",
+      "type": "string",
+      "writeOnly": true
+    },
+    "token_id": {
+      "title": "Token Id",
+      "type": "string"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    },
+    "use_count": {
+      "title": "Use Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "token_id",
+    "client_id",
+    "location_id",
+    "installer_profile_id",
+    "platform",
+    "approval_policy",
+    "state",
+    "expires_at",
+    "max_uses",
+    "use_count",
+    "revoked_at",
+    "created_by",
+    "created_at",
+    "updated_at",
+    "token"
+  ],
+  "title": "EnrollmentTokenCreateResponse",
+  "type": "object"
+}

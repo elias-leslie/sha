@@ -50,27 +50,69 @@ Elevated troubleshooting mode:
 
 ## Enrollment contract
 
-Current backend enrollment route:
-- `POST /api/endpoints/enroll`
+Current backend identity routes:
+- `POST /api/agent/bootstrap` — enrollment-token exchange
+- `GET /api/agent/me` — endpoint-bound identity/status check
+- `POST /api/agent/credentials/rotate` — endpoint-bound credential rotation
+- `POST /api/endpoints/enroll` — legacy shared-token compatibility
 
 Authentication:
 - protected mode separates operator, read-only, and agent principals; credentials are not interchangeable
 - `SHA_API_TOKEN` authenticates operator routes but is forbidden from the agent-only enrollment, heartbeat, posture, claim, and result routes
 - `SHA_READONLY_API_TOKEN` authenticates safe read routes but is forbidden from agent routes, mutations, and artifact downloads
 - `SHA_AGENT_API_TOKEN` authenticates only enrollment, heartbeat, posture upload, response-action claim, and lease-bound result reporting
+- a short-lived `sha_enroll.<token_id>.<secret>` bearer authenticates only `/api/agent/bootstrap`
+- a unique `sha_device.<credential_id>.<secret>` bearer authenticates `/api/agent/me`, rotation, and only the heartbeat/posture/claim/result operations bound to its endpoint
 - generated compatibility artifacts contain `SHA_AGENT_API_TOKEN` when configured; they never fall back to the operator token
 - artifact generation returns HTTP 503 when operator-token or trusted-proxy authentication is configured without an agent token
 - when no credential is configured, explicit local `development_open` mode uses a visible development principal; shared deployments must use fail-closed `protected` mode
 
-Phase 0 uses one shared agent token, not a unique device credential. Short-lived enrollment tokens, atomic exchange for endpoint-bound credentials, rotation/revocation, and signed package manifests remain production roadmap work.
+The Go agent prefers device identity whenever `enrollment_token` is configured or durable device state exists. It generates a stable installation ID and candidate credential locally, stores the exact bootstrap request before network use, and never sends an enrollment token after bootstrap. The server returns no device secret. A committed exchange with a lost response is recovered with the candidate credential through `/api/agent/me`; an uncommitted request retries the byte-semantic payload captured in state. Both `enrollment_token` and any legacy shared `api_token` are removed atomically from persisted config only after endpoint identity is durable, preventing a migrated endpoint from retaining fleet-wide bootstrap power. Existing `api_token` configs remain on the Phase 0 compatibility path when neither enrollment configuration nor device state exists.
+
+Device credential rotation follows the same loss-safe rule: the candidate is durable before the request, and startup reconciles old/candidate authentication before reporting or executing actions. `-action status` and `-action rotate-credential` return identifiers and status only. Enrollment tokens, credential secrets, and complete bearers are never printed or reflected from server error bodies.
+
+Device bootstrap and heartbeat explicitly advertise `protocol_version=sha-agent-v1` and `architecture=runtime.GOARCH`. A pending endpoint may call `/api/agent/me` and heartbeat, but the Go agent does not upload posture, claim actions, or submit results until `/api/agent/me` reports it active.
 
 Transport:
-- `control_plane_url` currently accepts `http` for local compatibility and `https` for deployed use
-- HTTPS clients use normal platform hostname, chain, and validity checks; there is no insecure verification bypass in the agent or generated reporters
-- a private CA must currently be installed in the operating-system trust store; per-agent CA bundle/pin configuration is not implemented yet
+- the Go agent requires `https` and rejects control-plane URLs containing user information, a query, or a fragment
+- explicit Go-agent development configuration may set `allow_insecure_loopback=true`, which permits `http` only for the exact hosts `localhost`, `127.0.0.1`, and `::1`
+- the Go agent requires TLS 1.2 or newer and uses normal hostname, chain, and validity checks; there is no certificate-verification bypass
+- optional Go-agent `ca_bundle_path` must be an absolute, regular, non-symlink PEM file; those certificates are appended to the operating-system roots rather than replacing them
+- on POSIX systems the custom CA file must be owned by root or the agent effective user and must not be group- or world-writable; on Windows config/state/custom-CA reads require a protected, exact SYSTEM+Administrators DACL and trusted owner
+- the Go agent refuses all HTTP redirects, including same-origin redirects, so credentials are never forwarded to a redirect target
+- legacy config compatibility permits exactly one leading UTF-8 BOM; new writers should emit BOM-free UTF-8 JSON
+- `-loop` mode retries a failed cycle with exponential backoff from 5 seconds to a 5-minute cap, resets the backoff after success, and continues serving; one-shot mode returns the first cycle failure
+- generated compatibility reporters still require a private CA to be installed in the operating-system trust store
 - production deployments must use HTTPS; the HA TLS overlay exposes HTTPS only and supports TLS 1.2 and TLS 1.3
 
-Current request payload fields:
+Device state:
+- `state_path` defaults to `agent-state.json` beside the agent config and is not removed by a normal repair/reinstall
+- every update uses a bounded same-directory temporary file, file sync, atomic replacement, and directory durability boundary
+- POSIX requires a root/effective-user-owned `0700` parent and `0600` regular state/config files; symlink path components are refused
+- Windows state payloads use DPAPI LocalMachine; runtime writes apply a SYSTEM/Administrators-only DACL and reject reparse points
+- the privileged Windows installer must create/protect the parent directory; runtime DPAPI does not replace that installer security boundary
+
+Release and installation:
+- the reusable generic package accepts a control-plane URL and exactly one short-lived enrollment-token source: an explicitly warned command-line value, a protected file, or standard input; it never accepts a device credential
+- a personalized package reuses the byte-identical generic release and adds a detached-signed bootstrap manifest; the manifest binds client/location/profile scope, token ID, expiry, max uses, approval policy, URL, optional CA digest, release-manifest digest/version, platform, and architecture
+- release and bootstrap signatures use RSA-PKCS1v1.5/SHA-256 with an external operator trust-policy allowlist keyed by signing identity, key ID, and SubjectPublicKeyInfo SHA-256 fingerprint; explicit revoked fingerprints override allowlisting
+- package-contained public keys and example trust policies are not roots of trust; production policy/key distribution must use a separate administrative channel, and private signing keys are never packaged
+- installers reject a missing signature, tamper, unlisted/symlinked release content, wrong target/release, expired bootstrap, wrong/untrusted key, or revoked fingerprint before installing a service
+- installers validate config, URL, CA, release, and bootstrap inputs before service registration, then run `-action status` to prove TLS/enrollment and protected device-state persistence; successful enrollment must leave no non-empty `enrollment_token` or legacy `api_token` in config
+- Linux installs only succeed after `sha-agent.service` is active; repair stops an active service before binary/state preflight and restores/restarts it on failure
+- Windows installs only succeed after fixed LocalSystem automatic SCM service `SHAAgent` reaches Running with exact `"<binary>" -config "<config>" -action service`; a validated legacy scheduled task is deleted only afterward
+- normal repair/upgrade preserves device state; uninstall preserves state unless explicit purge is requested
+- `.tar.gz` and `.zip` are current development delivery formats; native DEB/RPM/MSI packaging, repository metadata signing, and Authenticode remain gated on production publisher credentials/infrastructure
+
+Device bootstrap request fields:
+- `installation_id` — stable client-generated `si_<base64url>` value
+- `credential_id` — client-generated `dc_<base64url>` public identifier
+- `credential_secret` — client-generated canonical unpadded base64url secret with at least 32 decoded bytes
+- `agent_fingerprint`, `hostname`, `platform`, `platform_version`, and `agent_version`
+- `protocol_version` — `sha-agent-v1`
+- `architecture` — `runtime.GOARCH`
+
+Legacy enrollment request payload fields:
 - `agent_fingerprint` — required, trimmed, lowercased for matching/storage
 - `hostname` — required, trimmed
 - `platform` — required enum: `windows | linux | macos`

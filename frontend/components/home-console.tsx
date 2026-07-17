@@ -33,6 +33,7 @@ import {
   type InstallerProfile,
 } from "../lib/api";
 import { Badge, EmptyState, Panel, SectionHeader, StatCard } from "./console-primitives";
+import { useScope } from "./scope-context";
 
 type HomeConsoleProps = {
   initialEndpoints?: EndpointInventoryItem[];
@@ -49,6 +50,7 @@ export default function HomeConsole({
   initialProfiles,
   demoMode = isDemoMode(),
 }: HomeConsoleProps) {
+  const { href } = useScope();
   const [endpoints, setEndpoints] = useState(() => initialEndpoints ?? (demoMode ? getFixtureEndpoints() : []));
   const [requests, setRequests] = useState(() => initialRequests ?? (demoMode ? getFixtureApprovalRequests() : []));
   const [grants, setGrants] = useState(() => initialGrants ?? (demoMode ? getFixtureApprovalGrants() : []));
@@ -142,15 +144,15 @@ export default function HomeConsole({
             description="Direct every action through a bounded lane — observe, approve, or package."
           />
           <div className="command-list">
-            <a className="command-link" href="/fleet">
+            <a className="command-link" href={href("/fleet")}>
               <strong>Fleet watch</strong>
               <span>Search live endpoints, inspect drift, and register new agents.</span>
             </a>
-            <a className="command-link" href="/approvals">
+            <a className="command-link" href={href("/approvals")}>
               <strong>Approval review</strong>
               <span>Decide high-risk rollout requests and create emergency grants.</span>
             </a>
-            <a className="command-link" href="/installers">
+            <a className="command-link" href={href("/installers")}>
               <strong>Installer profiles</strong>
               <span>Define per-platform enrollment packages and control-plane policy modes.</span>
             </a>
@@ -167,7 +169,11 @@ export default function HomeConsole({
           />
           <div className="operator-list">
             {watchlist.map((endpoint) => (
-              <a className="operator-list__item" href={`/endpoints/${endpoint.endpoint_id}`} key={endpoint.endpoint_id}>
+              <a
+                className="operator-list__item"
+                href={href(`/endpoints/${endpoint.endpoint_id}`)}
+                key={endpoint.endpoint_id}
+              >
                 <div>
                   <div className="operator-list__title-row">
                     <strong>{endpoint.hostname}</strong>
@@ -193,7 +199,11 @@ export default function HomeConsole({
           {pendingRequests.length ? (
             <div className="operator-list">
               {pendingRequests.map((request) => (
-                <a className="operator-list__item" href="/approvals" key={request.approval_request_id}>
+                <a
+                  className="operator-list__item"
+                  href={href("/approvals")}
+                  key={request.approval_request_id}
+                >
                   <div>
                     <div className="operator-list__title-row">
                       <strong>{request.reason}</strong>
@@ -212,7 +222,7 @@ export default function HomeConsole({
               title="No live approval queue"
               body="The backend currently has no pending approval requests. Use the approvals console to create one when a rollout needs human review."
               action={
-                <a className="action-button action-button--secondary" href="/approvals">
+                <a className="action-button action-button--secondary" href={href("/approvals")}>
                   Open approval console
                 </a>
               }
@@ -247,7 +257,7 @@ export default function HomeConsole({
               title="No installer profiles"
               body="Create a platform profile to turn enrollment into a repeatable package lane."
               action={
-                <a className="action-button action-button--secondary" href="/installers">
+                <a className="action-button action-button--secondary" href={href("/installers")}>
                   Create profile
                 </a>
               }

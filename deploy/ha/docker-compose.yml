@@ -38,6 +38,9 @@ services:
       SHA_READONLY_API_TOKEN: ${SHA_READONLY_API_TOKEN:?set SHA_READONLY_API_TOKEN}
       SHA_AGENT_API_TOKEN: ${SHA_AGENT_API_TOKEN:?set SHA_AGENT_API_TOKEN}
       SHA_EXTERNAL_AUTH_TRUSTED_TOKEN: ${SHA_EXTERNAL_AUTH_TRUSTED_TOKEN:-}
+      SHA_CREDENTIAL_HMAC_KEY_FILE: /run/secrets/sha_credential_hmac_key
+    secrets:
+      - sha_credential_hmac_key
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -82,3 +85,7 @@ services:
 
 volumes:
   postgres-data:
+
+secrets:
+  sha_credential_hmac_key:
+    file: ${SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE:?set SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE}

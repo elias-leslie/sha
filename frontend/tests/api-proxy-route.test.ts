@@ -64,4 +64,30 @@ describe("frontend API proxy authorization boundary", () => {
     expect(headers.has("x-sha-external-role")).toBe(false)
     expect(headers.has("x-sha-external-user")).toBe(false)
   })
+
+  it("preserves browser cookies and upstream redirect cookies without following the redirect", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(null, {
+        headers: [
+          ["Location", "https://identity.example.test/authorize"],
+          ["Set-Cookie", "__Host-sha_oidc_tx=opaque; Path=/; Secure; HttpOnly; SameSite=Lax"],
+          ["Set-Cookie", "sha_aux=second; Path=/; Secure; HttpOnly; SameSite=Lax"],
+        ],
+        status: 302,
+      }),
+    )
+
+    const response = await GET(
+      request("GET", { Cookie: "__Host-sha_session=session-cookie" }),
+      { params: Promise.resolve({ path: ["auth", "oidc", "login"] }) },
+    )
+
+    const [, init] = vi.mocked(fetch).mock.calls[0]
+    expect(new Headers(init?.headers).get("cookie")).toBe("__Host-sha_session=session-cookie")
+    expect(init?.redirect).toBe("manual")
+    expect(response.status).toBe(302)
+    expect(response.headers.get("location")).toBe("https://identity.example.test/authorize")
+    expect(response.headers.get("set-cookie")).toContain("__Host-sha_oidc_tx=opaque")
+    expect(response.headers.get("set-cookie")).toContain("sha_aux=second")
+  })
 })

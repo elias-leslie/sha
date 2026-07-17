@@ -275,7 +275,9 @@ describe("SHA approvals control plane", () => {
     expect(screen.getAllByText(request.reason).length).toBeGreaterThan(0)
     expect(screen.getByText(grant.reason)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /approve request/i })).toBeEnabled()
-    expect(screen.getByRole("button", { name: /create approval request/i })).toBeEnabled()
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /create approval request/i })).toBeEnabled(),
+    )
     expect(screen.getByRole("button", { name: /issue manual grant/i })).toBeEnabled()
   })
 

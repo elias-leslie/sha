@@ -1,5 +1,21 @@
 {
   "$defs": {
+    "EndpointAgentMigrationState": {
+      "enum": [
+        "canonical",
+        "legacy_reporter"
+      ],
+      "title": "EndpointAgentMigrationState",
+      "type": "string"
+    },
+    "EndpointCredentialMode": {
+      "enum": [
+        "legacy_shared",
+        "device"
+      ],
+      "title": "EndpointCredentialMode",
+      "type": "string"
+    },
     "EndpointPlatform": {
       "enum": [
         "windows",
@@ -28,21 +44,75 @@
       "title": "Agent Version",
       "type": "string"
     },
+    "architecture": {
+      "anyOf": [
+        {
+          "maxLength": 32,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Architecture"
+    },
+    "client_id": {
+      "title": "Client Id",
+      "type": "string"
+    },
     "created_at": {
       "title": "Created At",
       "type": "string"
+    },
+    "credential_mode": {
+      "$ref": "#/$defs/EndpointCredentialMode"
     },
     "endpoint_id": {
       "title": "Endpoint Id",
       "type": "string"
     },
+    "enrollment_token_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Enrollment Token Id"
+    },
     "hostname": {
       "title": "Hostname",
       "type": "string"
     },
+    "installation_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Installation Id"
+    },
     "last_seen_at": {
       "title": "Last Seen At",
       "type": "string"
+    },
+    "location_id": {
+      "title": "Location Id",
+      "type": "string"
+    },
+    "migration_eligible": {
+      "title": "Migration Eligible",
+      "type": "boolean"
+    },
+    "migration_state": {
+      "$ref": "#/$defs/EndpointAgentMigrationState"
     },
     "platform": {
       "$ref": "#/$defs/EndpointPlatform"
@@ -57,6 +127,13 @@
         }
       ],
       "title": "Platform Version"
+    },
+    "protocol_version": {
+      "maxLength": 32,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+      "title": "Protocol Version",
+      "type": "string"
     },
     "site_id": {
       "anyOf": [
@@ -95,6 +172,15 @@
     "platform",
     "platform_version",
     "agent_version",
+    "protocol_version",
+    "architecture",
+    "installation_id",
+    "credential_mode",
+    "enrollment_token_id",
+    "migration_state",
+    "migration_eligible",
+    "client_id",
+    "location_id",
     "tenant_id",
     "site_id",
     "status",

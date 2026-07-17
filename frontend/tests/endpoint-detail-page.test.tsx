@@ -16,6 +16,8 @@ const liveEndpoint: EndpointDetail = {
   platform: "windows",
   platform_version: "Windows 11 24H2",
   agent_version: "1.0.7",
+  client_id: "cl_test",
+  location_id: "loc_test",
   tenant_id: "tenant-a",
   site_id: "site-a",
   status: "active",
@@ -125,7 +127,12 @@ describe("SHA endpoint detail route", () => {
   ])("shows %s endpoint read failures and mounts no mutation forms", async (status, detail) => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => ({ ok: false, status, json: async () => ({ detail }) }) as Response),
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith("/api/clients")) {
+          return { ok: true, json: async () => ({ items: [] }) } as Response
+        }
+        return { ok: false, status, json: async () => ({ detail }) } as Response
+      }),
     )
 
     render(<EndpointDetailPage params={{ endpointId: "ep_unknown" }} />)
@@ -140,7 +147,16 @@ describe("SHA endpoint detail route", () => {
   it("does not substitute a matching fixture endpoint after a live 404", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => ({ ok: false, status: 404, json: async () => ({ detail: "live endpoint missing" }) }) as Response),
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith("/api/clients")) {
+          return { ok: true, json: async () => ({ items: [] }) } as Response
+        }
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({ detail: "live endpoint missing" }),
+        } as Response
+      }),
     )
 
     render(<EndpointDetailPage params={{ endpointId: "ep_demo_linux_01" }} />)
