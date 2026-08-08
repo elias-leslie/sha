@@ -4,7 +4,7 @@ import NavShell from "../../components/nav-shell";
 export default function ClientsPage() {
   return (
     <NavShell
-      currentPath="/hierarchy"
+      currentPath="/clients"
       scopeAware
       title="Infrastructure & Systems Hierarchy"
       description="Interactive hierarchy of clients, locations, and host systems with posture assessment and control actions."

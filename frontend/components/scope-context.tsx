@@ -76,7 +76,9 @@ function writeUrlScope(scope: ScopeSelection) {
     url.searchParams.delete("client_id");
     url.searchParams.delete("location_id");
   }
-  window.history.replaceState({}, "", url.toString());
+  if (url.toString() !== window.location.href) {
+    window.history.replaceState({}, "", url.toString());
+  }
 }
 
 export function hierarchyDisplayName(item: Client | Location) {
