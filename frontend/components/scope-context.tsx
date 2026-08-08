@@ -56,17 +56,27 @@ function writeUrlScope(scope: ScopeSelection) {
     return;
   }
   const url = new URL(window.location.href);
-  if (scope.client_id) {
-    url.searchParams.set("client_id", scope.client_id);
+  const currentClient = url.searchParams.get("client_id")?.trim() || null;
+  const currentLocation = url.searchParams.get("location_id")?.trim() || null;
+  const targetClient = scope.client_id || null;
+  const targetLocation = scope.location_id || null;
+
+  if (currentClient === targetClient && currentLocation === targetLocation) {
+    return;
+  }
+
+  if (targetClient) {
+    url.searchParams.set("client_id", targetClient);
+    if (targetLocation) {
+      url.searchParams.set("location_id", targetLocation);
+    } else {
+      url.searchParams.delete("location_id");
+    }
   } else {
     url.searchParams.delete("client_id");
-  }
-  if (scope.client_id && scope.location_id) {
-    url.searchParams.set("location_id", scope.location_id);
-  } else {
     url.searchParams.delete("location_id");
   }
-  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  window.history.replaceState({}, "", url.toString());
 }
 
 export function hierarchyDisplayName(item: Client | Location) {

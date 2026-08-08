@@ -45,11 +45,13 @@ export function Badge({ tone = "info", children }: { tone?: Tone; children: Reac
 export function Panel({
   children,
   className = "",
+  style,
 }: {
   children: ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
-  return <section className={`console-panel ${className}`.trim()}>{children}</section>;
+  return <section className={`console-panel ${className}`.trim()} style={style}>{children}</section>;
 }
 
 export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {

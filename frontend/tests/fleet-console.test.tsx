@@ -25,9 +25,8 @@ describe("SHA fleet control plane", () => {
     render(<FleetPage />)
 
     expect(
-      screen.getByRole("heading", { name: "Infrastructure & Systems Hierarchy" }),
+      screen.getByRole("heading", { name: /infrastructure/i }),
     ).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/filter/i)).toBeInTheDocument()
-    expect(screen.getByText("Client Organizations & Sites")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument()
   })
 })

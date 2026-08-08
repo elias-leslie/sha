@@ -13,9 +13,8 @@ describe("HierarchyPage", () => {
     render(<HierarchyPage />)
 
     expect(
-      screen.getByRole("heading", { name: "Infrastructure & Systems Hierarchy" }),
+      screen.getByRole("heading", { name: /compliance console/i }),
     ).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/filter/i)).toBeInTheDocument()
-    expect(screen.getByText("Client Organizations & Sites")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument()
   })
 })
