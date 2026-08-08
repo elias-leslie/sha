@@ -284,14 +284,14 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
         <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
           <input
             className="field__input"
-            placeholder="Filter companies, sites, hosts..."
+            placeholder="Filter organizations, sites, hosts..."
             style={{ width: "260px", padding: "0.45rem 0.8rem", fontSize: "0.82rem" }}
             type="search"
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
           />
           <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
-            <strong>{clients.length}</strong> MSP Clients • <strong>{locations.length}</strong> Branch Sites • <strong>{endpoints.length}</strong> Computers/Servers
+            <strong>{clients.length}</strong> Organizations • <strong>{locations.length}</strong> Sites • <strong>{endpoints.length}</strong> Systems
           </span>
         </div>
 
@@ -302,7 +302,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
             type="button"
             onClick={() => setShowClientModal(true)}
           >
-            + Register Client Company
+            + Add Organization
           </button>
           <button
             className="action-button action-button--secondary"
@@ -313,7 +313,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
               setShowLocationModal(true);
             }}
           >
-            + Add Branch Site
+            + Add Site Location
           </button>
           <button
             className="action-button action-button--ghost"
@@ -585,8 +585,8 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
             <div style={{ display: "grid", gap: "1.2rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <SectionHeader
-                  description="MSP Client Organizational Boundary, registered branch sites, and overall infrastructure health."
-                  eyebrow="MSP Client Company"
+                  description="Organizational boundary, configured site locations, and system posture health."
+                  eyebrow="Organization Boundary"
                   title={hierarchyDisplayName(activeClient)}
                 />
                 <button
@@ -601,18 +601,18 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
               {/* Client Metrics */}
               <div className="dashboard-grid dashboard-grid--three-up" style={{ gap: "0.8rem" }}>
                 <StatCard
-                  label="Client Company Code"
-                  meta="Client Identifier"
+                  label="Organization Code"
+                  meta="Organization Identifier"
                   value={activeClient.key || activeClient.client_id}
                 />
                 <StatCard
-                  label="Branch Locations"
-                  meta="Configured Sites"
+                  label="Configured Sites"
+                  meta="Branch Offices & DCs"
                   value={(locationsByClient.get(activeClient.client_id) || []).length}
                 />
                 <StatCard
-                  label="Computers & Servers"
-                  meta="Enrolled Endpoints"
+                  label="Enrolled Systems"
+                  meta="Computers & Servers"
                   value={(endpointsByClient.get(activeClient.client_id) || []).length}
                 />
               </div>
@@ -621,7 +621,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
               <div style={{ display: "grid", gap: "0.8rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <h3 style={{ fontSize: "0.95rem", textTransform: "uppercase", letterSpacing: "0.1em", margin: 0 }}>
-                    Branch Sites under {hierarchyDisplayName(activeClient)}
+                    Sites & Locations under {hierarchyDisplayName(activeClient)}
                   </h3>
                   <button
                     className="action-button action-button--secondary"
@@ -632,7 +632,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                       setShowLocationModal(true);
                     }}
                   >
-                    + Add Branch Site
+                    + Add Site Location
                   </button>
                 </div>
                 {(locationsByClient.get(activeClient.client_id) || []).length > 0 ? (
@@ -925,19 +925,19 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
             }}
           >
             <SectionHeader
-              description="Add a new customer organization to your multi-tenant control plane."
-              eyebrow="MSP Client Registration"
-              title="Register Client Company"
+              description="Add a customer company, corporate entity, or workspace boundary to your control plane."
+              eyebrow="Organization Registration"
+              title="Add New Organization"
             />
             {clientCreateError && (
               <p className="inline-feedback inline-feedback--danger">{clientCreateError}</p>
             )}
             <form onSubmit={handleCreateClient} style={{ display: "grid", gap: "1rem" }}>
               <label className="field">
-                <span className="field__label">Company Name</span>
+                <span className="field__label">Organization Name</span>
                 <input
                   className="field__control"
-                  placeholder="e.g. Apex Logistics Corp"
+                  placeholder="e.g. Acme Financial Group"
                   required
                   type="text"
                   value={newClientName}
@@ -950,10 +950,10 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                 />
               </label>
               <label className="field">
-                <span className="field__label">Client Key / Code</span>
+                <span className="field__label">Organization Code / Key</span>
                 <input
                   className="field__control"
-                  placeholder="e.g. apex-logistics"
+                  placeholder="e.g. acme-financial"
                   required
                   type="text"
                   value={newClientKey}
@@ -973,7 +973,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                   disabled={clientCreatePending}
                   type="submit"
                 >
-                  {clientCreatePending ? "Registering..." : "Register Company"}
+                  {clientCreatePending ? "Adding..." : "Add Organization"}
                 </button>
               </div>
             </form>
@@ -981,7 +981,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
         </div>
       )}
 
-      {/* Modal: Add Branch Site */}
+      {/* Modal: Add Site Location */}
       {showLocationModal && (
         <div
           style={{
@@ -1008,23 +1008,23 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
             }}
           >
             <SectionHeader
-              description="Add a physical branch office, lab, or datacenter site to an existing client company."
-              eyebrow="Site Configuration"
-              title="Add Branch Site Location"
+              description="Add a physical branch office, datacenter, room, or site boundary to an organization."
+              eyebrow="Location Configuration"
+              title="Add Site Location"
             />
             {locCreateError && (
               <p className="inline-feedback inline-feedback--danger">{locCreateError}</p>
             )}
             <form onSubmit={handleCreateLocation} style={{ display: "grid", gap: "1rem" }}>
               <label className="field">
-                <span className="field__label">Parent Client Company</span>
+                <span className="field__label">Parent Organization</span>
                 <select
                   className="field__control"
                   required
                   value={newLocClientId}
                   onChange={(e) => setNewLocClientId(e.target.value)}
                 >
-                  <option value="">Select client company...</option>
+                  <option value="">Select organization...</option>
                   {clients.map((c) => (
                     <option key={c.client_id} value={c.client_id}>
                       {hierarchyDisplayName(c)}
