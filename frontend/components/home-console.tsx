@@ -117,44 +117,43 @@ export default function HomeConsole({
         <Panel className="hero-panel hero-panel--primary">
           <div className="hero-panel__masthead">
             <div>
-              <p className="hero-panel__eyebrow">Containment posture</p>
-              <h2>Operator-grade visibility for endpoint drift, approvals, and installer readiness.</h2>
+              <p className="hero-panel__eyebrow">Fleet Posture</p>
+              <h2>Real-time endpoint hardening, posture compliance, and approval workflows.</h2>
               <p className="hero-panel__copy">
-                SHA keeps hardening changes bounded: collect posture, route risky actions through human approval, and keep
-                operator context anchored to the live fleet whenever the backend is reachable.
+                OS hardening baseline verification, posture snapshot analysis, and human-in-the-loop approvals across Linux and Windows endpoints.
               </p>
             </div>
             <Badge tone={source === "live" ? "success" : source === "error" ? "danger" : "warning"}>
-              {source === "live" ? "Live backend" : source === "demo" ? "Demo fixtures" : source === "loading" ? "Loading live backend" : "Live backend unavailable"}
+              {source === "live" ? "Live backend" : source === "demo" ? "Demo mode" : source === "loading" ? "Connecting to backend" : "Backend offline"}
             </Badge>
           </div>
-          {error ? <p className="inline-feedback inline-feedback--danger" role="alert">Operational data load failed: {error}</p> : null}
+          {error ? <p className="inline-feedback inline-feedback--danger" role="alert">Data load status: {error}</p> : null}
           <div className="stat-grid">
-            <StatCard label="Endpoints" value={summary.totalEndpoints} meta="Registered control-plane assets" tone="info" />
-            <StatCard label="Average score" value={summary.averageScore || "--"} meta="Weighted posture confidence" tone="success" />
-            <StatCard label="Pending approvals" value={summary.pendingApprovals} meta="Disruptive changes awaiting review" tone="warning" />
-            <StatCard label="Active grants" value={summary.activeGrants} meta="Time-boxed elevated access windows" tone="danger" />
+            <StatCard label="Endpoints" value={summary.totalEndpoints} meta="Registered assets" tone="info" />
+            <StatCard label="Average score" value={summary.averageScore || "--"} meta="Posture confidence score" tone="success" />
+            <StatCard label="Pending approvals" value={summary.pendingApprovals} meta="Awaiting operator review" tone="warning" />
+            <StatCard label="Active grants" value={summary.activeGrants} meta="Elevated access windows" tone="danger" />
           </div>
         </Panel>
 
         <Panel className="hero-panel hero-panel--secondary">
           <SectionHeader
-            eyebrow="Control doctrine"
-            title="Execution rails"
-            description="Direct every action through a bounded lane — observe, approve, or package."
+            eyebrow="Fleet Command"
+            title="Operator Navigation"
+            description="Access live endpoint posture, approval review queues, and installer packages."
           />
           <div className="command-list">
-            <a className="command-link" href={href("/fleet")}>
-              <strong>Fleet watch</strong>
-              <span>Search live endpoints, inspect drift, and register new agents.</span>
+            <a className="command-link" href={href("/hierarchy")}>
+              <strong>Hierarchy & Systems</strong>
+              <span>Inspect clients, locations, host systems, and posture compliance.</span>
             </a>
             <a className="command-link" href={href("/approvals")}>
               <strong>Approval review</strong>
-              <span>Decide high-risk rollout requests and create emergency grants.</span>
+              <span>Review elevated requests and issue time-boxed troubleshooting grants.</span>
             </a>
             <a className="command-link" href={href("/installers")}>
               <strong>Installer profiles</strong>
-              <span>Define per-platform enrollment packages and control-plane policy modes.</span>
+              <span>View enrollment packages and control-plane policy modes.</span>
             </a>
           </div>
         </Panel>
@@ -163,9 +162,9 @@ export default function HomeConsole({
       <section className="dashboard-grid dashboard-grid--two-up">
         <Panel>
           <SectionHeader
-            eyebrow="Priority watchlist"
-            title="Fleet command board"
-            description="Highest-signal endpoints sorted by current posture and control drift."
+            eyebrow="Fleet Inventory"
+            title="Active Endpoints"
+            description="Endpoints sorted by current posture score and compliance state."
           />
           <div className="operator-list">
             {watchlist.map((endpoint) => (
@@ -192,9 +191,9 @@ export default function HomeConsole({
 
         <Panel>
           <SectionHeader
-            eyebrow="Approval pressure"
-            title="Risk queue"
-            description="Human review remains the gate for disruptive controls and temporary troubleshooting windows."
+            eyebrow="Approval Queue"
+            title="Pending Hardening Requests"
+            description="Disruptive configuration changes and elevated access windows requiring human approval."
           />
           {pendingRequests.length ? (
             <div className="operator-list">
@@ -219,8 +218,8 @@ export default function HomeConsole({
             </div>
           ) : (
             <EmptyState
-              title="No live approval queue"
-              body="The backend currently has no pending approval requests. Use the approvals console to create one when a rollout needs human review."
+              title="No pending requests"
+              body="No approval requests are currently awaiting review."
               action={
                 <a className="action-button action-button--secondary" href={href("/approvals")}>
                   Open approval console
@@ -234,9 +233,9 @@ export default function HomeConsole({
       <section className="dashboard-grid dashboard-grid--two-up">
         <Panel>
           <SectionHeader
-            eyebrow="Packaging"
-            title="Installer profile posture"
-            description="Profiles remain package metadata until operators create live platform definitions."
+            eyebrow="Platform Profiles"
+            title="Deployment Profiles"
+            description="Platform installer definitions and policy enforcement modes."
           />
           {profiles.length ? (
             <div className="card-grid">
@@ -255,7 +254,7 @@ export default function HomeConsole({
           ) : (
             <EmptyState
               title="No installer profiles"
-              body="Create a platform profile to turn enrollment into a repeatable package lane."
+              body="Platform installer profiles define baseline configurations for new endpoints."
               action={
                 <a className="action-button action-button--secondary" href={href("/installers")}>
                   Create profile
@@ -267,9 +266,9 @@ export default function HomeConsole({
 
         <Panel>
           <SectionHeader
-            eyebrow="Telemetry integrity"
-            title="Command timeline"
-            description="Recent fleet events that influence operator trust in the control plane."
+            eyebrow="System Events"
+            title="Recent Activity"
+            description="Recent endpoint telemetry and health status changes."
           />
           <div className="timeline-list">
             {endpoints.slice(0, 4).map((endpoint) => (

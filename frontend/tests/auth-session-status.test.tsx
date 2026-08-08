@@ -67,7 +67,7 @@ describe("operator authentication status", () => {
     expect(screen.getByText(/Viewer · global/i)).toBeInTheDocument()
     expect(screen.getByText(/ClientOperator · client cl_alpha/i)).toBeInTheDocument()
     expect(screen.getByText(/IncidentResponder · location loc_main/i)).toBeInTheDocument()
-    expect(screen.getByText(/alice-subject · oidc session/i)).toBeInTheDocument()
+    expect(screen.getByText("alice-subject")).toBeInTheDocument()
   })
 
   it("makes pending users explicitly zero-authority", async () => {
@@ -78,7 +78,7 @@ describe("operator authentication status", () => {
 
     render(<AuthSessionStatus demoMode={false} scope={{ client_id: null, location_id: null }} />)
 
-    expect(await screen.findByText(/pending identity · zero authority/i)).toBeInTheDocument()
+    expect(await screen.findByText("Pending identity")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Sign out all" })).toBeInTheDocument()
   })

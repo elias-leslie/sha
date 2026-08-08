@@ -5,8 +5,8 @@ export default function HomePage() {
   return (
     <NavShell
       currentPath="/"
-      title="Security control plane"
-      description="Dark amber operator workspace for endpoint hardening, bounded approvals, and installer orchestration."
+      title="Security Hardening Automation"
+      description="Control plane for endpoint posture monitoring, security compliance auditing, and human-in-the-loop approvals."
     >
       <HomeConsole />
     </NavShell>

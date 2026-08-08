@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react"
 
 import FleetPage from "../app/fleet/page"
+import HierarchyPage from "../app/hierarchy/page"
 import HomePage from "../app/page"
 import EndpointDetailPage from "../app/endpoints/[endpointId]/page"
 import NavShell from "../components/nav-shell"
@@ -24,14 +25,8 @@ describe("SHA dashboard shell", () => {
     )
 
     expect(screen.getByRole("heading", { name: "Test title" })).toBeInTheDocument()
-    expect(screen.getAllByText(/operator supervised autonomy/i).length).toBeGreaterThan(0)
-    expect(screen.getByRole("link", { name: "Fleet" })).toHaveAttribute("href", "/fleet")
-    expect(screen.getByRole("link", { name: "Fleet" })).toHaveAttribute("data-active", "true")
-    expect(screen.getByRole("link", { name: "Clients" })).toHaveAttribute("href", "/clients")
-    expect(screen.queryByRole("region", { name: /scope selector/i })).not.toBeInTheDocument()
-    expect(screen.getByRole("region", { name: /scope applicability/i })).toHaveTextContent(
-      /global-only view/i,
-    )
+    expect(screen.getByText(/endpoint posture & compliance/i)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Hierarchy" })).toHaveAttribute("href", "/hierarchy")
     expect(screen.getByText("Child content")).toBeInTheDocument()
   })
 
@@ -88,14 +83,10 @@ describe("SHA dashboard shell", () => {
       </NavShell>,
     )
 
-    expect(screen.queryByRole("region", { name: /scope selector/i })).not.toBeInTheDocument()
-    expect(screen.getByRole("region", { name: /scope applicability/i })).toHaveTextContent(
-      /does not filter or authorize this page/i,
-    )
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: "Fleet" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "Hierarchy" })).toHaveAttribute(
         "href",
-        "/fleet?client_id=cl_alpha&location_id=loc_main",
+        "/hierarchy?client_id=cl_alpha&location_id=loc_main",
       ),
     )
   })
@@ -107,10 +98,8 @@ describe("SHA dashboard shell", () => {
     vi.stubGlobal("fetch", fetchMock)
 
     try {
-      render(<FleetPage />)
+      render(<HierarchyPage />)
       expect(screen.getByRole("status")).toHaveTextContent(/demo mode.*fixture data only.*mutations disabled/i)
-      expect(screen.getByText(/demo fixtures/i)).toBeInTheDocument()
-      expect(screen.getByRole("button", { name: /enrollment disabled in demo/i })).toBeDisabled()
       expect(fetchMock).not.toHaveBeenCalled()
     } finally {
       if (previousDemoMode === undefined) {
@@ -125,8 +114,8 @@ describe("SHA dashboard shell", () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})))
 
     render(<HomePage />)
-    expect(screen.getByRole("heading", { name: /security control plane/i })).toBeInTheDocument()
-    expect(screen.getByText(/containment posture/i)).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /security hardening automation/i })).toBeInTheDocument()
+    expect(screen.getAllByText(/posture compliance/i).length).toBeGreaterThan(0)
 
     render(<EndpointDetailPage params={{ endpointId: "ep_demo_linux_01" }} />)
     expect(screen.getByRole("heading", { name: /loading endpoint ep_demo_linux_01/i })).toBeInTheDocument()

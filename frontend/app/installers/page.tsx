@@ -6,8 +6,8 @@ export default function InstallersPage() {
     <NavShell
       currentPath="/installers"
       scopeAware
-      title="Installer profile registry"
-      description="Package-definition console for Windows, Linux, and macOS enrollment profiles, channels, and policy modes."
+      title="Installer Profiles"
+      description="Agent deployment packages, platform profiles, and enforcement policy modes for endpoint enrollment."
     >
       <InstallersConsole />
     </NavShell>

@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "SHA | Security Control Plane",
-  description: "Dark amber operator workspace for security hardening automation, approvals, and installer orchestration.",
+  description: "Security Hardening Automation control plane for OS baseline monitoring, posture compliance, and human approval workflows.",
   icons: {
     icon: "/icon.svg",
     shortcut: "/icon.svg",

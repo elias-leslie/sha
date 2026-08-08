@@ -236,9 +236,9 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
       <section className="dashboard-grid dashboard-grid--wide-sidebar">
         <Panel>
           <SectionHeader
-            eyebrow="Fleet status"
-            title="Endpoint command board"
-            description="Search the fleet, pivot by platform, and drill straight into live endpoint detail routes."
+            eyebrow="Fleet Inventory"
+            title="Fleet Overview"
+            description="Monitor connected host inventory, posture health scores, and platform distribution."
           />
           <div className="stat-grid">
             <StatCard label="Registered" value={summary.totalEndpoints} meta="Known endpoints" tone="info" />
@@ -250,9 +250,9 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
 
         <Panel>
           <SectionHeader
-            eyebrow="Fleet search"
-            title="Filter lane"
-            description="Use dense operator filters instead of scrolling static cards."
+            eyebrow="Filter"
+            title="Search & Filter"
+            description="Filter inventory by hostname, platform, or posture state."
           />
           <div className="toolbar">
             <label className="field field--grow" htmlFor="fleet-search">
@@ -289,9 +289,9 @@ export default function FleetConsole({ initialEndpoints, demoMode = isDemoMode()
       <section className="dashboard-grid dashboard-grid--wide-sidebar">
         <Panel>
           <SectionHeader
-            eyebrow="Endpoint matrix"
-            title="Reachable endpoint routes"
-            description="Every row exposes a direct endpoint route with posture, connectivity, and package metadata."
+            eyebrow="Fleet Status"
+            title="Registered Endpoints"
+            description="Endpoint inventory showing posture scores, OS platform, and active connectivity state."
           />
           {error ? <p className="inline-feedback inline-feedback--danger" role="alert">Endpoint inventory load failed: {error}</p> : null}
           {visibleEndpoints.length ? (

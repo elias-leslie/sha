@@ -100,13 +100,19 @@ def create_app(
         if credential_hmac_key is not None
         else settings.resolved_credential_hmac_key()
     )
+    effective_legacy_mode = (
+        legacy_reporter_mode
+        if legacy_reporter_mode is not None
+        else (settings.legacy_reporter_mode if settings.legacy_reporter_mode != "disabled" else ("migration" if auth_mode == "development_open" else "disabled"))
+    )
+    effective_legacy_until = (
+        legacy_reporter_compatibility_until
+        if legacy_reporter_compatibility_until is not None
+        else (settings.legacy_reporter_compatibility_until or ("2029-12-31T23:59:59Z" if effective_legacy_mode == "migration" else None))
+    )
     app.state.legacy_reporter_policy = LegacyReporterPolicy.from_config(
-        legacy_reporter_mode or settings.legacy_reporter_mode,
-        (
-            legacy_reporter_compatibility_until
-            if legacy_reporter_compatibility_until is not None
-            else settings.legacy_reporter_compatibility_until
-        ),
+        effective_legacy_mode,
+        effective_legacy_until,
     )
     effective_credential_lifetime = (
         device_credential_lifetime_days

@@ -1,7 +1,8 @@
+import FleetMetadataConsole from "../../components/fleet-metadata-console";
 import HierarchyConsole from "../../components/hierarchy-console";
 import NavShell from "../../components/nav-shell";
 
-export default function ClientsPage() {
+export default function HierarchyPage() {
   return (
     <NavShell
       currentPath="/hierarchy"
@@ -10,6 +11,7 @@ export default function ClientsPage() {
       description="Interactive hierarchy of clients, locations, and host systems with posture assessment and control actions."
     >
       <HierarchyConsole />
+      <FleetMetadataConsole />
     </NavShell>
   );
 }

@@ -14,6 +14,7 @@ def create_installer_profile(client, **overrides):
         "channel": "stable",
         "control_plane_url": "https://sha.example.test/control",
         "policy_mode": "observe",
+        "runtime_kind": "legacy_reporter",
         "tenant_id": "tenant-a",
         "site_id": "site-a",
     }

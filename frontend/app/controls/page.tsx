@@ -5,8 +5,8 @@ export default function ControlsPage() {
   return (
     <NavShell
       currentPath="/controls"
-      title="Control lattice"
-      description="Live drift rollups, doctrine packages, and approval pressure mapped onto the active endpoint posture."
+      title="Hardening Controls"
+      description="OS security controls, compliance benchmark mapping (NIST/DISA/CISA), and posture enforcement status across endpoints."
     >
       <ControlsConsole />
     </NavShell>

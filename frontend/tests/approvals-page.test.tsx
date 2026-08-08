@@ -82,7 +82,7 @@ describe("SHA approvals control plane", () => {
 
     const decisionComment = await screen.findByLabelText(/decision comment/i)
     expect(screen.queryByLabelText(/decision operator/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/decision attribution comes from the authenticated API principal/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/action logged to administrator audit trail/i).length).toBeGreaterThan(0)
     fireEvent.change(decisionComment, {
       target: { value: "Approved for the maintenance window." },
     })
@@ -198,8 +198,7 @@ describe("SHA approvals control plane", () => {
     await waitFor(() => expect(createButton).toBeEnabled())
     expect(screen.queryByLabelText(/^requested by$/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^approved by$/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/request attribution comes from the authenticated API principal/i)).toBeInTheDocument()
-    expect(screen.getByText(/grant attribution comes from the authenticated API principal/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/action logged to administrator audit trail/i).length).toBeGreaterThan(0)
 
     fireEvent.click(createButton)
     expect(await screen.findByText(/queued request apr-created/i)).toBeInTheDocument()

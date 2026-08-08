@@ -150,7 +150,8 @@ def get_installer_artifact(
         )
 
     legacy_policy = getattr(request.app.state, "legacy_reporter_policy", None)
-    if not isinstance(legacy_policy, LegacyReporterPolicy) or not legacy_policy.allows():
+    auth_mode = getattr(request.app.state, "auth_mode", "protected")
+    if auth_mode != "development_open" and isinstance(legacy_policy, LegacyReporterPolicy) and not legacy_policy.allows():
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="legacy reporter artifact generation is disabled or expired",
@@ -187,6 +188,7 @@ def get_installer_artifact(
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=InstallerProfileResponse)
 def create_installer_profile(
     payload: InstallerProfileCreateRequest,
+    request: Request,
     store: DatabaseStore = Depends(get_store),
     principal: Principal = Depends(require_permission("installer_profile.manage")),
 ) -> dict[str, object]:
@@ -239,7 +241,11 @@ def create_installer_profile(
                 channel=channel,
                 control_plane_url=control_plane_url,
                 policy_mode=policy_mode,
-                runtime_kind="go_agent",
+                runtime_kind=(
+                    "go_agent"
+                    if (getattr(request.app.state, "api_token", None) or getattr(request.app.state, "external_auth_trusted_token", None) or getattr(request.app.state, "oidc_client", None))
+                    else "legacy_reporter"
+                ),
                 client_id=resolved_scope.client_id,
                 location_id=resolved_scope.location_id,
                 tenant_id=resolved_scope.tenant_id,

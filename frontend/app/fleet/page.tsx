@@ -1,16 +1,16 @@
-import FleetConsole from "../../components/fleet-console";
 import FleetMetadataConsole from "../../components/fleet-metadata-console";
+import HierarchyConsole from "../../components/hierarchy-console";
 import NavShell from "../../components/nav-shell";
 
 export default function FleetPage() {
   return (
     <NavShell
-      currentPath="/fleet"
+      currentPath="/hierarchy"
       scopeAware
-      title="Fleet command board"
-      description="Search, filter, and enroll endpoints from a dense operator surface instead of static status cards."
+      title="Infrastructure & Systems Hierarchy"
+      description="Interactive hierarchy of clients, locations, and host systems with posture assessment and control actions."
     >
-      <FleetConsole />
+      <HierarchyConsole />
       <FleetMetadataConsole />
     </NavShell>
   );

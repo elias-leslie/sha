@@ -185,15 +185,15 @@ export default function ControlsConsole({
       <section className="dashboard-grid dashboard-grid--wide-sidebar">
         <Panel>
           <SectionHeader
-            eyebrow="Control doctrine"
-            title="Policy lattice"
-            description="This page derives live control health from endpoint posture results and correlates pending approval work."
+            eyebrow="Policy Overview"
+            title="Compliance & Control Status"
+            description="Correlate live security control compliance across endpoints and pending change requests."
           />
           <div className="stat-grid">
-            <StatCard label="Tracked controls" value={rollups.length} meta="Control keys seen in latest posture" tone="info" />
+            <StatCard label="Tracked controls" value={rollups.length} meta="Active security controls" tone="info" />
             <StatCard label="Average posture" value={averageScore || "--"} meta="Weighted endpoint score" tone="success" />
             <StatCard label="Pending changes" value={requests.filter((request) => request.status === "pending").length} meta="Approval requests touching controls" tone="warning" />
-            <StatCard label="Source" value={source === "live" ? "Live" : source === "demo" ? "Demo" : source === "loading" ? "Loading" : "Error"} meta="Control aggregation backend state" tone={source === "live" ? "success" : source === "error" ? "danger" : "warning"} />
+            <StatCard label="Source" value={source === "live" ? "Live" : source === "demo" ? "Demo" : source === "loading" ? "Loading" : "Error"} meta="Backend status" tone={source === "live" ? "success" : source === "error" ? "danger" : "warning"} />
           </div>
           {error ? <p className="inline-feedback inline-feedback--danger">{error}</p> : null}
         </Panel>
@@ -202,9 +202,9 @@ export default function ControlsConsole({
       <section className="dashboard-grid dashboard-grid--two-up">
         <Panel>
           <SectionHeader
-            eyebrow="Library"
-            title="Operator control packages"
-            description="Use the generated source-pack catalog to inspect pack provenance, platform reach, and control counts."
+            eyebrow="Control Packs"
+            title="Security Control Catalog"
+            description="Compliance benchmark frameworks (NIST, DISA STIGs, CISA) and platform hardening rules."
           />
           <div className="card-grid">
             {library.map((item) => (
@@ -222,9 +222,9 @@ export default function ControlsConsole({
 
         <Panel>
           <SectionHeader
-            eyebrow="Control pressure"
-            title="Live drift matrix"
-            description="Rollup of control failures, warnings, and open requests across endpoint detail payloads."
+            eyebrow="Posture Compliance"
+            title="Control Compliance Rollup"
+            description="Summary of non-compliant controls, warnings, and pending change requests across endpoints."
           />
           {rollups.length ? (
             <div className="operator-list">

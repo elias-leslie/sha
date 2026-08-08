@@ -117,7 +117,7 @@ export default function ApprovalsConsole({
   });
   const [grantForm, setGrantForm] = useState(() => ({
     endpoint_id: endpoints.length === 1 ? endpoints[0].endpoint_id : "",
-    reason: "Temporary bounded troubleshooting window",
+    reason: "Temporary troubleshooting grant",
     expires_at: futureLocalInput(90),
     troubleshooting_scopes: ["security_logs"] as TroubleshootingScope[],
   }));
@@ -408,13 +408,13 @@ export default function ApprovalsConsole({
         <Panel>
           <SectionHeader
             eyebrow="Governance"
-            title="Human decision surface"
-            description="Risk-bearing changes stay blocked until an operator approves, denies, or revokes the request."
+            title="Approval Review Console"
+            description="Configuration changes and elevated troubleshooting require operator approval before execution."
           />
           {loadError ? <p className="inline-feedback inline-feedback--danger" role="alert">Approval resources load failed: {loadError}</p> : null}
           <div className="stat-grid">
             <StatCard label="Pending" value={pendingRequests.length} meta="Awaiting decision" tone="warning" />
-            <StatCard label="Active grants" value={activeGrants.length} meta="Approved windows in force" tone="success" />
+            <StatCard label="Active grants" value={activeGrants.length} meta="Active grants in force" tone="success" />
             <StatCard label="Recorded history" value={auditHistory.length} meta="Closed approval outcomes" tone="info" />
             <StatCard label="Data source" value={source === "live" ? "Live" : source === "demo" ? "Demo" : source === "loading" ? "Loading" : source === "partial" ? "Partial" : "Error"} meta="Backend link state" tone={source === "live" ? "success" : source === "error" ? "danger" : "warning"} />
           </div>
@@ -500,7 +500,7 @@ export default function ApprovalsConsole({
 
               <form className="form-grid" onSubmit={(event) => event.preventDefault()}>
                 <p className="inline-feedback field--span-2">
-                  Decision attribution comes from the authenticated API principal.
+                  Action logged to administrator audit trail.
                 </p>
                 <label className="field field--span-2" htmlFor="decision-comment">
                   <span className="field__label">Decision comment</span>
@@ -648,7 +648,7 @@ export default function ApprovalsConsole({
               />
             </label>
             <p className="inline-feedback field--span-2">
-              Request attribution comes from the authenticated API principal.
+              Action logged to administrator audit trail.
             </p>
             <label className="field" htmlFor="request-risk">
               <span className="field__label">Risk</span>
@@ -686,9 +686,9 @@ export default function ApprovalsConsole({
 
         <Panel>
           <SectionHeader
-            eyebrow="Emergency lane"
+            eyebrow="Manual Grant"
             title="Issue a manual grant"
-            description="When operations needs bounded read access fast, mint a time-boxed troubleshooting grant."
+            description="Issue a temporary troubleshooting grant for endpoint diagnostic access."
           />
           <form className="form-grid" onSubmit={handleCreateGrant}>
             <label className="field" htmlFor="grant-endpoint">
@@ -709,7 +709,7 @@ export default function ApprovalsConsole({
               </select>
             </label>
             <p className="inline-feedback field--span-2">
-              Grant attribution comes from the authenticated API principal.
+              Action logged to administrator audit trail.
             </p>
             <label className="field" htmlFor="grant-expiry">
               <span className="field__label">Grant expires at</span>

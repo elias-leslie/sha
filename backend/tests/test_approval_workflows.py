@@ -156,6 +156,9 @@ def test_approve_request_creates_linked_grant_and_normalizes_expiry(db_path, mak
         "items": [
             {
                 "approval_grant_id": body["approval_grant_id"],
+                "scope_state": "active",
+                "client_id": "cl_legacy_quarantine",
+                "location_id": "loc_legacy_quarantine",
                 "approval_request_id": approval_request_id,
                 "endpoint_ids": [endpoint_id],
                 "allowed_actions": ["apply_control"],
@@ -261,6 +264,9 @@ def test_decision_route_returns_conflict_when_a_linked_grant_was_created_by_a_ra
             """
             INSERT INTO approval_grants (
                 approval_grant_id,
+                scope_state,
+                client_id,
+                location_id,
                 approval_request_id,
                 endpoint_ids,
                 allowed_actions,
@@ -273,10 +279,13 @@ def test_decision_route_returns_conflict_when_a_linked_grant_was_created_by_a_ra
                 status,
                 created_at,
                 updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 "grant_racewinner",
+                "active",
+                "cl_legacy_quarantine",
+                "loc_legacy_quarantine",
                 approval_request_id,
                 '["%s"]' % endpoint_id,
                 '["apply_control"]',
@@ -355,6 +364,9 @@ def test_list_routes_lazily_expire_request_backed_and_manual_grants_once(db_path
     expected_grants = [
         {
             "approval_grant_id": approval_grant_id,
+            "scope_state": "active",
+            "client_id": "cl_legacy_quarantine",
+            "location_id": "loc_legacy_quarantine",
             "approval_request_id": approval_request_id,
             "endpoint_ids": [endpoint_id],
             "allowed_actions": ["apply_control"],
@@ -370,6 +382,9 @@ def test_list_routes_lazily_expire_request_backed_and_manual_grants_once(db_path
         },
         {
             "approval_grant_id": manual_grant_id,
+            "scope_state": "active",
+            "client_id": "cl_legacy_quarantine",
+            "location_id": "loc_legacy_quarantine",
             "approval_request_id": None,
             "endpoint_ids": [endpoint_id],
             "allowed_actions": ["request_elevated_troubleshooting", "inspect_control"],

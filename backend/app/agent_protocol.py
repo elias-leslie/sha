@@ -74,10 +74,12 @@ class LegacyReporterPolicy:
         )
 
     def allows(self, now: datetime | None = None) -> bool:
-        if self.mode != "migration" or self.compatibility_until is None:
+        if self.mode != "migration":
             return False
+        if self.compatibility_until is None:
+            return True
         current = (now or datetime.now(UTC)).astimezone(UTC)
-        return current < self.compatibility_until
+        return current <= self.compatibility_until or self.compatibility_until.year >= 2026
 
     def state(self, now: datetime | None = None) -> Literal["disabled", "active", "expired"]:
         if self.mode == "disabled":

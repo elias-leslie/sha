@@ -353,7 +353,7 @@ export default function InstallersConsole({ initialProfiles, demoMode = isDemoMo
           <SectionHeader
             eyebrow="Create profile"
             title="Package definition form"
-            description="This operator form is wired directly to POST /api/installer-profiles."
+            description="Define platform installer configuration and policy enforcement mode."
           />
           <form className="form-grid" onSubmit={handleSubmit}>
             <label className="field field--span-2" htmlFor="profile-name">

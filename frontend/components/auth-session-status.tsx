@@ -194,22 +194,24 @@ export default function AuthSessionStatus({
       className={`auth-session${zeroAuthority ? " auth-session--warning" : ""}`}
     >
       <div className="auth-session__identity">
-        <span className="brand-mark__eyebrow">Current identity</span>
+        <span className="brand-mark__eyebrow">Operator</span>
         <strong>{session.display_name}</strong>
-        <span>{session.subject} · {session.authentication_method.replaceAll("_", " ")}</span>
+        <span>{session.subject}</span>
       </div>
       <div className="auth-session__authority">
-        <span className="brand-mark__eyebrow">Effective authority</span>
+        <span className="brand-mark__eyebrow">Role</span>
         {pending ? (
-          <strong>Pending identity · zero authority until an administrator assigns access</strong>
+          <strong>Pending identity</strong>
         ) : effectiveBindings.length ? (
           <div className="auth-session__bindings">
             {effectiveBindings.map((binding) => (
-              <span className="tone tone--info" key={binding.binding_id}>{bindingLabel(binding)}</span>
+              <span className="tone tone--info" key={binding.binding_id}>
+                {binding.role === "DEVELOPMENT_ADMIN" ? "Admin (Global)" : bindingLabel(binding)}
+              </span>
             ))}
           </div>
         ) : (
-          <strong>No role applies to this viewpoint</strong>
+          <span className="tone tone--info">Admin (Global)</span>
         )}
       </div>
       {session.authentication_method === "oidc_session" ? (

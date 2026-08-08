@@ -1,20 +1,20 @@
 :root {
   color-scheme: dark;
-  --bg: #060403;
-  --bg-elevated: rgba(22, 13, 9, 0.86);
-  --bg-panel: rgba(16, 10, 8, 0.9);
-  --bg-panel-soft: rgba(28, 19, 14, 0.72);
-  --border: rgba(216, 166, 91, 0.18);
-  --border-strong: rgba(241, 177, 76, 0.34);
-  --text: #f5ead7;
-  --muted: #bca68a;
-  --accent: #f3ae53;
-  --accent-strong: #ffd08a;
-  --success: #62d39c;
-  --warning: #f0b25b;
-  --danger: #f07d6a;
-  --info: #8da4b8;
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  --bg: #090d16;
+  --bg-elevated: rgba(15, 23, 42, 0.85);
+  --bg-panel: rgba(15, 23, 42, 0.92);
+  --bg-panel-soft: rgba(30, 41, 59, 0.75);
+  --border: rgba(56, 189, 248, 0.16);
+  --border-strong: rgba(56, 189, 248, 0.35);
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --accent-strong: #7dd3fc;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #6366f1;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
   --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-display: ui-monospace, "SFMono-Regular", "SF Mono", Consolas, monospace;
 }
@@ -26,9 +26,9 @@
 html {
   min-height: 100%;
   background:
-    radial-gradient(circle at top, rgba(243, 174, 83, 0.16), transparent 30%),
-    radial-gradient(circle at 85% 0%, rgba(197, 105, 52, 0.12), transparent 24%),
-    linear-gradient(180deg, #0d0807 0%, #060403 48%, #050302 100%);
+    radial-gradient(circle at top, rgba(56, 189, 248, 0.12), transparent 32%),
+    radial-gradient(circle at 85% 0%, rgba(99, 102, 241, 0.10), transparent 25%),
+    linear-gradient(180deg, #0f172a 0%, #090d16 50%, #050811 100%);
 }
 
 body {
@@ -37,10 +37,10 @@ body {
   color: var(--text);
   font-family: var(--font-body), "IBM Plex Sans", sans-serif;
   background:
-    linear-gradient(rgba(243, 174, 83, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(243, 174, 83, 0.05) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0));
-  background-size: 28px 28px, 28px 28px, auto;
+    linear-gradient(rgba(56, 189, 248, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.04) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.20), rgba(0, 0, 0, 0));
+  background-size: 32px 32px, 32px 32px, auto;
 }
 
 body::before {
@@ -49,10 +49,10 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 20% 10%, rgba(255, 208, 138, 0.06), transparent 18%),
-    radial-gradient(circle at 80% 18%, rgba(240, 125, 106, 0.05), transparent 12%),
-    linear-gradient(transparent 0%, rgba(255, 255, 255, 0.015) 50%, transparent 100%);
-  opacity: 0.7;
+    radial-gradient(circle at 20% 10%, rgba(125, 211, 252, 0.05), transparent 20%),
+    radial-gradient(circle at 80% 18%, rgba(239, 68, 68, 0.04), transparent 15%),
+    linear-gradient(transparent 0%, rgba(255, 255, 255, 0.01) 50%, transparent 100%);
+  opacity: 0.8;
 }
 
 a {
@@ -71,7 +71,7 @@ code {
   border-radius: 0.5rem;
   padding: 0.18rem 0.45rem;
   border: 1px solid var(--border);
-  background: rgba(255, 208, 138, 0.08);
+  background: rgba(56, 189, 248, 0.08);
   font-family: var(--font-display), "Azeret Mono", monospace;
 }
 
@@ -101,9 +101,9 @@ dt {
   gap: 1.25rem;
   padding: 1.35rem 1.5rem 1.5rem;
   border: 1px solid var(--border-strong);
-  border-radius: 28px;
+  border-radius: 24px;
   background:
-    linear-gradient(135deg, rgba(46, 27, 17, 0.92), rgba(13, 9, 7, 0.96)),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(9, 13, 22, 0.98)),
     linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
   box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
@@ -301,7 +301,7 @@ dt {
   padding: 0.9rem 1rem;
   border: 1px solid var(--border);
   border-radius: 20px;
-  background: rgba(18, 12, 9, 0.86);
+  background: rgba(15, 23, 42, 0.86);
 }
 
 .scope-selector__copy {
@@ -317,7 +317,7 @@ dt {
   padding: 0.9rem 1rem;
   border: 1px solid var(--border);
   border-radius: 20px;
-  background: rgba(18, 12, 9, 0.86);
+  background: rgba(15, 23, 42, 0.86);
 }
 
 .scope-notice p {
@@ -333,7 +333,7 @@ dt {
   padding: 0.9rem 1rem;
   border-radius: 18px;
   border: 1px solid var(--border);
-  background: rgba(18, 12, 9, 0.78);
+  background: rgba(15, 23, 42, 0.78);
   color: var(--muted);
   transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
@@ -343,7 +343,7 @@ dt {
   transform: translateY(-1px);
   color: var(--text);
   border-color: var(--border-strong);
-  background: rgba(40, 25, 17, 0.9);
+  background: rgba(30, 41, 59, 0.9);
 }
 
 .nav-link__code {
@@ -382,11 +382,11 @@ dt {
   position: relative;
   overflow: hidden;
   padding: 1.2rem;
-  border-radius: 26px;
+  border-radius: 24px;
   border: 1px solid var(--border);
   background:
-    linear-gradient(180deg, rgba(23, 15, 11, 0.95), rgba(11, 8, 6, 0.95));
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+    linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(9, 13, 22, 0.95));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
 }
 
 .console-panel::before {
@@ -394,7 +394,7 @@ dt {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  border-top: 1px solid rgba(255, 208, 138, 0.08);
+  border-top: 1px solid rgba(56, 189, 248, 0.12);
   pointer-events: none;
 }
 
@@ -404,8 +404,8 @@ dt {
 
 .hero-panel--primary {
   background:
-    radial-gradient(circle at 90% 15%, rgba(243, 174, 83, 0.14), transparent 28%),
-    linear-gradient(160deg, rgba(48, 27, 17, 0.96), rgba(11, 8, 6, 0.98));
+    radial-gradient(circle at 90% 15%, rgba(56, 189, 248, 0.15), transparent 30%),
+    linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(9, 13, 22, 0.98));
 }
 
 .hero-panel__masthead {

@@ -7,8 +7,8 @@ export default function ApprovalsPage() {
   return (
     <NavShell
       currentPath="/approvals"
-      title="Approval command queue"
-      description="Operator review surface for hardening changes, bounded troubleshooting, and manual emergency grants."
+      title="Approval Queue"
+      description="Review and authorize pending configuration changes, elevated access requests, and temporary troubleshooting grants."
     >
       <ApprovalsConsole
         demoMode={demoMode}

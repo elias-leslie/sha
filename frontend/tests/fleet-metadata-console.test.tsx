@@ -116,7 +116,7 @@ describe("fleet metadata console", () => {
           }),
         } as Response
       }
-      if (path === "/api/endpoints?client_id=cl_a&location_id=loc_a") {
+      if (path.startsWith("/api/endpoints")) {
         return { ok: true, status: 200, json: async () => ({ items: [endpoint] }) } as Response
       }
       if (path === "/api/tags?client_id=cl_a&location_id=loc_a") {

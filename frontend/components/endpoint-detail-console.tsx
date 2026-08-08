@@ -557,9 +557,9 @@ export default function EndpointDetailConsole({
       <section className="dashboard-grid dashboard-grid--wide-sidebar">
         <Panel>
           <SectionHeader
-            eyebrow="Endpoint identity"
-            title={`Endpoint ${endpoint.hostname}`}
-            description="Live endpoint detail route with heartbeat and posture write surfaces wired to the backend APIs."
+            eyebrow="System Posture Detail"
+            title={endpoint.hostname}
+            description="Detailed system posture summary, heartbeat status, and posture inspection."
           />
           <div className="detail-grid">
             <div className="detail-card">
@@ -571,7 +571,7 @@ export default function EndpointDetailConsole({
               <strong>{platformDisplayName(endpoint.platform)} {endpoint.platform_version ?? ""}</strong>
             </div>
             <div className="detail-card">
-              <span>Containment</span>
+              <span>Posture State</span>
               <strong>{endpointStateLabel(endpoint)} • score {endpointScore(endpoint) ?? "--"}</strong>
             </div>
             <div className="detail-card">
@@ -594,7 +594,7 @@ export default function EndpointDetailConsole({
       <section className="dashboard-grid dashboard-grid--two-up">
         <Panel>
           <SectionHeader
-            eyebrow="Heartbeat rail"
+            eyebrow="Heartbeat Signal"
             title="Send heartbeat"
             description="Use the same endpoint heartbeat contract the agent uses to refresh connectivity and capability state."
           />

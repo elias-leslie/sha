@@ -83,8 +83,7 @@ describe("SHA endpoint detail route", () => {
     render(<EndpointDetailPage params={{ endpointId: liveEndpoint.endpoint_id }} />)
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { level: 1, name: /endpoint cf-test-win/i })).toBeInTheDocument()
-      expect(screen.getByRole("heading", { level: 2, name: /endpoint cf-test-win/i })).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: "Endpoint cf-test-win" })).toBeInTheDocument()
       expect(screen.getByLabelText(/agent version/i)).toHaveValue("1.0.7")
     })
     expect(screen.getByLabelText(/platform version/i)).toHaveValue("Windows 11 24H2")

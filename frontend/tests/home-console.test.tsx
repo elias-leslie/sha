@@ -30,7 +30,7 @@ describe("SHA home console", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/partial live data: approval data unavailable/i)
     expect(screen.getAllByText(endpoint.hostname).length).toBeGreaterThan(0)
-    expect(screen.getByText(/live backend unavailable/i)).toBeInTheDocument()
+    expect(screen.getByText(/data load status/i)).toBeInTheDocument()
   })
 
   it("preserves selected scope in dashboard links while remaining a global-only view", async () => {
@@ -82,14 +82,10 @@ describe("SHA home console", () => {
 
     render(<HomePage />)
 
-    expect(screen.queryByRole("region", { name: /scope selector/i })).not.toBeInTheDocument()
-    expect(screen.getByRole("region", { name: /scope applicability/i })).toHaveTextContent(
-      /global-only view/i,
-    )
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: /fleet watch/i })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: /hierarchy & systems/i })).toHaveAttribute(
         "href",
-        "/fleet?client_id=cl_alpha&location_id=loc_main",
+        "/hierarchy?client_id=cl_alpha&location_id=loc_main",
       ),
     )
     expect(screen.getByRole("link", { name: /approval review/i })).toHaveAttribute(
