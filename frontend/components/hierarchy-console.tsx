@@ -56,6 +56,9 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
   const [rdpConnected, setRdpConnected] = useState(false);
   const [rdpLoading, setRdpLoading] = useState(false);
 
+  // Network Scanner state
+  const [scanningNetwork, setScanningNetwork] = useState(false);
+
   // Selection Checkboxes state
   const [selectedHostIds, setSelectedHostIds] = useState<Set<string>>(new Set());
 
@@ -310,6 +313,29 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
     }
   };
 
+  // Network Discovery Scan Handler
+  const handleScanNetwork = async () => {
+    setScanningNetwork(true);
+    setActionFeedback({ type: "info", message: "Scanning local subnet for active IP devices, routers, switches, NAS, and cameras..." });
+    try {
+      if (demoMode) {
+        setActionFeedback({ type: "success", message: "Network scan completed. Discovered local host node." });
+      } else {
+        const res = await fetch("/api/network/scan", { method: "POST" });
+        const data = await res.json();
+        setActionFeedback({
+          type: "success",
+          message: `Network scan complete! Discovered ${data.discovered_count} active devices and registered ${data.registered_count} new network nodes.`,
+        });
+        window.location.reload();
+      }
+    } catch (err) {
+      setActionFeedback({ type: "danger", message: `Network scan failed: ${err instanceof Error ? err.message : "Scan error"}` });
+    } finally {
+      setScanningNetwork(false);
+    }
+  };
+
   return (
     <div className="hierarchy-console-container" style={{ display: "grid", gap: "1rem" }}>
       {actionFeedback && (
@@ -489,6 +515,15 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
             {/* Right Action Buttons */}
             <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
               <button
+                className="action-button action-button--primary"
+                disabled={scanningNetwork}
+                style={{ fontSize: "0.76rem", padding: "0.35rem 0.7rem" }}
+                type="button"
+                onClick={handleScanNetwork}
+              >
+                {scanningNetwork ? "Scanning Subnet..." : "🔍 Scan Network"}
+              </button>
+              <button
                 className="action-button action-button--secondary"
                 style={{ fontSize: "0.76rem", padding: "0.35rem 0.7rem" }}
                 type="button"
@@ -587,7 +622,23 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                             />
                           </td>
                           <td style={{ padding: "0.6rem 0.8rem", fontSize: "1.1rem" }}>
-                            {ep.platform === "windows" ? "🪟" : ep.platform === "macos" ? "🍏" : "🐧"}
+                            {ep.platform === "windows"
+                              ? "🪟"
+                              : ep.platform === "macos"
+                                ? "🍏"
+                                : ep.platform === "linux"
+                                  ? "🐧"
+                                  : ep.platform === "router"
+                                    ? "🌐"
+                                    : ep.platform === "switch"
+                                      ? "🔌"
+                                      : ep.platform === "nas" || ep.platform === "san"
+                                        ? "💾"
+                                        : ep.platform === "camera"
+                                          ? "📷"
+                                          : ep.platform === "printer"
+                                            ? "🖨️"
+                                            : "💻"}
                           </td>
                           <td style={{ padding: "0.6rem 0.8rem" }}>
                             <Badge tone={tone}>
