@@ -92,6 +92,6 @@ describe("SHA client hierarchy route", () => {
     render(<ClientsPage />)
 
     expect((await screen.findAllByText("Alpha Health")).length).toBeGreaterThan(0)
-    expect(screen.getByText("Organizational Hierarchy")).toBeInTheDocument()
+    expect((await screen.findAllByText("Client Organizations & Sites")).length).toBeGreaterThan(0)
   })
 })

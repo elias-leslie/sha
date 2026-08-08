@@ -5,6 +5,8 @@ import {
   type Client,
   type EndpointInventoryItem,
   type Location,
+  createClient,
+  createLocation,
   endpointScore,
   endpointTone,
   getFixtureEndpoints,
@@ -40,6 +42,20 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
   // Search query in tree
   const [filterQuery, setFilterQuery] = useState("");
 
+  // Creation Modals state
+  const [showClientModal, setShowClientModal] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientKey, setNewClientKey] = useState("");
+  const [clientCreatePending, setClientCreatePending] = useState(false);
+  const [clientCreateError, setClientCreateError] = useState<string | null>(null);
+
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [newLocClientId, setNewLocClientId] = useState("");
+  const [newLocName, setNewLocName] = useState("");
+  const [newLocKey, setNewLocKey] = useState("");
+  const [locCreatePending, setLocCreatePending] = useState(false);
+  const [locCreateError, setLocCreateError] = useState<string | null>(null);
+
   // Load endpoints
   useEffect(() => {
     if (demoMode) {
@@ -61,7 +77,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
         }
       } catch (err) {
         if (!cancelled) {
-          setEndpointsError(err instanceof Error ? err.message : "Failed to load endpoint systems.");
+          setEndpointsError(err instanceof Error ? err.message : "Failed to load computer & server endpoints.");
         }
       } finally {
         if (!cancelled) {
@@ -75,6 +91,26 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
     };
   }, [demoMode]);
 
+  // Auto expand clients and select first client when clients arrive
+  useEffect(() => {
+    if (clients.length > 0) {
+      setExpandedClients((prev) => {
+        if (prev.size === 0) {
+          const allClientIds = clients.map((c) => c.client_id);
+          return new Set(allClientIds);
+        }
+        return prev;
+      });
+
+      if (!selectedNode) {
+        const firstClient = clients.find((c) => !c.is_system) || clients[0];
+        if (firstClient) {
+          setSelectedNode({ type: "client", id: firstClient.client_id });
+        }
+      }
+    }
+  }, [clients, selectedNode]);
+
   // Map locations by client_id
   const locationsByClient = useMemo(() => {
     const map = new Map<string, Location[]>();
@@ -86,14 +122,15 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
     return map;
   }, [locations]);
 
-  // Group endpoints by client_id and location_id
+  // Map endpoints by location_id and client_id
   const endpointsByLocation = useMemo(() => {
     const map = new Map<string, EndpointInventoryItem[]>();
     for (const ep of endpoints) {
-      const locId = ep.location_id || "unassigned";
-      const existing = map.get(locId) || [];
-      existing.push(ep);
-      map.set(locId, existing);
+      if (ep.location_id) {
+        const existing = map.get(ep.location_id) || [];
+        existing.push(ep);
+        map.set(ep.location_id, existing);
+      }
     }
     return map;
   }, [endpoints]);
@@ -101,28 +138,15 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
   const endpointsByClient = useMemo(() => {
     const map = new Map<string, EndpointInventoryItem[]>();
     for (const ep of endpoints) {
-      const clientId = ep.client_id || "unassigned";
-      const existing = map.get(clientId) || [];
-      existing.push(ep);
-      map.set(clientId, existing);
+      if (ep.client_id) {
+        const existing = map.get(ep.client_id) || [];
+        existing.push(ep);
+        map.set(ep.client_id, existing);
+      }
     }
     return map;
   }, [endpoints]);
 
-  // Auto-expand first client and location on load
-  useEffect(() => {
-    if (clients.length > 0 && expandedClients.size === 0) {
-      const firstClient = clients[0];
-      setExpandedClients(new Set([firstClient.client_id]));
-      const clientLocs = locationsByClient.get(firstClient.client_id) || [];
-      if (clientLocs.length > 0) {
-        setExpandedLocations(new Set([clientLocs[0].location_id]));
-      }
-      setSelectedNode({ type: "client", id: firstClient.client_id });
-    }
-  }, [clients, locationsByClient]);
-
-  // Toggle client expand/collapse
   const toggleClient = (clientId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpandedClients((prev) => {
@@ -136,7 +160,6 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
     });
   };
 
-  // Toggle location expand/collapse
   const toggleLocation = (locationId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpandedLocations((prev) => {
@@ -150,7 +173,6 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
     });
   };
 
-  // Selected item lookup
   const activeClient = useMemo(() => {
     if (selectedNode?.type === "client") {
       return clients.find((c) => c.client_id === selectedNode.id) || null;
@@ -160,11 +182,11 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
     }
     if (selectedNode?.type === "endpoint") {
       const ep = endpoints.find((e) => e.endpoint_id === selectedNode.id);
-      if (ep) {
+      if (ep?.client_id) {
         return clients.find((c) => c.client_id === ep.client_id) || null;
       }
     }
-    return clients[0] || null;
+    return null;
   }, [selectedNode, clients, endpoints]);
 
   const activeLocation = useMemo(() => {
@@ -173,7 +195,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
     }
     if (selectedNode?.type === "endpoint") {
       const ep = endpoints.find((e) => e.endpoint_id === selectedNode.id);
-      if (ep) {
+      if (ep?.location_id) {
         return locations.find((l) => l.location_id === ep.location_id) || null;
       }
     }
@@ -200,6 +222,48 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
 
   const isTreeLoading = hierarchyLoading || endpointsLoading;
 
+  // Handle Client Creation
+  const handleCreateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClientName.trim() || !newClientKey.trim()) return;
+    setClientCreatePending(true);
+    setClientCreateError(null);
+    try {
+      if (!demoMode) {
+        await createClient({ name: newClientName.trim(), key: newClientKey.trim() });
+      }
+      setShowClientModal(false);
+      setNewClientName("");
+      setNewClientKey("");
+      window.location.reload();
+    } catch (err) {
+      setClientCreateError(err instanceof Error ? err.message : "Failed to create client company.");
+    } finally {
+      setClientCreatePending(false);
+    }
+  };
+
+  // Handle Location Creation
+  const handleCreateLocation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLocClientId || !newLocName.trim() || !newLocKey.trim()) return;
+    setLocCreatePending(true);
+    setLocCreateError(null);
+    try {
+      if (!demoMode) {
+        await createLocation(newLocClientId, { name: newLocName.trim(), key: newLocKey.trim() });
+      }
+      setShowLocationModal(false);
+      setNewLocName("");
+      setNewLocKey("");
+      window.location.reload();
+    } catch (err) {
+      setLocCreateError(err instanceof Error ? err.message : "Failed to create branch location.");
+    } finally {
+      setLocCreatePending(false);
+    }
+  };
+
   return (
     <div className="hierarchy-console-container" style={{ display: "grid", gap: "1.2rem" }}>
       {/* Header Controls */}
@@ -213,26 +277,47 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
           padding: "0.8rem 1.2rem",
           borderRadius: "16px",
           border: "1px solid var(--border)",
+          flexWrap: "wrap",
+          gap: "0.8rem",
         }}
       >
         <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
           <input
             className="field__input"
-            placeholder="Filter hierarchy..."
-            style={{ width: "240px", padding: "0.45rem 0.8rem", fontSize: "0.82rem" }}
+            placeholder="Filter companies, sites, hosts..."
+            style={{ width: "260px", padding: "0.45rem 0.8rem", fontSize: "0.82rem" }}
             type="search"
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
           />
           <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
-            {clients.length} Clients • {locations.length} Locations • {endpoints.length} Systems
+            <strong>{clients.length}</strong> MSP Clients • <strong>{locations.length}</strong> Branch Sites • <strong>{endpoints.length}</strong> Computers/Servers
           </span>
         </div>
 
-        <div style={{ display: "flex", gap: "0.8rem", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
+          <button
+            className="action-button action-button--secondary"
+            style={{ fontSize: "0.78rem", padding: "0.4rem 0.8rem" }}
+            type="button"
+            onClick={() => setShowClientModal(true)}
+          >
+            + Register Client Company
+          </button>
+          <button
+            className="action-button action-button--secondary"
+            style={{ fontSize: "0.78rem", padding: "0.4rem 0.8rem" }}
+            type="button"
+            onClick={() => {
+              if (activeClient) setNewLocClientId(activeClient.client_id);
+              setShowLocationModal(true);
+            }}
+          >
+            + Add Branch Site
+          </button>
           <button
             className="action-button action-button--ghost"
-            style={{ fontSize: "0.78rem" }}
+            style={{ fontSize: "0.78rem", padding: "0.4rem 0.8rem" }}
             type="button"
             onClick={() => setIsPaneExpanded(!isPaneExpanded)}
           >
@@ -241,7 +326,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
         </div>
       </div>
 
-      {/* Main Combined Grid */}
+      {/* Main Split / Expanded Layout */}
       <div
         className="hierarchy-layout"
         style={{
@@ -251,21 +336,21 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
           transition: "grid-template-columns 0.25s ease-in-out",
         }}
       >
-        {/* LEFT PANE: Hierarchical Tree */}
+        {/* Left Pane: Interactive Organizational Tree View */}
         <Panel>
           <SectionHeader
-            description={isPaneExpanded ? "Tree" : "Click node to view details and posture controls."}
+            description={isPaneExpanded ? "" : "Hierarchical view of MSP Clients, Branch Locations, and Host Systems."}
             eyebrow="Structure"
-            title={isPaneExpanded ? "Tree" : "Organizational Hierarchy"}
+            title={isPaneExpanded ? "Tree" : "Client Organizations & Sites"}
           />
 
-          {isTreeLoading ? (
-            <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--muted)" }}>
-              Loading hierarchy...
-            </div>
-          ) : hierarchyError || endpointsError ? (
-            <div style={{ padding: "1rem", color: "var(--danger)" }}>
+          {hierarchyError || endpointsError ? (
+            <div style={{ padding: "0.8rem", color: "var(--danger)", fontSize: "0.8rem" }}>
               {hierarchyError || endpointsError}
+            </div>
+          ) : isTreeLoading ? (
+            <div style={{ padding: "1rem", color: "var(--muted)", fontSize: "0.85rem" }}>
+              Loading organization hierarchy...
             </div>
           ) : (
             <div
@@ -274,29 +359,25 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                 display: "grid",
                 gap: "0.4rem",
                 marginTop: "0.8rem",
-                maxHeight: "calc(100vh - 280px)",
+                maxHeight: "720px",
                 overflowY: "auto",
+                paddingRight: "0.3rem",
               }}
             >
               {clients.map((client) => {
-                const isClientExpanded = expandedClients.has(client.client_id);
-                const isClientSelected = selectedNode?.type === "client" && selectedNode.id === client.client_id;
+                const clientName = hierarchyDisplayName(client);
                 const clientLocations = locationsByClient.get(client.client_id) || [];
                 const clientEndpoints = endpointsByClient.get(client.client_id) || [];
-                const clientName = hierarchyDisplayName(client);
+                const isClientExpanded = expandedClients.has(client.client_id);
+                const isClientSelected = selectedNode?.type === "client" && selectedNode.id === client.client_id;
 
-                if (
-                  filterQuery &&
-                  !matchesFilter(clientName) &&
-                  !clientLocations.some((l) => matchesFilter(hierarchyDisplayName(l))) &&
-                  !clientEndpoints.some((e) => matchesFilter(e.hostname))
-                ) {
+                if (filterQuery && !matchesFilter(clientName) && !clientLocations.some((l) => matchesFilter(hierarchyDisplayName(l))) && !clientEndpoints.some((e) => matchesFilter(e.hostname))) {
                   return null;
                 }
 
                 return (
                   <div key={client.client_id} className="tree-client-node" style={{ display: "grid", gap: "0.2rem" }}>
-                    {/* Client Item */}
+                    {/* Client Company Row */}
                     <div
                       className="tree-item tree-item--client"
                       data-selected={isClientSelected ? "true" : "false"}
@@ -307,7 +388,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                         padding: "0.6rem 0.8rem",
                         borderRadius: "12px",
                         border: isClientSelected ? "1px solid var(--accent-strong)" : "1px solid var(--border)",
-                        background: isClientSelected ? "rgba(255, 208, 138, 0.08)" : "rgba(255, 255, 255, 0.02)",
+                        background: isClientSelected ? "rgba(255, 208, 138, 0.12)" : "rgba(255, 255, 255, 0.02)",
                         cursor: "pointer",
                         userSelect: "none",
                       }}
@@ -344,149 +425,151 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                           {clientName}
                         </strong>
                       </div>
-                      {!isPaneExpanded && (
-                        <span className="tone tone--info" style={{ fontSize: "0.68rem" }}>
-                          {clientEndpoints.length} systems
-                        </span>
-                      )}
+                      <span className="tone tone--info" style={{ fontSize: "0.68rem" }}>
+                        {clientEndpoints.length} {isPaneExpanded ? "" : "systems"}
+                      </span>
                     </div>
 
                     {/* Locations Sub-tree */}
-                    {isClientExpanded && !isPaneExpanded && (
+                    {isClientExpanded && (
                       <div style={{ paddingLeft: "1.4rem", display: "grid", gap: "0.25rem", marginTop: "0.2rem" }}>
-                        {clientLocations.map((loc) => {
-                          const isLocExpanded = expandedLocations.has(loc.location_id);
-                          const isLocSelected = selectedNode?.type === "location" && selectedNode.id === loc.location_id;
-                          const locEndpoints = endpointsByLocation.get(loc.location_id) || [];
-                          const locName = hierarchyDisplayName(loc);
+                        {clientLocations.length > 0 ? (
+                          clientLocations.map((loc) => {
+                            const locName = hierarchyDisplayName(loc);
+                            const locEndpoints = endpointsByLocation.get(loc.location_id) || [];
+                            const isLocExpanded = expandedLocations.has(loc.location_id);
+                            const isLocSelected = selectedNode?.type === "location" && selectedNode.id === loc.location_id;
 
-                          if (
-                            filterQuery &&
-                            !matchesFilter(locName) &&
-                            !locEndpoints.some((e) => matchesFilter(e.hostname))
-                          ) {
-                            return null;
-                          }
+                            if (filterQuery && !matchesFilter(locName) && !locEndpoints.some((e) => matchesFilter(e.hostname))) {
+                              return null;
+                            }
 
-                          return (
-                            <div key={loc.location_id} className="tree-location-node" style={{ display: "grid", gap: "0.2rem" }}>
-                              {/* Location Item */}
-                              <div
-                                className="tree-item tree-item--location"
-                                data-selected={isLocSelected ? "true" : "false"}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "space-between",
-                                  padding: "0.48rem 0.7rem",
-                                  borderRadius: "10px",
-                                  border: isLocSelected ? "1px solid var(--accent-strong)" : "1px solid var(--border)",
-                                  background: isLocSelected ? "rgba(255, 208, 138, 0.08)" : "rgba(255, 255, 255, 0.01)",
-                                  cursor: "pointer",
-                                }}
-                                onClick={() => {
-                                  setSelectedNode({ type: "location", id: loc.location_id, clientId: client.client_id });
-                                  setScope({ client_id: client.client_id, location_id: loc.location_id });
-                                }}
-                              >
-                                <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", overflow: "hidden" }}>
-                                  <button
-                                    type="button"
-                                    style={{
-                                      background: "none",
-                                      border: "none",
-                                      color: "var(--accent-strong)",
-                                      cursor: "pointer",
-                                      padding: 0,
-                                      fontSize: "0.7rem",
-                                      width: "14px",
-                                    }}
-                                    onClick={(e) => toggleLocation(loc.location_id, e)}
-                                  >
-                                    {isLocExpanded ? "▼" : "▶"}
-                                  </button>
-                                  <span style={{ fontSize: "0.9rem" }}>📍</span>
-                                  <span
-                                    style={{
-                                      fontSize: "0.8rem",
-                                      fontWeight: 500,
-                                      whiteSpace: "nowrap",
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                    }}
-                                  >
-                                    {locName}
+                            return (
+                              <div key={loc.location_id} className="tree-location-node" style={{ display: "grid", gap: "0.15rem" }}>
+                                {/* Location Branch Row */}
+                                <div
+                                  className="tree-item tree-item--location"
+                                  data-selected={isLocSelected ? "true" : "false"}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    padding: "0.48rem 0.7rem",
+                                    borderRadius: "10px",
+                                    border: isLocSelected ? "1px solid var(--accent-strong)" : "1px solid var(--border)",
+                                    background: isLocSelected ? "rgba(255, 208, 138, 0.08)" : "rgba(255, 255, 255, 0.01)",
+                                    cursor: "pointer",
+                                  }}
+                                  onClick={() => {
+                                    setSelectedNode({ type: "location", id: loc.location_id, clientId: client.client_id });
+                                    setScope({ client_id: client.client_id, location_id: loc.location_id });
+                                  }}
+                                >
+                                  <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", overflow: "hidden" }}>
+                                    <button
+                                      type="button"
+                                      style={{
+                                        background: "none",
+                                        border: "none",
+                                        color: "var(--accent-strong)",
+                                        cursor: "pointer",
+                                        padding: 0,
+                                        fontSize: "0.7rem",
+                                        width: "14px",
+                                      }}
+                                      onClick={(e) => toggleLocation(loc.location_id, e)}
+                                    >
+                                      {isLocExpanded ? "▼" : "▶"}
+                                    </button>
+                                    <span style={{ fontSize: "0.9rem" }}>📍</span>
+                                    <span
+                                      style={{
+                                        fontSize: "0.8rem",
+                                        fontWeight: 500,
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                      }}
+                                    >
+                                      {locName}
+                                    </span>
+                                  </div>
+                                  <span className="tone tone--info" style={{ fontSize: "0.64rem" }}>
+                                    {locEndpoints.length}
                                   </span>
                                 </div>
-                                <span className="tone tone--info" style={{ fontSize: "0.64rem" }}>
-                                  {locEndpoints.length}
-                                </span>
-                              </div>
 
-                              {/* Endpoints Sub-tree */}
-                              {isLocExpanded && (
-                                <div style={{ paddingLeft: "1.2rem", display: "grid", gap: "0.2rem", marginTop: "0.15rem" }}>
-                                  {locEndpoints.length > 0 ? (
-                                    locEndpoints.map((ep) => {
-                                      const isEpSelected = selectedNode?.type === "endpoint" && selectedNode.id === ep.endpoint_id;
-                                      const score = endpointScore(ep);
-                                      const tone = endpointTone(ep);
+                                {/* Computers / Endpoints Sub-tree */}
+                                {isLocExpanded && (
+                                  <div style={{ paddingLeft: "1.2rem", display: "grid", gap: "0.2rem", marginTop: "0.15rem" }}>
+                                    {locEndpoints.length > 0 ? (
+                                      locEndpoints.map((ep) => {
+                                        const isEpSelected = selectedNode?.type === "endpoint" && selectedNode.id === ep.endpoint_id;
+                                        const score = endpointScore(ep);
+                                        const tone = endpointTone(ep);
 
-                                      if (filterQuery && !matchesFilter(ep.hostname)) {
-                                        return null;
-                                      }
+                                        if (filterQuery && !matchesFilter(ep.hostname)) {
+                                          return null;
+                                        }
 
-                                      return (
-                                        <div
-                                          key={ep.endpoint_id}
-                                          className="tree-item tree-item--endpoint"
-                                          data-selected={isEpSelected ? "true" : "false"}
-                                          style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                            padding: "0.42rem 0.6rem",
-                                            borderRadius: "8px",
-                                            border: isEpSelected ? "1px solid var(--accent-strong)" : "1px solid var(--border)",
-                                            background: isEpSelected ? "rgba(255, 208, 138, 0.1)" : "rgba(0, 0, 0, 0.2)",
-                                            cursor: "pointer",
-                                          }}
-                                          onClick={() => {
-                                            setSelectedNode({ type: "endpoint", id: ep.endpoint_id });
-                                          }}
-                                        >
-                                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", overflow: "hidden" }}>
-                                            <span style={{ fontSize: "0.8rem" }}>
-                                              {ep.platform === "windows" ? "🪟" : ep.platform === "macos" ? "🍏" : "🐧"}
-                                            </span>
-                                            <span
-                                              style={{
-                                                fontSize: "0.78rem",
-                                                fontFamily: "var(--font-mono)",
-                                                whiteSpace: "nowrap",
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
-                                              }}
-                                            >
-                                              {ep.hostname}
-                                            </span>
+                                        return (
+                                          <div
+                                            key={ep.endpoint_id}
+                                            className="tree-item tree-item--endpoint"
+                                            data-selected={isEpSelected ? "true" : "false"}
+                                            style={{
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "space-between",
+                                              padding: "0.42rem 0.6rem",
+                                              borderRadius: "8px",
+                                              border: isEpSelected ? "1px solid var(--accent-strong)" : "1px solid var(--border)",
+                                              background: isEpSelected ? "rgba(255, 208, 138, 0.15)" : "rgba(255, 255, 255, 0.005)",
+                                              cursor: "pointer",
+                                            }}
+                                            onClick={() => {
+                                              setSelectedNode({ type: "endpoint", id: ep.endpoint_id });
+                                              setScope({ client_id: client.client_id, location_id: loc.location_id });
+                                            }}
+                                          >
+                                            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", overflow: "hidden" }}>
+                                              <span style={{ fontSize: "0.85rem" }}>
+                                                {ep.platform === "windows" ? "🪟" : ep.platform === "macos" ? "🍏" : "🐧"}
+                                              </span>
+                                              <span
+                                                style={{
+                                                  fontSize: "0.78rem",
+                                                  whiteSpace: "nowrap",
+                                                  overflow: "hidden",
+                                                  textOverflow: "ellipsis",
+                                                }}
+                                              >
+                                                {ep.hostname}
+                                              </span>
+                                            </div>
+                                            {score !== null && (
+                                              <span className={`tone tone--${tone}`} style={{ fontSize: "0.62rem" }}>
+                                                {score}
+                                              </span>
+                                            )}
                                           </div>
-                                          <Badge tone={tone}>
-                                            {score ?? "N/A"}
-                                          </Badge>
-                                        </div>
-                                      );
-                                    })
-                                  ) : (
-                                    <div style={{ fontSize: "0.72rem", color: "var(--muted)", padding: "0.2rem 0.5rem" }}>
-                                      No systems registered
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                                        );
+                                      })
+                                    ) : (
+                                      <div style={{ fontSize: "0.72rem", color: "var(--muted)", padding: "0.2rem 0.5rem" }}>
+                                        No computers registered
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div style={{ fontSize: "0.74rem", color: "var(--muted)", padding: "0.2rem 0.5rem" }}>
+                            No sites configured
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -496,14 +579,14 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
           )}
         </Panel>
 
-        {/* RIGHT PANE: Dynamic Details & Controls Console */}
+        {/* Right Pane: Entity Details & Control Panel */}
         <Panel>
           {selectedNode?.type === "client" && activeClient && (
             <div style={{ display: "grid", gap: "1.2rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <SectionHeader
-                  description="Client organizational boundary, active locations, and aggregate posture health."
-                  eyebrow="Organization Context"
+                  description="MSP Client Organizational Boundary, registered branch sites, and overall infrastructure health."
+                  eyebrow="MSP Client Company"
                   title={hierarchyDisplayName(activeClient)}
                 />
                 <button
@@ -518,26 +601,79 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
               {/* Client Metrics */}
               <div className="dashboard-grid dashboard-grid--three-up" style={{ gap: "0.8rem" }}>
                 <StatCard
-                  label="Client Code"
-                  meta="Client Key"
+                  label="Client Company Code"
+                  meta="Client Identifier"
                   value={activeClient.key || activeClient.client_id}
                 />
                 <StatCard
-                  label="Registered Locations"
-                  meta="Sites & Offices"
+                  label="Branch Locations"
+                  meta="Configured Sites"
                   value={(locationsByClient.get(activeClient.client_id) || []).length}
                 />
                 <StatCard
-                  label="Host Systems"
+                  label="Computers & Servers"
                   meta="Enrolled Endpoints"
                   value={(endpointsByClient.get(activeClient.client_id) || []).length}
                 />
               </div>
 
-              {/* Client System List */}
+              {/* Branch Sites List */}
               <div style={{ display: "grid", gap: "0.8rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={{ fontSize: "0.95rem", textTransform: "uppercase", letterSpacing: "0.1em", margin: 0 }}>
+                    Branch Sites under {hierarchyDisplayName(activeClient)}
+                  </h3>
+                  <button
+                    className="action-button action-button--secondary"
+                    style={{ fontSize: "0.75rem", padding: "0.3rem 0.6rem" }}
+                    type="button"
+                    onClick={() => {
+                      setNewLocClientId(activeClient.client_id);
+                      setShowLocationModal(true);
+                    }}
+                  >
+                    + Add Branch Site
+                  </button>
+                </div>
+                {(locationsByClient.get(activeClient.client_id) || []).length > 0 ? (
+                  <div style={{ display: "grid", gap: "0.5rem", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+                    {(locationsByClient.get(activeClient.client_id) || []).map((loc) => {
+                      const locEps = endpointsByLocation.get(loc.location_id) || [];
+                      return (
+                        <div
+                          key={loc.location_id}
+                          className="operator-list__item"
+                          style={{ cursor: "pointer", flexDirection: "column", alignItems: "flex-start", gap: "0.4rem" }}
+                          onClick={() => {
+                            setSelectedNode({ type: "location", id: loc.location_id, clientId: activeClient.client_id });
+                            setScope({ client_id: activeClient.client_id, location_id: loc.location_id });
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+                            <strong style={{ fontSize: "0.9rem" }}>📍 {hierarchyDisplayName(loc)}</strong>
+                            <span className="tone tone--info" style={{ fontSize: "0.7rem" }}>
+                              {locEps.length} systems
+                            </span>
+                          </div>
+                          <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
+                            Key: {loc.key || loc.location_id} • Status: {loc.state}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <EmptyState
+                    body="No site locations or offices have been configured for this client company."
+                    title="No branch sites registered"
+                  />
+                )}
+              </div>
+
+              {/* Client Systems List */}
+              <div style={{ display: "grid", gap: "0.8rem", marginTop: "0.5rem" }}>
                 <h3 style={{ fontSize: "0.95rem", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                  Systems Under {hierarchyDisplayName(activeClient)}
+                  Enrolled Computers & Servers
                 </h3>
                 {(endpointsByClient.get(activeClient.client_id) || []).length > 0 ? (
                   <div style={{ display: "grid", gap: "0.45rem" }}>
@@ -555,7 +691,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                           <div>
                             <strong style={{ fontSize: "0.9rem" }}>{ep.hostname}</strong>
                             <p style={{ fontSize: "0.74rem", color: "var(--muted)", margin: 0 }}>
-                              ID: {ep.endpoint_id} • Status: {ep.status}
+                              OS: {ep.platform_version || ep.platform} • Connectivity: {ep.connectivity_status}
                             </p>
                           </div>
                         </div>
@@ -577,8 +713,8 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                   </div>
                 ) : (
                   <EmptyState
-                    body="No host systems are currently enrolled under this client."
-                    title="No systems registered"
+                    body="No computers or servers are currently enrolled under this client company."
+                    title="No computers registered"
                   />
                 )}
               </div>
@@ -589,8 +725,8 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
             <div style={{ display: "grid", gap: "1.2rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <SectionHeader
-                  description="Facility or site boundary context and registered host systems."
-                  eyebrow="Location Context"
+                  description="Branch office or datacenter location context and registered systems."
+                  eyebrow="Branch Site Location"
                   title={hierarchyDisplayName(activeLocation)}
                 />
                 <button
@@ -606,25 +742,25 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
               <div className="dashboard-grid dashboard-grid--three-up" style={{ gap: "0.8rem" }}>
                 <StatCard
                   label="Location ID"
-                  meta="Location Key"
+                  meta="Site Key"
                   value={activeLocation.key || activeLocation.location_id}
                 />
                 <StatCard
-                  label="Organization"
-                  meta="Parent Entity"
-                  value={activeClient ? hierarchyDisplayName(activeClient) : "Global"}
+                  label="Parent Client Company"
+                  meta="MSP Client"
+                  value={activeClient ? hierarchyDisplayName(activeClient) : activeLocation.client_id}
                 />
                 <StatCard
-                  label="Registered Systems"
-                  meta="Host Systems"
+                  label="Registered Computers"
+                  meta="Site Systems"
                   value={(endpointsByLocation.get(activeLocation.location_id) || []).length}
                 />
               </div>
 
-              {/* Systems in Location */}
+              {/* Location Systems */}
               <div style={{ display: "grid", gap: "0.8rem" }}>
                 <h3 style={{ fontSize: "0.95rem", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                  Systems in {hierarchyDisplayName(activeLocation)}
+                  Computers & Servers at {hierarchyDisplayName(activeLocation)}
                 </h3>
                 {(endpointsByLocation.get(activeLocation.location_id) || []).length > 0 ? (
                   <div style={{ display: "grid", gap: "0.45rem" }}>
@@ -642,7 +778,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                           <div>
                             <strong style={{ fontSize: "0.9rem" }}>{ep.hostname}</strong>
                             <p style={{ fontSize: "0.74rem", color: "var(--muted)", margin: 0 }}>
-                              ID: {ep.endpoint_id} • Status: {ep.status}
+                              OS: {ep.platform_version || ep.platform} • Connectivity: {ep.connectivity_status}
                             </p>
                           </div>
                         </div>
@@ -664,8 +800,8 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                   </div>
                 ) : (
                   <EmptyState
-                    body="No host systems are currently enrolled at this site."
-                    title="No systems in location"
+                    body="No computers or servers are registered to this site location."
+                    title="No site systems"
                   />
                 )}
               </div>
@@ -676,11 +812,18 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
             <div style={{ display: "grid", gap: "1.2rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <SectionHeader
-                  description="Host system telemetry, compliance baseline assessment, and control actions."
-                  eyebrow="System Overview"
+                  description="Enrolled computer or server posture, security compliance, and control actions."
+                  eyebrow="Host System Detail"
                   title={activeEndpoint.hostname}
                 />
-                <div style={{ display: "flex", gap: "0.6rem" }}>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <a
+                    className="action-button action-button--primary"
+                    href={`/endpoints/${activeEndpoint.endpoint_id}`}
+                    style={{ fontSize: "0.78rem", padding: "0.4rem 0.8rem" }}
+                  >
+                    Open Posture Console →
+                  </a>
                   <button
                     className="action-button action-button--secondary"
                     type="button"
@@ -688,88 +831,254 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                   >
                     {isPaneExpanded ? "🗗 Split View" : "🗖 Expand Pane"}
                   </button>
-                  <a
-                    className="action-button action-button--primary"
-                    href={`/endpoints/${activeEndpoint.endpoint_id}`}
-                  >
-                    Full Details Console →
-                  </a>
                 </div>
               </div>
 
-              {/* Endpoint Health Cards */}
+              {/* Endpoint Telemetry Stat Grid */}
               <div className="dashboard-grid dashboard-grid--three-up" style={{ gap: "0.8rem" }}>
                 <StatCard
                   label="Posture Score"
-                  meta={activeEndpointScore !== null && activeEndpointScore >= 90 ? "Hardened" : "Drift Detected"}
-                  value={activeEndpointScore !== null ? activeEndpointScore : "N/A"}
+                  meta="Compliance Baseline"
+                  value={activeEndpointScore !== null ? `${activeEndpointScore}%` : "Pending"}
                 />
                 <StatCard
-                  label="Agent Status"
-                  meta="Connectivity"
-                  value={activeEndpoint.connectivity_status || "offline"}
+                  label="Agent Connectivity"
+                  meta="Heartbeat Signal"
+                  value={(activeEndpoint.connectivity_status || "offline").toUpperCase()}
                 />
                 <StatCard
                   label="Platform OS"
-                  meta="OS Platform"
-                  value={activeEndpoint.platform}
+                  meta="Operating System"
+                  value={activeEndpoint.platform_version || activeEndpoint.platform}
                 />
               </div>
 
-              {/* Posture Summary Breakdown */}
-              <div style={{ display: "grid", gap: "0.8rem" }}>
-                <h3 style={{ fontSize: "0.95rem", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                  Hardening Baseline Assessment
+              {/* Detailed Specs Card */}
+              <div
+                style={{
+                  display: "grid",
+                  gap: "0.8rem",
+                  background: "rgba(255, 255, 255, 0.015)",
+                  padding: "1.2rem",
+                  borderRadius: "14px",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <h3 style={{ fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
+                  System Specifications & Ownership
                 </h3>
-                {activeEndpoint.latest_posture_summary ? (
-                  <div style={{ display: "grid", gap: "0.45rem" }}>
-                    <div className="operator-list__item" style={{ alignItems: "center" }}>
-                      <div>
-                        <strong style={{ fontSize: "0.85rem", fontFamily: "var(--font-mono)" }}>
-                          Passing Controls: {activeEndpoint.latest_posture_summary.pass_count}
-                        </strong>
-                        <p style={{ fontSize: "0.74rem", color: "var(--muted)", margin: 0 }}>
-                          Evaluated: {new Date(activeEndpoint.latest_posture_summary.observed_at).toLocaleString()}
-                        </p>
-                      </div>
-                      <Badge tone="success">
-                        {activeEndpoint.latest_posture_summary.pass_count} Passed
-                      </Badge>
-                    </div>
-                    {activeEndpoint.latest_posture_summary.fail_count > 0 && (
-                      <div className="operator-list__item" style={{ alignItems: "center" }}>
-                        <div>
-                          <strong style={{ fontSize: "0.85rem", fontFamily: "var(--font-mono)" }}>
-                            Failing Controls: {activeEndpoint.latest_posture_summary.fail_count}
-                          </strong>
-                          <p style={{ fontSize: "0.74rem", color: "var(--muted)", margin: 0 }}>
-                            Attention Required
-                          </p>
-                        </div>
-                        <Badge tone="danger">
-                          {activeEndpoint.latest_posture_summary.fail_count} Failed
-                        </Badge>
-                      </div>
-                    )}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "1rem", fontSize: "0.82rem" }}>
+                  <div>
+                    <span style={{ color: "var(--muted)", display: "block" }}>Endpoint ID</span>
+                    <strong>{activeEndpoint.endpoint_id}</strong>
                   </div>
-                ) : (
-                  <div className="operator-list__item">
-                    <span>Baseline evaluation telemetry active. All core security rules verified.</span>
-                    <Badge tone="success">Verified Compliant</Badge>
+                  <div>
+                    <span style={{ color: "var(--muted)", display: "block" }}>MSP Client Company</span>
+                    <strong>{activeClient ? hierarchyDisplayName(activeClient) : activeEndpoint.client_id}</strong>
                   </div>
-                )}
+                  <div>
+                    <span style={{ color: "var(--muted)", display: "block" }}>Branch Site Location</span>
+                    <strong>{activeLocation ? hierarchyDisplayName(activeLocation) : activeEndpoint.location_id}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--muted)", display: "block" }}>Agent Version</span>
+                    <strong>v{activeEndpoint.agent_version}</strong>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
           {!selectedNode && (
             <EmptyState
-              body="Click any client, location, or system in the hierarchy tree on the left to inspect details and control options."
-              title="Select a Node"
+              body="Select any MSP client company, branch site location, or host system from the tree view to inspect posture and management controls."
+              title="No entity selected"
             />
           )}
         </Panel>
       </div>
+
+      {/* Modal: Register Client Company */}
+      {showClientModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "16px",
+              padding: "1.5rem",
+              maxWidth: "460px",
+              width: "100%",
+              display: "grid",
+              gap: "1.2rem",
+            }}
+          >
+            <SectionHeader
+              description="Add a new customer organization to your multi-tenant control plane."
+              eyebrow="MSP Client Registration"
+              title="Register Client Company"
+            />
+            {clientCreateError && (
+              <p className="inline-feedback inline-feedback--danger">{clientCreateError}</p>
+            )}
+            <form onSubmit={handleCreateClient} style={{ display: "grid", gap: "1rem" }}>
+              <label className="field">
+                <span className="field__label">Company Name</span>
+                <input
+                  className="field__control"
+                  placeholder="e.g. Apex Logistics Corp"
+                  required
+                  type="text"
+                  value={newClientName}
+                  onChange={(e) => {
+                    setNewClientName(e.target.value);
+                    if (!newClientKey) {
+                      setNewClientKey(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+                    }
+                  }}
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Client Key / Code</span>
+                <input
+                  className="field__control"
+                  placeholder="e.g. apex-logistics"
+                  required
+                  type="text"
+                  value={newClientKey}
+                  onChange={(e) => setNewClientKey(e.target.value)}
+                />
+              </label>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.8rem", marginTop: "0.5rem" }}>
+                <button
+                  className="action-button action-button--ghost"
+                  type="button"
+                  onClick={() => setShowClientModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="action-button action-button--primary"
+                  disabled={clientCreatePending}
+                  type="submit"
+                >
+                  {clientCreatePending ? "Registering..." : "Register Company"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add Branch Site */}
+      {showLocationModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "16px",
+              padding: "1.5rem",
+              maxWidth: "460px",
+              width: "100%",
+              display: "grid",
+              gap: "1.2rem",
+            }}
+          >
+            <SectionHeader
+              description="Add a physical branch office, lab, or datacenter site to an existing client company."
+              eyebrow="Site Configuration"
+              title="Add Branch Site Location"
+            />
+            {locCreateError && (
+              <p className="inline-feedback inline-feedback--danger">{locCreateError}</p>
+            )}
+            <form onSubmit={handleCreateLocation} style={{ display: "grid", gap: "1rem" }}>
+              <label className="field">
+                <span className="field__label">Parent Client Company</span>
+                <select
+                  className="field__control"
+                  required
+                  value={newLocClientId}
+                  onChange={(e) => setNewLocClientId(e.target.value)}
+                >
+                  <option value="">Select client company...</option>
+                  {clients.map((c) => (
+                    <option key={c.client_id} value={c.client_id}>
+                      {hierarchyDisplayName(c)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field__label">Branch Site Name</span>
+                <input
+                  className="field__control"
+                  placeholder="e.g. Chicago Operations Hub"
+                  required
+                  type="text"
+                  value={newLocName}
+                  onChange={(e) => {
+                    setNewLocName(e.target.value);
+                    if (!newLocKey) {
+                      setNewLocKey(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+                    }
+                  }}
+                />
+              </label>
+              <label className="field">
+                <span className="field__label">Site Key / Identifier</span>
+                <input
+                  className="field__control"
+                  placeholder="e.g. chi-ops-hub"
+                  required
+                  type="text"
+                  value={newLocKey}
+                  onChange={(e) => setNewLocKey(e.target.value)}
+                />
+              </label>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.8rem", marginTop: "0.5rem" }}>
+                <button
+                  className="action-button action-button--ghost"
+                  type="button"
+                  onClick={() => setShowLocationModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="action-button action-button--primary"
+                  disabled={locCreatePending}
+                  type="submit"
+                >
+                  {locCreatePending ? "Creating..." : "Add Branch Site"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
