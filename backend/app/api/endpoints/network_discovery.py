@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-import asyncio
 import socket
-import subprocess
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from app.auth import Principal, require_permission
-from app.authorization import record_audit_event
+from app.auth import Principal
+from app.authorization import record_audit_event, require_permission
 from app.db import DatabaseStore, get_store
 from app.models import Endpoint, Location
-from app.utils import generate_prefixed_id, to_utc_z, utc_now
+from app.utils import to_utc_z, utc_now
 
 router = APIRouter(prefix="/api/network", tags=["network"])
 
@@ -155,10 +152,9 @@ async def trigger_network_scan(
 
         record_audit_event(
             session,
+            event_type="network.scan_complete",
             actor=principal.user_id,
-            action="network.scan_complete",
-            resource_id=target_cidr,
-            details={"discovered_count": len(discovered_nodes), "registered_count": registered_count},
+            metadata={"target_cidr": target_cidr, "discovered_count": len(discovered_nodes), "registered_count": registered_count},
         )
         session.commit()
 

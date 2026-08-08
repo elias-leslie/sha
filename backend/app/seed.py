@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import DatabaseStore
-from app.models import Client, Endpoint, Location, PostureSnapshot
-from app.utils import generate_prefixed_id, to_utc_z, utc_now
+from app.models import Client, Endpoint, Location
+from app.utils import to_utc_z, utc_now
 
 
 def get_real_os_pretty_name() -> str:

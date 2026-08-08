@@ -721,27 +721,16 @@ def execute_remote_terminal_command(
             raise HTTPException(status_code=404, detail="endpoint not found")
 
         # Simulate or dispatch command execution over agent tunnel
-        import subprocess
+        from app.utils import safe_subprocess
         now_str = to_utc_z(utc_now())
 
         # Safe diagnostic commands list
         allowed_prefixes = ("ps", "uname", "hostname", "whoami", "ip", "uptime", "date", "cat /etc/os-release", "systemctl status", "dir", "echo")
         if command.startswith(allowed_prefixes):
-            try:
-                proc = subprocess.run(
-                    command,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                stdout = proc.stdout or (f"Command [{command}] executed successfully with code 0." if proc.returncode == 0 else "")
-                stderr = proc.stderr
-                exit_code = proc.returncode
-            except Exception as err:
-                stdout = ""
-                stderr = f"Execution error: {err}"
-                exit_code = 1
+            cmd_args = command.split()
+            stdout, stderr, exit_code = safe_subprocess(cmd_args, timeout=5.0)
+            if not stdout and exit_code == 0:
+                stdout = f"Command [{command}] executed successfully with code 0."
         else:
             stdout = f"Command [{command}] sent over SHA agent tunnel to {endpoint.hostname}.\n[Agent Output]: Execution completed successfully."
             stderr = ""
@@ -749,10 +738,10 @@ def execute_remote_terminal_command(
 
         record_audit_event(
             session,
+            event_type="endpoint.terminal_execute",
             actor=principal.user_id,
-            action="endpoint.terminal_execute",
-            resource_id=endpoint.endpoint_id,
-            details={"command": command, "exit_code": exit_code},
+            endpoint_id=endpoint.endpoint_id,
+            metadata={"command": command, "exit_code": exit_code},
         )
         session.commit()
 
@@ -787,10 +776,10 @@ def create_remote_desktop_session(
 
         record_audit_event(
             session,
+            event_type="endpoint.remote_desktop_connect",
             actor=principal.user_id,
-            action="endpoint.remote_desktop_connect",
-            resource_id=endpoint.endpoint_id,
-            details={"session_token": session_token, "protocol": "rdp_webrtc_tunnel"},
+            endpoint_id=endpoint.endpoint_id,
+            metadata={"session_token": session_token, "protocol": "rdp_webrtc_tunnel"},
         )
         session.commit()
 

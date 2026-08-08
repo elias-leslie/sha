@@ -203,3 +203,18 @@ def has_duplicates(values: list[str], *, key: Callable[[str], Any] | None = None
             return True
         seen.add(normalized)
     return False
+
+
+def safe_subprocess(cmd: list[str], *, timeout: float = 5.0) -> tuple[str, str, int]:
+    import subprocess
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        return proc.stdout or "", proc.stderr or "", proc.returncode
+    except Exception as err:
+        return "", f"Execution error: {err}", 1
+
