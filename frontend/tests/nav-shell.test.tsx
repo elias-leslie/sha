@@ -26,7 +26,7 @@ describe("SHA dashboard shell", () => {
 
     expect(screen.getByRole("heading", { name: "Test title" })).toBeInTheDocument()
     expect(screen.getByText(/endpoint posture & compliance/i)).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Hierarchy" })).toHaveAttribute("href", "/hierarchy")
+    expect(screen.getByRole("link", { name: "Computers" })).toHaveAttribute("href", "/hierarchy")
     expect(screen.getByText("Child content")).toBeInTheDocument()
   })
 
@@ -84,10 +84,14 @@ describe("SHA dashboard shell", () => {
     )
 
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: "Hierarchy" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "Computers" })).toHaveAttribute(
         "href",
         "/hierarchy?client_id=cl_alpha&location_id=loc_main",
       ),
+    )
+    expect(screen.getByRole("link", { name: "Sessions" })).toHaveAttribute(
+      "href",
+      "/approvals?client_id=cl_alpha&location_id=loc_main",
     )
   })
 

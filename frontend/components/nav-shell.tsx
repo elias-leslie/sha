@@ -8,10 +8,11 @@ import { ScopeProvider, useScope } from "./scope-context";
 import ScopeSelector from "./scope-selector";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Home" },
-  { href: "/hierarchy", label: "Hierarchy" },
-  { href: "/controls", label: "Controls" },
-  { href: "/approvals", label: "Approvals" },
+  { href: "/", label: "Dashboard" },
+  { href: "/hierarchy", label: "Computers" },
+  { href: "/clients", label: "Tenants" },
+  { href: "/controls", label: "Deployments" },
+  { href: "/approvals", label: "Sessions" },
   { href: "/installers", label: "Installers" },
 ] as const;
 
