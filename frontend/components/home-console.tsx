@@ -17,7 +17,7 @@ import {
   formatRelativeTime,
   getFixtureApprovalGrants,
   getFixtureApprovalRequests,
-  getFixtureEndpoints,
+  getDemoEndpoints,
   getFixtureInstallerProfiles,
   isDemoMode,
   listApprovalGrants,
@@ -51,7 +51,7 @@ export default function HomeConsole({
   demoMode = isDemoMode(),
 }: HomeConsoleProps) {
   const { href } = useScope();
-  const [endpoints, setEndpoints] = useState(() => initialEndpoints ?? (demoMode ? getFixtureEndpoints() : []));
+  const [endpoints, setEndpoints] = useState(() => initialEndpoints ?? (demoMode ? getDemoEndpoints() : []));
   const [requests, setRequests] = useState(() => initialRequests ?? (demoMode ? getFixtureApprovalRequests() : []));
   const [grants, setGrants] = useState(() => initialGrants ?? (demoMode ? getFixtureApprovalGrants() : []));
   const [profiles, setProfiles] = useState(() => initialProfiles ?? (demoMode ? getFixtureInstallerProfiles() : []));
@@ -113,50 +113,39 @@ export default function HomeConsole({
 
   return (
     <>
-      <section className="hero-grid">
-        <Panel className="hero-panel hero-panel--primary">
-          <div className="hero-panel__masthead">
+      <section className="posture-summary-banner">
+        <div className="posture-summary-header">
+          <div className="posture-summary-title">
             <div>
-              <p className="hero-panel__eyebrow">Fleet Posture</p>
-              <h2>Real-time endpoint hardening, posture compliance, and approval workflows.</h2>
-              <p className="hero-panel__copy">
-                OS hardening baseline verification, posture snapshot analysis, and human-in-the-loop approvals across Linux and Windows endpoints.
-              </p>
+              <span className="hero-panel__eyebrow" style={{ textTransform: "uppercase", letterSpacing: "0.08em", fontSize: "0.7rem" }}>Fleet Posture & Compliance</span>
+              <h2 style={{ fontSize: "1.25rem", margin: "0.1rem 0 0 0", fontWeight: 700 }}>Security Posture Compliance & Controls</h2>
             </div>
             <Badge tone={source === "live" ? "success" : source === "error" ? "danger" : "warning"}>
               {source === "live" ? "Live backend" : source === "demo" ? "Demo mode" : source === "loading" ? "Connecting to backend" : "Backend offline"}
             </Badge>
           </div>
-          {error ? <p className="inline-feedback inline-feedback--danger" role="alert">Data load status: {error}</p> : null}
-          <div className="stat-grid">
-            <StatCard label="Endpoints" value={summary.totalEndpoints} meta="Registered assets" tone="info" />
-            <StatCard label="Average score" value={summary.averageScore || "--"} meta="Posture confidence score" tone="success" />
-            <StatCard label="Pending approvals" value={summary.pendingApprovals} meta="Awaiting operator review" tone="warning" />
-            <StatCard label="Active grants" value={summary.activeGrants} meta="Elevated access windows" tone="danger" />
-          </div>
-        </Panel>
 
-        <Panel className="hero-panel hero-panel--secondary">
-          <SectionHeader
-            eyebrow="Fleet Command"
-            title="Operator Navigation"
-            description="Access live endpoint posture, approval review queues, and installer packages."
-          />
-          <div className="command-list">
-            <a className="command-link" href={href("/hierarchy")}>
+          <div className="command-pills" role="navigation" aria-label="Operator Quick Links">
+            <a className="command-pill" href={href("/hierarchy")}>
               <strong>Hierarchy & Systems</strong>
-              <span>Inspect clients, locations, host systems, and posture compliance.</span>
             </a>
-            <a className="command-link" href={href("/approvals")}>
+            <a className="command-pill" href={href("/approvals")}>
               <strong>Approval review</strong>
-              <span>Review elevated requests and issue time-boxed troubleshooting grants.</span>
             </a>
-            <a className="command-link" href={href("/installers")}>
+            <a className="command-pill" href={href("/installers")}>
               <strong>Installer profiles</strong>
-              <span>View enrollment packages and control-plane policy modes.</span>
             </a>
           </div>
-        </Panel>
+        </div>
+
+        {error ? <p className="inline-feedback inline-feedback--danger" role="alert">Data load status: {error}</p> : null}
+
+        <div className="stat-grid" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+          <StatCard label="Endpoints" value={summary.totalEndpoints} meta="Registered assets" tone="info" />
+          <StatCard label="Average score" value={summary.averageScore || "--"} meta="Posture confidence score" tone="success" />
+          <StatCard label="Pending approvals" value={summary.pendingApprovals} meta="Awaiting operator review" tone="warning" />
+          <StatCard label="Active grants" value={summary.activeGrants} meta="Elevated access windows" tone="danger" />
+        </div>
       </section>
 
       <section className="dashboard-grid dashboard-grid--two-up">

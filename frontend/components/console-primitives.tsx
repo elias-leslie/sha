@@ -12,7 +12,11 @@ export function SectionHeader({ eyebrow, title, description }: { eyebrow: string
       <p className="section-header__eyebrow">{eyebrow}</p>
       <div>
         <h2>{title}</h2>
-        {description ? <p className="section-header__description">{description}</p> : null}
+        {description ? (
+          <p className="section-header__description" title={description}>
+            {description}
+          </p>
+        ) : null}
       </div>
     </div>
   );

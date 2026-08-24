@@ -12,8 +12,8 @@ import {
 } from "react";
 
 import {
-  getFixtureClients,
-  getFixtureLocations,
+  getDemoClients,
+  getDemoLocations,
   listClients,
   listLocations,
   scopeHref,
@@ -95,7 +95,7 @@ export function ScopeProvider({ children, demoMode }: { children: ReactNode; dem
   const [scope, setScopeState] = useState<ScopeSelection>(GLOBAL_SCOPE);
   const [initialized, setInitialized] = useState(false);
   const [scopeReady, setScopeReady] = useState(false);
-  const [clients, setClients] = useState<Client[]>(() => (demoMode ? getFixtureClients() : []));
+  const [clients, setClients] = useState<Client[]>(() => (demoMode ? getDemoClients() : []));
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(!demoMode);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +108,7 @@ export function ScopeProvider({ children, demoMode }: { children: ReactNode; dem
     setLocations([]);
     setError(null);
     try {
-      const nextClients = demoMode ? getFixtureClients() : await listClients();
+      const nextClients = demoMode ? getDemoClients() : await listClients();
       if (requestId !== requestGeneration.current) {
         return;
       }
@@ -126,7 +126,7 @@ export function ScopeProvider({ children, demoMode }: { children: ReactNode; dem
         canonicalizationMessage = "Unknown client scope was cleared.";
       } else if (scope.client_id) {
         nextLocations = demoMode
-          ? getFixtureLocations(scope.client_id)
+          ? getDemoLocations(scope.client_id)
           : await listLocations(scope.client_id);
         if (requestId !== requestGeneration.current) {
           return;

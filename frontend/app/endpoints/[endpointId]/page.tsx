@@ -5,7 +5,7 @@ import EndpointShellTitle from "../../../components/endpoint-shell-title";
 import NavShell from "../../../components/nav-shell";
 import {
   getFixtureControlRegistry,
-  getFixtureEndpoint,
+  getDemoEndpoint,
   getFixtureEndpoints,
   isDemoMode,
 } from "../../../lib/api";
@@ -34,7 +34,7 @@ export default function EndpointDetailPage({
 }) {
   const { endpointId } = resolveEndpointParams(params);
   const demoMode = isDemoMode();
-  const endpoint = demoMode ? getFixtureEndpoint(endpointId) : undefined;
+  const endpoint = demoMode ? getDemoEndpoint(endpointId) : undefined;
 
   return (
     <NavShell

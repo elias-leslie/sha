@@ -16,7 +16,7 @@ import {
   approvalActionDisplay,
   createResponseAction,
   getEndpoint,
-  getFixtureEndpoint,
+  getDemoEndpoint,
   getFixtureApprovalGrants,
   getFixtureControlRegistry,
   getFixtureResponseActions,
@@ -143,7 +143,7 @@ export default function EndpointDetailConsole({
   demoMode = isDemoMode(),
 }: EndpointDetailConsoleProps) {
   const initialEndpoint = useMemo<EndpointDetail>(
-    () => providedInitialEndpoint ?? (demoMode ? getFixtureEndpoint(endpointId) : undefined) ?? emptyEndpoint(endpointId),
+    () => providedInitialEndpoint ?? (demoMode ? getDemoEndpoint(endpointId) : undefined) ?? emptyEndpoint(endpointId),
     [demoMode, endpointId, providedInitialEndpoint],
   );
 
@@ -220,7 +220,7 @@ export default function EndpointDetailConsole({
 
   useEffect(() => {
     if (demoMode) {
-      if (!getFixtureEndpoint(endpointId)) {
+      if (!getDemoEndpoint(endpointId)) {
         setSource("error");
         setIdentityError(`Demo endpoint ${endpointId} was not found.`);
       }

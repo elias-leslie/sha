@@ -1,5 +1,5 @@
 project: sha
-generated_at: 2026-08-08 00:11 UTC
+generated_at: 2026-08-24 00:11 UTC
 identity:
   display_name: Security Hardening Automation
   short_name: SHA
@@ -17,18 +17,18 @@ urls:
   frontend: http://localhost:3010
   api: http://localhost:8010/api
 network:
-  host_ip: 192.168.8.10
+  host_ip: 192.168.86.57
   hostname: davion-sidarli
 explorer:
   scan_status: completed
-  last_completed_scan: '2026-08-06T18:11:50.610823+00:00'
-  last_scan_type: file
+  last_completed_scan: '2026-08-24T00:01:45.484498+00:00'
+  last_scan_type: full
   entry_counts:
     architecture: 1
     dependency: 60
-    file: 323
-    page: 7
-  symbol_count: 1146
+    file: 333
+    page: 8
+  symbol_count: 1174
   stale_metadata_count: 0
 pages:
 - / (home)
@@ -37,16 +37,17 @@ pages:
 - /controls (controls)
 - /endpoints/:endpointId (endpoints/:endpointId)
 - /fleet (fleet)
+- /hierarchy (hierarchy)
 - /installers (installers)
 folders:
   (root): 20 files
   .claude: 3 files
   .github: 3 files
   agent: 32 files - services, tests
-  backend: 90 files - api, tests
+  backend: 92 files - api, tests
   control-packs: 7 files
   deploy: 9 files
   docs: 11 files
-  frontend: 61 files - api, components, tests
+  frontend: 69 files - api, components, tests
   schemas: 59 files
   scripts: 28 files - services, tests

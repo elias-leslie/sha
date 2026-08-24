@@ -1,3 +1,10 @@
+import {
+  DEMO_AUTH_SESSION,
+  DEMO_CLIENTS,
+  DEMO_ENDPOINTS,
+  DEMO_LOCATIONS,
+} from "./demo-data";
+
 export type Platform = "windows" | "linux" | "macos";
 export type EndpointStatus = "pending" | "active" | "stale";
 export type ConnectivityStatus = "online" | "degraded" | null;
@@ -1257,6 +1264,10 @@ function isAuthSession(value: unknown): value is AuthSession {
 }
 
 async function loadAuthSession(generation: number): Promise<AuthSession | null> {
+  if (isDemoMode()) {
+    return clone(DEMO_AUTH_SESSION) as AuthSession;
+  }
+
   const response = await fetch("/api/auth/session", {
     cache: "no-store",
     credentials: "same-origin",
@@ -1352,6 +1363,10 @@ async function requestApi(path: string, init: RequestInit = {}) {
 }
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  if (isDemoMode()) {
+    return resolveDemoRequest<T>(path, init);
+  }
+
   const response = await requestApi(path, {
     ...init,
     headers: {
@@ -1722,6 +1737,29 @@ export function getFixtureControlRegistry() {
 
 export function getFixtureInstallerProfiles() {
   return clone(FIXTURE_INSTALLER_PROFILES);
+}
+
+// Demo-mode datasets. These are deliberately separate from the fixture
+// getters above: the fixtures are the small, cross-referenced set the test
+// suite asserts against, while these are the larger invented fleet shown when
+// the console is demonstrated. The legacy fixture hosts are appended so
+// approval and installer fixtures that reference them still resolve.
+export function getDemoClients() {
+  return clone([...DEMO_CLIENTS, ...FIXTURE_CLIENTS]);
+}
+
+export function getDemoLocations(clientId: string) {
+  return clone(
+    [...DEMO_LOCATIONS, ...FIXTURE_LOCATIONS].filter((location) => location.client_id === clientId),
+  );
+}
+
+export function getDemoEndpoints() {
+  return clone([...DEMO_ENDPOINTS, ...Object.values(FIXTURE_ENDPOINT_DETAILS).map(toInventoryItem)]);
+}
+
+export function getDemoEndpoint(endpointId: string) {
+  return demoEndpointDetail(endpointId);
 }
 
 export function getControlLibrary() {
@@ -2162,4 +2200,121 @@ export function aggregateControlRollup(details: EndpointDetail[], requests: Appr
       const rightSeverity = right.errorCount * 4 + right.failCount * 3 + right.warnCount * 2 + right.openRequestCount;
       return rightSeverity - leftSeverity || left.title.localeCompare(right.title);
     });
+}
+
+// ---------------------------------------------------------------------------
+// Demo mode
+//
+// When NEXT_PUBLIC_SHA_DEMO_MODE is enabled the console never contacts the
+// backend. Every read is answered from the invented fleet in ./demo-data, and
+// every mutation is refused, so the UI can be demonstrated to someone without
+// revealing a real tenant, host, or operator.
+// ---------------------------------------------------------------------------
+
+export class DemoModeError extends ApiRequestError {
+  constructor(detail = "This action is disabled while the console is in demo mode.") {
+    super(403, detail);
+    this.name = "DemoModeError";
+  }
+}
+
+function demoScopeOf(path: string) {
+  const query = path.includes("?") ? path.slice(path.indexOf("?") + 1) : "";
+  const params = new URLSearchParams(query);
+  return {
+    client_id: params.get("client_id"),
+    location_id: params.get("location_id"),
+  };
+}
+
+function demoEndpointsFor(path: string) {
+  const { client_id, location_id } = demoScopeOf(path);
+  return DEMO_ENDPOINTS.filter((endpoint) => {
+    if (client_id && endpoint.client_id !== client_id) {
+      return false;
+    }
+    if (location_id && endpoint.location_id !== location_id) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function demoEndpointDetail(endpointId: string): EndpointDetail | undefined {
+  const existing = FIXTURE_ENDPOINT_DETAILS[endpointId];
+  if (existing) {
+    return clone(existing);
+  }
+  const inventory = DEMO_ENDPOINTS.find((endpoint) => endpoint.endpoint_id === endpointId);
+  return inventory ? { ...clone(inventory), latest_results: [] } : undefined;
+}
+
+function resolveDemoRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    return Promise.reject(new DemoModeError());
+  }
+
+  const [pathname] = path.split("?");
+  const segments = pathname.split("/").filter(Boolean); // ["api", ...]
+  const resource = segments[1] ?? "";
+
+  const respond = (value: unknown) => Promise.resolve(value as T);
+
+  if (resource === "auth" && segments[2] === "session") {
+    return respond(clone(DEMO_AUTH_SESSION));
+  }
+
+  if (resource === "clients") {
+    if (segments.length === 2) {
+      return respond({ items: clone([...DEMO_CLIENTS]) });
+    }
+    if (segments[3] === "locations") {
+      const clientId = decodeURIComponent(segments[2]);
+      return respond({
+        items: clone(DEMO_LOCATIONS.filter((location) => location.client_id === clientId)),
+      });
+    }
+  }
+
+  if (resource === "endpoints") {
+    if (segments.length === 2) {
+      return respond({ items: clone(demoEndpointsFor(path)) });
+    }
+    const endpointId = decodeURIComponent(segments[2]);
+    if (segments.length === 3) {
+      const detail = demoEndpointDetail(endpointId);
+      if (!detail) {
+        return Promise.reject(new ApiRequestError(404, `unknown demo endpoint ${endpointId}`));
+      }
+      return respond(detail);
+    }
+    if (segments[3] === "response-actions") {
+      return respond({ items: getFixtureResponseActions(endpointId) });
+    }
+    if (segments[3] === "tags") {
+      return respond({ items: [] });
+    }
+  }
+
+  if (resource === "control-registry") {
+    return respond({ items: getFixtureControlRegistry() });
+  }
+  if (resource === "approval-requests") {
+    return respond({ items: getFixtureApprovalRequests() });
+  }
+  if (resource === "approval-grants") {
+    return respond({ items: getFixtureApprovalGrants() });
+  }
+  if (resource === "installer-profiles") {
+    return respond({ items: getFixtureInstallerProfiles() });
+  }
+  if (resource === "source-packs") {
+    return respond({ items: [] });
+  }
+  if (resource === "tags" || resource === "saved-views" || resource === "dynamic-groups") {
+    return respond({ items: [] });
+  }
+
+  return respond({ items: [] });
 }

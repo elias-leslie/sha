@@ -8,7 +8,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:demo": "NEXT_PUBLIC_SHA_DEMO_MODE=true next dev"
   },
   "dependencies": {
     "next": "16.2.6",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   type Client,
   type EndpointInventoryItem,
@@ -9,24 +9,25 @@ import {
   createLocation,
   endpointScore,
   endpointTone,
-  getFixtureEndpoints,
+  getDemoEndpoints,
   isDemoMode,
   listEndpoints,
 } from "../lib/api";
+import { DEMO_PRIMARY_USERS } from "../lib/demo-data";
 import { Badge, EmptyState, Panel, SectionHeader, StatCard } from "./console-primitives";
 import { hierarchyDisplayName, useScope } from "./scope-context";
 
 type PlatformFilter = "all" | "windows" | "linux" | "macos";
 type InspectorTab = "overview" | "checks" | "incident_response" | "terminal" | "remote_desktop" | "audit";
 
-// Primary user mapping for authentic RMM display
-const HOST_PRIMARY_USERS: Record<string, string> = {
-  "sf-home-node01.summitflow.dev": "Elias Leslie (Domain Admin)",
-  "sf-home-win11.summitflow.dev": "Elias Leslie (Workstation)",
-  "sf-home-mac.summitflow.dev": "Elias Leslie (macOS Studio)",
-};
+// Primary-user labels are supplied by the deployment, never hard-coded here.
+// A checked-in map would publish real operator names and internal hostnames in
+// a public repository, so unmapped hosts fall back to a neutral principal.
+// Demo mode layers in invented labels so the column reads realistically.
+const HOST_PRIMARY_USERS: Record<string, string> = {};
 
 export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode?: boolean }) {
+  const primaryUsers = demoMode ? { ...HOST_PRIMARY_USERS, ...DEMO_PRIMARY_USERS } : HOST_PRIMARY_USERS;
   const { clients, locations, loading: hierarchyLoading, error: hierarchyError, setScope } = useScope();
 
   const [endpoints, setEndpoints] = useState<EndpointInventoryItem[]>([]);
@@ -36,6 +37,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
   // Active selections
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedEndpointId, setSelectedEndpointId] = useState<string | null>(null);
+  const [isExpandedRealEstate, setIsExpandedRealEstate] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -82,7 +84,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
   // Load endpoints
   useEffect(() => {
     if (demoMode) {
-      setEndpoints(getFixtureEndpoints());
+      setEndpoints(getDemoEndpoints());
       setEndpointsLoading(false);
       return;
     }
@@ -97,9 +99,6 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
             ? response
             : ((response as unknown) as { items?: EndpointInventoryItem[] })?.items || [];
           setEndpoints(list);
-          if (list.length > 0 && !selectedEndpointId) {
-            setSelectedEndpointId(list[0].endpoint_id);
-          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -115,14 +114,11 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
     return () => {
       cancelled = true;
     };
-  }, [demoMode, selectedEndpointId]);
+  }, [demoMode]);
 
-  // Set default selected endpoint if available
-  useEffect(() => {
-    if (endpoints.length > 0 && !selectedEndpointId) {
-      setSelectedEndpointId(endpoints[0].endpoint_id);
-    }
-  }, [endpoints, selectedEndpointId]);
+  // The inventory opens collapsed. Auto-expanding the first host pushed the
+  // rest of the fleet below the fold on every visit, so detail is opened on
+  // demand instead.
 
   // Client and location lookup maps
   const clientMap = useMemo(() => new Map(clients.map((c) => [c.client_id, c])), [clients]);
@@ -155,7 +151,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
         const q = searchQuery.toLowerCase();
         const clientName = (clientMap.get(ep.client_id || "")?.name || "").toLowerCase();
         const siteName = (locationMap.get(ep.location_id || "")?.name || "").toLowerCase();
-        const user = (HOST_PRIMARY_USERS[ep.hostname] || HOST_PRIMARY_USERS[ep.endpoint_id] || "").toLowerCase();
+        const user = (primaryUsers[ep.hostname] || primaryUsers[ep.endpoint_id] || "").toLowerCase();
         const match =
           ep.hostname.toLowerCase().includes(q) ||
           ep.endpoint_id.toLowerCase().includes(q) ||
@@ -173,8 +169,8 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
     if (selectedEndpointId) {
       return endpoints.find((e) => e.endpoint_id === selectedEndpointId) || null;
     }
-    return filteredEndpoints[0] || endpoints[0] || null;
-  }, [selectedEndpointId, endpoints, filteredEndpoints]);
+    return null;
+  }, [selectedEndpointId, endpoints]);
 
   const inspectedScore = useMemo(() => {
     if (!inspectedEndpoint) return null;
@@ -336,6 +332,548 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
     }
   };
 
+  // Render Tab Navigation & Header Bar for Device Inspector
+  const renderDetailHeader = (ep: EndpointInventoryItem, score: number | null, isMaximized: boolean) => {
+    const client = clientMap.get(ep.client_id || "");
+    const location = locationMap.get(ep.location_id || "");
+    const clientName = client ? hierarchyDisplayName(client) : ep.client_id || "Unassigned";
+    const siteName = location ? hierarchyDisplayName(location) : ep.location_id || "Main Office";
+    const user = primaryUsers[ep.hostname] || primaryUsers[ep.endpoint_id] || "System Principal";
+
+    return (
+      <div className="inline-detail-header">
+        <div className="inline-detail-identity">
+          <span className="inline-detail-icon">
+            {ep.platform === "windows" ? "🪟" : ep.platform === "macos" ? "🍏" : "🐧"}
+          </span>
+          <div>
+            <div className="inline-detail-title-group">
+              <h3 className="inline-detail-title">{ep.hostname}</h3>
+              <Badge tone={endpointTone(ep)}>
+                Score: {score !== null ? `${score}%` : "Pending"}
+              </Badge>
+              <span className="tone tone--info" style={{ fontSize: "0.68rem" }}>
+                ID: {ep.endpoint_id}
+              </span>
+            </div>
+            <p className="inline-detail-meta">
+              Client: <strong>{clientName}</strong> • Site: <strong>{siteName}</strong> • Primary User: <strong>{user}</strong>
+            </p>
+          </div>
+        </div>
+
+        <div className="inline-detail-actions-group">
+          <div className="inline-detail-tabs">
+            <button
+              className={`action-button ${inspectorTab === "checks" ? "action-button--primary" : "action-button--ghost"}`}
+              style={{ fontSize: "0.76rem", padding: "0.3rem 0.65rem" }}
+              type="button"
+              onClick={() => setInspectorTab("checks")}
+            >
+              🛡️ Compliance Checks
+            </button>
+            <button
+              className={`action-button ${inspectorTab === "terminal" ? "action-button--primary" : "action-button--ghost"}`}
+              style={{ fontSize: "0.76rem", padding: "0.3rem 0.65rem" }}
+              type="button"
+              onClick={() => setInspectorTab("terminal")}
+            >
+              💻 Remote Terminal
+            </button>
+            <button
+              className={`action-button ${inspectorTab === "remote_desktop" ? "action-button--primary" : "action-button--ghost"}`}
+              style={{ fontSize: "0.76rem", padding: "0.3rem 0.65rem" }}
+              type="button"
+              onClick={() => setInspectorTab("remote_desktop")}
+            >
+              🖥️ Remote Desktop
+            </button>
+            <button
+              className={`action-button ${inspectorTab === "incident_response" ? "action-button--primary" : "action-button--ghost"}`}
+              style={{ fontSize: "0.76rem", padding: "0.3rem 0.65rem" }}
+              type="button"
+              onClick={() => setInspectorTab("incident_response")}
+            >
+              ⚡ Hardening & IR
+            </button>
+            <button
+              className={`action-button ${inspectorTab === "overview" ? "action-button--primary" : "action-button--ghost"}`}
+              style={{ fontSize: "0.76rem", padding: "0.3rem 0.65rem" }}
+              type="button"
+              onClick={() => setInspectorTab("overview")}
+            >
+              📊 Specs & Identity
+            </button>
+            <button
+              className={`action-button ${inspectorTab === "audit" ? "action-button--primary" : "action-button--ghost"}`}
+              style={{ fontSize: "0.76rem", padding: "0.3rem 0.65rem" }}
+              type="button"
+              onClick={() => setInspectorTab("audit")}
+            >
+              📜 Audit Log
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+            {!isMaximized ? (
+              <button
+                className="action-button action-button--primary"
+                style={{ fontSize: "0.75rem", padding: "0.3rem 0.65rem" }}
+                title="Expand view to take up maximum web page real estate"
+                type="button"
+                onClick={() => setIsExpandedRealEstate(true)}
+              >
+                🗖 Expand Real Estate
+              </button>
+            ) : (
+              <button
+                className="action-button action-button--secondary"
+                style={{ fontSize: "0.75rem", padding: "0.3rem 0.65rem" }}
+                title="Return to inline view"
+                type="button"
+                onClick={() => setIsExpandedRealEstate(false)}
+              >
+                🗕 Restore Inline View
+              </button>
+            )}
+            <button
+              className="action-button action-button--ghost"
+              style={{ fontSize: "0.85rem", padding: "0.3rem 0.5rem" }}
+              title="Close details"
+              type="button"
+              onClick={() => {
+                setIsExpandedRealEstate(false);
+                setSelectedEndpointId(null);
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render Active Tab Body for Device Inspector
+  const renderTabContent = (ep: EndpointInventoryItem, score: number | null) => {
+    switch (inspectorTab) {
+      case "checks":
+        return (
+          <div style={{ display: "grid", gap: "0.8rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h4 style={{ fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
+                Active Posture & Compliance Rules
+              </h4>
+              <button
+                className="action-button action-button--secondary"
+                style={{ fontSize: "0.74rem", padding: "0.3rem 0.6rem" }}
+                type="button"
+                onClick={() => triggerIRAction("Re-scan Compliance Baseline")}
+              >
+                🔄 Scan Compliance Baseline
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: "0.45rem" }}>
+              {ep.platform === "windows" ? (
+                <>
+                  <div className="operator-list__item" style={{ justifyContent: "space-between" }}>
+                    <div>
+                      <strong>windows.defender.real_time_protection</strong>
+                      <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
+                        Microsoft Defender real-time protection and antivirus engine are active.
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
+                      <span className="tone tone--success">PASS (Enforced)</span>
+                    </div>
+                  </div>
+                  <div className="operator-list__item" style={{ justifyContent: "space-between" }}>
+                    <div>
+                      <strong>windows.rdp.network_level_authentication</strong>
+                      <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
+                        Enforce Network Level Authentication (NLA) on RDP connections.
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
+                      <span className="tone tone--warning">FAIL (Disabled)</span>
+                      <button
+                        className="action-button action-button--primary"
+                        style={{ fontSize: "0.72rem", padding: "0.25rem 0.5rem" }}
+                        type="button"
+                        onClick={() => triggerIRAction("Enforce RDP NLA")}
+                      >
+                        Remediate →
+                      </button>
+                    </div>
+                  </div>
+                  <div className="operator-list__item" style={{ justifyContent: "space-between" }}>
+                    <div>
+                      <strong>windows.powershell.constrained_language_mode</strong>
+                      <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
+                        PowerShell execution language mode restriction.
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
+                      <span className="tone tone--info">AUDIT ONLY</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="operator-list__item" style={{ justifyContent: "space-between" }}>
+                    <div>
+                      <strong>linux.ssh.disable_password_authentication</strong>
+                      <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
+                        Require public key authentication; disable SSH password login in sshd_config.
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
+                      <span className="tone tone--success">PASS (Disabled)</span>
+                    </div>
+                  </div>
+                  <div className="operator-list__item" style={{ justifyContent: "space-between" }}>
+                    <div>
+                      <strong>linux.auditd.ruleset_integrity</strong>
+                      <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
+                        Audit daemon telemetry ruleset integrity and file deletion tracking.
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
+                      <span className="tone tone--warning">WARN (Coverage gap)</span>
+                      <button
+                        className="action-button action-button--primary"
+                        style={{ fontSize: "0.72rem", padding: "0.25rem 0.5rem" }}
+                        type="button"
+                        onClick={() => triggerIRAction("Update Auditd Ruleset")}
+                      >
+                        Remediate →
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+
+      case "incident_response":
+        return (
+          <div style={{ display: "grid", gap: "1rem" }}>
+            <SectionHeader
+              description="Hardening actions and containment playbooks for execution before, during, or after incident response."
+              eyebrow="Incident Response & Lockdown"
+              title="Endpoint Incident Response Actions"
+            />
+
+            <div className="dashboard-grid dashboard-grid--two-up" style={{ gap: "0.8rem" }}>
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.02)",
+                  padding: "1rem",
+                  borderRadius: "12px",
+                  border: "1px solid var(--border)",
+                  display: "grid",
+                  gap: "0.6rem",
+                }}
+              >
+                <strong style={{ fontSize: "0.9rem", color: "var(--danger)" }}>🚫 Network Containment & Isolation</strong>
+                <p style={{ fontSize: "0.78rem", color: "var(--muted)", margin: 0 }}>
+                  Isolate host network stack to drop all ingress/egress except telemetry control-plane signal.
+                </p>
+                <div>
+                  <button
+                    className="action-button action-button--danger"
+                    style={{ fontSize: "0.76rem" }}
+                    type="button"
+                    onClick={() => triggerIRAction("Network Isolation")}
+                  >
+                    Isolate Host System
+                  </button>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.02)",
+                  padding: "1rem",
+                  borderRadius: "12px",
+                  border: "1px solid var(--border)",
+                  display: "grid",
+                  gap: "0.6rem",
+                }}
+              >
+                <strong style={{ fontSize: "0.9rem", color: "var(--warning)" }}>🔒 Privileged Account Lockdown</strong>
+                <p style={{ fontSize: "0.78rem", color: "var(--muted)", margin: 0 }}>
+                  Invalidate active user logon sessions, lock local administrator accounts, and flush kerberos/NTHash tokens.
+                </p>
+                <div>
+                  <button
+                    className="action-button action-button--warning"
+                    style={{ fontSize: "0.76rem" }}
+                    type="button"
+                    onClick={() => triggerIRAction("Account Session Lockdown")}
+                  >
+                    Revoke & Lock Sessions
+                  </button>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.02)",
+                  padding: "1rem",
+                  borderRadius: "12px",
+                  border: "1px solid var(--border)",
+                  display: "grid",
+                  gap: "0.6rem",
+                }}
+              >
+                <strong style={{ fontSize: "0.9rem" }}>📁 Forensic Evidence Dump</strong>
+                <p style={{ fontSize: "0.78rem", color: "var(--muted)", margin: 0 }}>
+                  Dump volatile memory context, network socket bindings, security event logs, and active process tree.
+                </p>
+                <div>
+                  <button
+                    className="action-button action-button--secondary"
+                    style={{ fontSize: "0.76rem" }}
+                    type="button"
+                    onClick={() => triggerIRAction("Collect Forensic Evidence")}
+                  >
+                    Collect Security Context
+                  </button>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.02)",
+                  padding: "1rem",
+                  borderRadius: "12px",
+                  border: "1px solid var(--border)",
+                  display: "grid",
+                  gap: "0.6rem",
+                }}
+              >
+                <strong style={{ fontSize: "0.9rem" }}>🛡️ Strict Baseline Enforcement</strong>
+                <p style={{ fontSize: "0.78rem", color: "var(--muted)", margin: 0 }}>
+                  Force emergency zero-trust hardening profile across all Defender, Firewall, and SSH controls.
+                </p>
+                <div>
+                  <button
+                    className="action-button action-button--primary"
+                    style={{ fontSize: "0.76rem" }}
+                    type="button"
+                    onClick={() => triggerIRAction("Enforce Strict Baseline")}
+                  >
+                    Enforce Emergency Baseline
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case "terminal":
+        return (
+          <div style={{ display: "grid", gap: "0.8rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h4 style={{ fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
+                💻 Remote Terminal (Agent Tunnel)
+              </h4>
+              <span className="tone tone--success" style={{ fontSize: "0.74rem" }}>
+                ● Agent Tunnel Active ({ep.hostname})
+              </span>
+            </div>
+            <div
+              style={{
+                background: "#0d1117",
+                border: "1px solid var(--border)",
+                borderRadius: "10px",
+                padding: "1rem",
+                fontFamily: "monospace",
+                fontSize: "0.82rem",
+                color: "#e6edf3",
+                minHeight: isExpandedRealEstate ? "440px" : "220px",
+                maxHeight: isExpandedRealEstate ? "620px" : "360px",
+                overflowY: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.4rem",
+              }}
+            >
+              {terminalHistory.map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    color: item.type === "input" ? "#58a6ff" : item.type === "error" ? "#f85149" : "#3fb950",
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {item.text}
+                </div>
+              ))}
+              {terminalLoading && <div style={{ color: "var(--muted)" }}>Executing command over agent tunnel...</div>}
+            </div>
+            <form onSubmit={handleTerminalSubmit} style={{ display: "flex", gap: "0.6rem" }}>
+              <input
+                className="field__input"
+                placeholder="Type command (e.g. ps, uname -a, systemctl status)..."
+                style={{ flex: 1, fontFamily: "monospace", fontSize: "0.82rem" }}
+                type="text"
+                value={terminalInput}
+                onChange={(e) => setTerminalInput(e.target.value)}
+              />
+              <button className="action-button action-button--primary" disabled={terminalLoading} type="submit">
+                Send Command
+              </button>
+            </form>
+          </div>
+        );
+
+      case "remote_desktop":
+        return (
+          <div style={{ display: "grid", gap: "0.8rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h4 style={{ fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
+                🖥️ Remote Desktop Console
+              </h4>
+              <button
+                className={`action-button ${rdpConnected ? "action-button--danger" : "action-button--primary"}`}
+                style={{ fontSize: "0.76rem", padding: "0.35rem 0.75rem" }}
+                type="button"
+                onClick={() => {
+                  if (rdpConnected) {
+                    setRdpConnected(false);
+                    setRdpSessionToken(null);
+                  } else {
+                    handleConnectRDP();
+                  }
+                }}
+              >
+                {rdpConnected ? "Disconnect Session" : "Connect Remote Desktop Session"}
+              </button>
+            </div>
+
+            {rdpConnected ? (
+              <div
+                style={{
+                  background: "#000",
+                  border: "2px solid var(--accent-strong)",
+                  borderRadius: "12px",
+                  minHeight: isExpandedRealEstate ? "540px" : "340px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "1rem",
+                  position: "relative",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "10px",
+                    left: "12px",
+                    background: "rgba(0,0,0,0.7)",
+                    padding: "0.2rem 0.6rem",
+                    borderRadius: "6px",
+                    fontSize: "0.72rem",
+                    color: "#3fb950",
+                  }}
+                >
+                  ● LIVE RDP/WebRTC Stream • Token: {rdpSessionToken} • 1920x1080 @ 60fps
+                </div>
+                <div style={{ fontSize: "3rem" }}>
+                  {ep.platform === "windows" ? "🪟" : ep.platform === "macos" ? "🍏" : "🐧"}
+                </div>
+                <p style={{ fontSize: "0.9rem", color: "var(--foreground)", margin: 0, textAlign: "center" }}>
+                  Interactive Remote Desktop Session Active on <strong>{ep.hostname}</strong>
+                </p>
+                <div style={{ display: "flex", gap: "0.6rem" }}>
+                  <button className="action-button action-button--secondary" style={{ fontSize: "0.74rem" }} type="button">
+                    Send Ctrl+Alt+Del
+                  </button>
+                  <button className="action-button action-button--secondary" style={{ fontSize: "0.74rem" }} type="button">
+                    Toggle Fullscreen
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.02)",
+                  border: "1px dashed var(--border)",
+                  borderRadius: "12px",
+                  padding: "2.5rem",
+                  textAlign: "center",
+                  display: "grid",
+                  gap: "0.8rem",
+                }}
+              >
+                <span style={{ fontSize: "2rem" }}>🖥️</span>
+                <strong style={{ fontSize: "0.95rem" }}>Remote Desktop Session Idle</strong>
+                <p style={{ fontSize: "0.8rem", color: "var(--muted)", maxWidth: "480px", margin: "0 auto" }}>
+                  Initiate an encrypted WebRTC / RDP display session over the SHA secure agent tunnel to remotely control {ep.hostname}.
+                </p>
+                <div>
+                  <button className="action-button action-button--primary" type="button" onClick={handleConnectRDP}>
+                    Start Remote Desktop Connection
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case "overview":
+        return (
+          <div className="dashboard-grid dashboard-grid--three-up" style={{ gap: "0.8rem" }}>
+            <StatCard
+              label="Host Platform"
+              meta="OS Kernel"
+              value={ep.platform_version || ep.platform}
+            />
+            <StatCard
+              label="Agent Version"
+              meta="Control Plane Client"
+              value={`v${ep.agent_version}`}
+            />
+            <StatCard
+              label="Connectivity"
+              meta="Heartbeat Signal"
+              value={(ep.connectivity_status || "offline").toUpperCase()}
+            />
+          </div>
+        );
+
+      case "audit":
+        return (
+          <div style={{ display: "grid", gap: "0.5rem" }}>
+            <h4 style={{ fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
+              Audit Trail for {ep.hostname}
+            </h4>
+            <div className="timeline-list">
+              <div className="timeline-list__item">
+                <span className="timeline-list__dot timeline-list__dot--info" />
+                <div>
+                  <strong>Compliance baseline scan completed</strong>
+                  <p>Observed posture score {score}% • Operator: System Principal</p>
+                </div>
+              </div>
+              <div className="timeline-list__item">
+                <span className="timeline-list__dot timeline-list__dot--success" />
+                <div>
+                  <strong>Control plane heartbeat verified</strong>
+                  <p>Agent version v{ep.agent_version} • Status: {ep.status}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+    }
+  };
+
   return (
     <div className="hierarchy-console-container" style={{ display: "grid", gap: "1rem" }}>
       {actionFeedback && (
@@ -359,7 +897,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
         className="rmm-layout"
         style={{
           display: "grid",
-          gridTemplateColumns: "240px 1fr",
+          gridTemplateColumns: "264px 1fr",
           gap: "1.2rem",
           minHeight: "540px",
         }}
@@ -543,7 +1081,7 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
           </div>
 
           {/* Master RMM Systems & Compliance Table */}
-          <Panel style={{ padding: 0, overflow: "hidden" }}>
+          <Panel style={{ padding: 0, overflowX: "auto" }}>
             {endpointsLoading || hierarchyLoading ? (
               <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
                 Loading system posture inventory...
@@ -569,23 +1107,23 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                         letterSpacing: "0.06em",
                       }}
                     >
-                      <th style={{ padding: "0.6rem 0.8rem", width: "32px" }}>
+                      <th style={{ padding: "0.35rem 0.6rem", width: "32px" }}>
                         <input
                           checked={selectedHostIds.size === filteredEndpoints.length && filteredEndpoints.length > 0}
                           type="checkbox"
                           onChange={toggleSelectAll}
                         />
                       </th>
-                      <th style={{ padding: "0.6rem 0.8rem", width: "40px" }}>OS</th>
-                      <th style={{ padding: "0.6rem 0.8rem" }}>Status</th>
-                      <th style={{ padding: "0.6rem 0.8rem" }}>Client Company</th>
-                      <th style={{ padding: "0.6rem 0.8rem" }}>Site / Location</th>
-                      <th style={{ padding: "0.6rem 0.8rem" }}>Hostname</th>
-                      <th style={{ padding: "0.6rem 0.8rem" }}>Primary User</th>
-                      <th style={{ padding: "0.6rem 0.8rem" }}>OS Version</th>
-                      <th style={{ padding: "0.6rem 0.8rem" }}>Posture Score</th>
-                      <th style={{ padding: "0.6rem 0.8rem" }}>Signal</th>
-                      <th style={{ padding: "0.6rem 0.8rem", textAlign: "right" }}>Action</th>
+                      <th style={{ padding: "0.35rem 0.6rem", width: "40px" }}>OS</th>
+                      <th style={{ padding: "0.35rem 0.6rem" }}>Status</th>
+                      <th style={{ padding: "0.35rem 0.6rem" }}>Client Company</th>
+                      <th style={{ padding: "0.35rem 0.6rem" }}>Site / Location</th>
+                      <th style={{ padding: "0.35rem 0.6rem" }}>Hostname</th>
+                      <th style={{ padding: "0.35rem 0.6rem" }}>Primary User</th>
+                      <th style={{ padding: "0.35rem 0.6rem" }}>OS Version</th>
+                      <th style={{ padding: "0.35rem 0.6rem" }}>Posture Score</th>
+                      <th style={{ padding: "0.35rem 0.6rem" }}>Signal</th>
+                      <th style={{ padding: "0.35rem 0.6rem", textAlign: "right" }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -596,86 +1134,112 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
                       const location = locationMap.get(ep.location_id || "");
                       const clientName = client ? hierarchyDisplayName(client) : ep.client_id || "Unassigned";
                       const siteName = location ? hierarchyDisplayName(location) : ep.location_id || "Main Office";
-                      const user = HOST_PRIMARY_USERS[ep.hostname] || HOST_PRIMARY_USERS[ep.endpoint_id] || "System Principal";
+                      const user = primaryUsers[ep.hostname] || primaryUsers[ep.endpoint_id] || "System Principal";
                       const score = endpointScore(ep);
                       const tone = endpointTone(ep);
 
                       return (
-                        <tr
-                          key={ep.endpoint_id}
-                          style={{
-                            borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
-                            background: isInspected
-                              ? "rgba(255, 208, 138, 0.08)"
-                              : isChecked
-                                ? "rgba(255, 255, 255, 0.03)"
-                                : "transparent",
-                            cursor: "pointer",
-                          }}
-                          onClick={() => setSelectedEndpointId(ep.endpoint_id)}
-                        >
-                          <td style={{ padding: "0.6rem 0.8rem" }} onClick={(e) => e.stopPropagation()}>
-                            <input
-                              checked={isChecked}
-                              type="checkbox"
-                              onChange={() => toggleSelectHost(ep.endpoint_id)}
-                            />
-                          </td>
-                          <td style={{ padding: "0.6rem 0.8rem", fontSize: "1.1rem" }}>
-                            {ep.platform === "windows"
-                              ? "🪟"
-                              : ep.platform === "macos"
-                                ? "🍏"
-                                : ep.platform === "linux"
-                                  ? "🐧"
-                                  : ep.platform === "router"
-                                    ? "🌐"
-                                    : ep.platform === "switch"
-                                      ? "🔌"
-                                      : ep.platform === "nas" || ep.platform === "san"
-                                        ? "💾"
-                                        : ep.platform === "camera"
-                                          ? "📷"
-                                          : ep.platform === "printer"
-                                            ? "🖨️"
-                                            : "💻"}
-                          </td>
-                          <td style={{ padding: "0.6rem 0.8rem" }}>
-                            <Badge tone={tone}>
-                              {score !== null && score >= 90
-                                ? "✔ Compliant"
-                                : score !== null && score >= 75
-                                  ? "⚠️ Audit Needed"
-                                  : "❌ Drift Detected"}
-                            </Badge>
-                          </td>
-                          <td style={{ padding: "0.6rem 0.8rem", fontWeight: 500 }}>{clientName}</td>
-                          <td style={{ padding: "0.6rem 0.8rem", color: "var(--muted)" }}>📍 {siteName}</td>
-                          <td style={{ padding: "0.6rem 0.8rem" }}>
-                            <strong style={{ color: "var(--accent-strong)" }}>{ep.hostname}</strong>
-                          </td>
-                          <td style={{ padding: "0.6rem 0.8rem", fontSize: "0.78rem" }}>{user}</td>
-                          <td style={{ padding: "0.6rem 0.8rem", color: "var(--muted)" }}>
-                            {ep.platform_version || ep.platform}
-                          </td>
-                          <td style={{ padding: "0.6rem 0.8rem" }}>
-                            <strong style={{ fontSize: "0.85rem" }}>{score !== null ? `${score}%` : "--"}</strong>
-                          </td>
-                          <td style={{ padding: "0.6rem 0.8rem" }}>
-                            <span className="tone tone--success" style={{ fontSize: "0.68rem" }}>
-                              ● {ep.connectivity_status}
-                            </span>
-                          </td>
-                          <td style={{ padding: "0.6rem 0.8rem", textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
-                            <a
-                              className="action-button action-button--ghost"
-                              href={`/endpoints/${ep.endpoint_id}`}
-                              style={{ fontSize: "0.72rem", padding: "0.25rem 0.5rem" }}
+                        <React.Fragment key={ep.endpoint_id}>
+                          <tr
+                            style={{
+                              borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+                              background: isInspected
+                                ? "rgba(56, 189, 248, 0.12)"
+                                : isChecked
+                                  ? "rgba(255, 255, 255, 0.03)"
+                                  : "transparent",
+                              cursor: "pointer",
+                            }}
+                            onClick={() => setSelectedEndpointId((prev) => (prev === ep.endpoint_id ? null : ep.endpoint_id))}
+                          >
+                            <td style={{ padding: "0.35rem 0.6rem" }} onClick={(e) => e.stopPropagation()}>
+                              <input
+                                checked={isChecked}
+                                type="checkbox"
+                                onChange={() => toggleSelectHost(ep.endpoint_id)}
+                              />
+                            </td>
+                            <td style={{ padding: "0.35rem 0.6rem", fontSize: "1.1rem" }}>
+                              {ep.platform === "windows"
+                                ? "🪟"
+                                : ep.platform === "macos"
+                                  ? "🍏"
+                                  : ep.platform === "linux"
+                                    ? "🐧"
+                                    : ep.platform === "router"
+                                      ? "🌐"
+                                      : ep.platform === "switch"
+                                        ? "🔌"
+                                        : ep.platform === "nas" || ep.platform === "san"
+                                          ? "💾"
+                                          : ep.platform === "camera"
+                                            ? "📷"
+                                            : ep.platform === "printer"
+                                              ? "🖨️"
+                                              : "💻"}
+                            </td>
+                            <td style={{ padding: "0.35rem 0.6rem" }}>
+                              <Badge tone={tone}>
+                                {score !== null && score >= 90
+                                  ? "✔ Compliant"
+                                  : score !== null && score >= 75
+                                    ? "⚠️ Audit Needed"
+                                    : "❌ Drift Detected"}
+                              </Badge>
+                            </td>
+                            <td style={{ padding: "0.35rem 0.6rem", fontWeight: 500 }} title={clientName}>
+                              {clientName}
+                            </td>
+                            <td
+                              style={{ padding: "0.35rem 0.6rem", color: "var(--muted)" }}
+                              title={siteName}
                             >
-                              Inspect →
-                            </a>
-                          </td>
-                        </tr>
+                              📍 {siteName}
+                            </td>
+                            <td style={{ padding: "0.35rem 0.6rem" }}>
+                              <strong style={{ color: "var(--accent-strong)" }}>
+                                {isInspected ? "▼ " : "▶ "}
+                                {ep.hostname}
+                              </strong>
+                            </td>
+                            <td style={{ padding: "0.35rem 0.6rem", fontSize: "0.78rem" }}>{user}</td>
+                            <td style={{ padding: "0.35rem 0.6rem", color: "var(--muted)" }}>
+                              {ep.platform_version || ep.platform}
+                            </td>
+                            <td style={{ padding: "0.35rem 0.6rem" }}>
+                              <strong style={{ fontSize: "0.85rem" }}>{score !== null ? `${score}%` : "--"}</strong>
+                            </td>
+                            <td style={{ padding: "0.35rem 0.6rem" }}>
+                              <span className="tone tone--success" style={{ fontSize: "0.68rem" }}>
+                                ● {ep.connectivity_status}
+                              </span>
+                            </td>
+                            <td style={{ padding: "0.35rem 0.6rem", textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
+                              <button
+                                className={`action-button ${isInspected ? "action-button--primary" : "action-button--ghost"}`}
+                                style={{ fontSize: "0.72rem", padding: "0.25rem 0.5rem" }}
+                                type="button"
+                                onClick={() => setSelectedEndpointId((prev) => (prev === ep.endpoint_id ? null : ep.endpoint_id))}
+                              >
+                                {isInspected ? "Collapse ▲" : "Details ▼"}
+                              </button>
+                            </td>
+                          </tr>
+
+                          {/* Inline Detail Expansion Directly Beneath Selected Device */}
+                          {isInspected && (
+                            <tr className="inline-detail-row">
+                              <td colSpan={11} style={{ padding: 0 }}>
+                                <div className="inline-detail-container">
+                                  {renderDetailHeader(ep, score, false)}
+                                  <div className="inline-detail-body">
+                                    {renderTabContent(ep, score)}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>
@@ -686,505 +1250,16 @@ export default function HierarchyConsole({ demoMode = isDemoMode() }: { demoMode
         </div>
       </div>
 
-      {/* Bottom Inspection & Remediation Drawer */}
-      {inspectedEndpoint && (
-        <Panel style={{ borderTop: "2px solid var(--accent-strong)" }}>
-          {/* Header Bar */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.8rem" }}>
-            <div style={{ display: "flex", gap: "0.8rem", alignItems: "center" }}>
-              <span style={{ fontSize: "1.5rem" }}>
-                {inspectedEndpoint.platform === "windows" ? "🪟" : inspectedEndpoint.platform === "macos" ? "🍏" : "🐧"}
-              </span>
-              <div>
-                <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-                  <h2 style={{ fontSize: "1.1rem", margin: 0 }}>{inspectedEndpoint.hostname}</h2>
-                  <Badge tone={endpointTone(inspectedEndpoint)}>
-                    Score: {inspectedScore !== null ? `${inspectedScore}%` : "Pending"}
-                  </Badge>
-                  <span className="tone tone--info" style={{ fontSize: "0.7rem" }}>
-                    ID: {inspectedEndpoint.endpoint_id}
-                  </span>
-                </div>
-                <p style={{ fontSize: "0.76rem", color: "var(--muted)", margin: 0, marginTop: "0.2rem" }}>
-                  Client: <strong>{clientMap.get(inspectedEndpoint.client_id || "")?.name || inspectedEndpoint.client_id}</strong> •
-                  Site: <strong>{locationMap.get(inspectedEndpoint.location_id || "")?.name || inspectedEndpoint.location_id}</strong> •
-                  Primary User: <strong>{HOST_PRIMARY_USERS[inspectedEndpoint.hostname] || "System Principal"}</strong>
-                </p>
-              </div>
-            </div>
-
-            {/* Inspector Navigation Tabs */}
-            <div style={{ display: "flex", gap: "0.4rem", background: "rgba(0,0,0,0.3)", padding: "0.3rem", borderRadius: "10px", flexWrap: "wrap" }}>
-              <button
-                className={`action-button ${inspectorTab === "checks" ? "action-button--primary" : "action-button--ghost"}`}
-                style={{ fontSize: "0.76rem", padding: "0.3rem 0.7rem" }}
-                type="button"
-                onClick={() => setInspectorTab("checks")}
-              >
-                🛡️ Compliance Checks
-              </button>
-              <button
-                className={`action-button ${inspectorTab === "terminal" ? "action-button--primary" : "action-button--ghost"}`}
-                style={{ fontSize: "0.76rem", padding: "0.3rem 0.7rem" }}
-                type="button"
-                onClick={() => setInspectorTab("terminal")}
-              >
-                💻 Remote Terminal
-              </button>
-              <button
-                className={`action-button ${inspectorTab === "remote_desktop" ? "action-button--primary" : "action-button--ghost"}`}
-                style={{ fontSize: "0.76rem", padding: "0.3rem 0.7rem" }}
-                type="button"
-                onClick={() => setInspectorTab("remote_desktop")}
-              >
-                🖥️ Remote Desktop
-              </button>
-              <button
-                className={`action-button ${inspectorTab === "incident_response" ? "action-button--primary" : "action-button--ghost"}`}
-                style={{ fontSize: "0.76rem", padding: "0.3rem 0.7rem" }}
-                type="button"
-                onClick={() => setInspectorTab("incident_response")}
-              >
-                ⚡ Hardening & IR
-              </button>
-              <button
-                className={`action-button ${inspectorTab === "overview" ? "action-button--primary" : "action-button--ghost"}`}
-                style={{ fontSize: "0.76rem", padding: "0.3rem 0.7rem" }}
-                type="button"
-                onClick={() => setInspectorTab("overview")}
-              >
-                📊 Specs & Identity
-              </button>
-              <button
-                className={`action-button ${inspectorTab === "audit" ? "action-button--primary" : "action-button--ghost"}`}
-                style={{ fontSize: "0.76rem", padding: "0.3rem 0.7rem" }}
-                type="button"
-                onClick={() => setInspectorTab("audit")}
-              >
-                📜 Audit Log
-              </button>
+      {/* Expanded Real Estate Workspace Modal Overlay */}
+      {isExpandedRealEstate && inspectedEndpoint && (
+        <div className="expanded-workspace-backdrop" onClick={() => setIsExpandedRealEstate(false)}>
+          <div className="expanded-workspace-modal" onClick={(e) => e.stopPropagation()}>
+            {renderDetailHeader(inspectedEndpoint, inspectedScore, true)}
+            <div className="expanded-workspace-body">
+              {renderTabContent(inspectedEndpoint, inspectedScore)}
             </div>
           </div>
-
-          {/* Tab 1: Compliance & Posture Checks */}
-          {inspectorTab === "checks" && (
-            <div style={{ display: "grid", gap: "0.8rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h4 style={{ fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
-                  Active Posture & Compliance Rules
-                </h4>
-                <button
-                  className="action-button action-button--secondary"
-                  style={{ fontSize: "0.74rem", padding: "0.3rem 0.6rem" }}
-                  type="button"
-                  onClick={() => triggerIRAction("Re-scan Compliance Baseline")}
-                >
-                  🔄 Scan Compliance Baseline
-                </button>
-              </div>
-
-              <div style={{ display: "grid", gap: "0.45rem" }}>
-                {inspectedEndpoint.platform === "windows" ? (
-                  <>
-                    <div className="operator-list__item" style={{ justifyContent: "space-between" }}>
-                      <div>
-                        <strong>windows.defender.real_time_protection</strong>
-                        <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
-                          Microsoft Defender real-time protection and antivirus engine are active.
-                        </p>
-                      </div>
-                      <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-                        <span className="tone tone--success">PASS (Enforced)</span>
-                      </div>
-                    </div>
-                    <div className="operator-list__item" style={{ justifyContent: "space-between" }}>
-                      <div>
-                        <strong>windows.rdp.network_level_authentication</strong>
-                        <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
-                          Enforce Network Level Authentication (NLA) on RDP connections.
-                        </p>
-                      </div>
-                      <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-                        <span className="tone tone--warning">FAIL (Disabled)</span>
-                        <button
-                          className="action-button action-button--primary"
-                          style={{ fontSize: "0.72rem", padding: "0.25rem 0.5rem" }}
-                          type="button"
-                          onClick={() => triggerIRAction("Enforce RDP NLA")}
-                        >
-                          Remediate →
-                        </button>
-                      </div>
-                    </div>
-                    <div className="operator-list__item" style={{ justifyContent: "space-between" }}>
-                      <div>
-                        <strong>windows.powershell.constrained_language_mode</strong>
-                        <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
-                          PowerShell execution language mode restriction.
-                        </p>
-                      </div>
-                      <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-                        <span className="tone tone--info">AUDIT ONLY</span>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="operator-list__item" style={{ justifyContent: "space-between" }}>
-                      <div>
-                        <strong>linux.ssh.disable_password_authentication</strong>
-                        <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
-                          Require public key authentication; disable SSH password login in sshd_config.
-                        </p>
-                      </div>
-                      <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-                        <span className="tone tone--success">PASS (Disabled)</span>
-                      </div>
-                    </div>
-                    <div className="operator-list__item" style={{ justifyContent: "space-between" }}>
-                      <div>
-                        <strong>linux.auditd.ruleset_integrity</strong>
-                        <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
-                          Audit daemon telemetry ruleset integrity and file deletion tracking.
-                        </p>
-                      </div>
-                      <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-                        <span className="tone tone--warning">WARN (Coverage gap)</span>
-                        <button
-                          className="action-button action-button--primary"
-                          style={{ fontSize: "0.72rem", padding: "0.25rem 0.5rem" }}
-                          type="button"
-                          onClick={() => triggerIRAction("Update Auditd Ruleset")}
-                        >
-                          Remediate →
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Tab 2: Incident Response Hardening & Playbooks */}
-          {inspectorTab === "incident_response" && (
-            <div style={{ display: "grid", gap: "1rem" }}>
-              <SectionHeader
-                description="Hardening actions and containment playbooks for execution before, during, or after incident response."
-                eyebrow="Incident Response & Lockdown"
-                title="Endpoint Incident Response Actions"
-              />
-
-              <div className="dashboard-grid dashboard-grid--two-up" style={{ gap: "0.8rem" }}>
-                {/* Containment Playbook */}
-                <div
-                  style={{
-                    background: "rgba(255, 255, 255, 0.02)",
-                    padding: "1rem",
-                    borderRadius: "12px",
-                    border: "1px solid var(--border)",
-                    display: "grid",
-                    gap: "0.6rem",
-                  }}
-                >
-                  <strong style={{ fontSize: "0.9rem", color: "var(--danger)" }}>🚫 Network Containment & Isolation</strong>
-                  <p style={{ fontSize: "0.78rem", color: "var(--muted)", margin: 0 }}>
-                    Isolate host network stack to drop all ingress/egress except telemetry control-plane signal.
-                  </p>
-                  <div>
-                    <button
-                      className="action-button action-button--danger"
-                      style={{ fontSize: "0.76rem" }}
-                      type="button"
-                      onClick={() => triggerIRAction("Network Isolation")}
-                    >
-                      Isolate Host System
-                    </button>
-                  </div>
-                </div>
-
-                {/* Credential Lockdown Playbook */}
-                <div
-                  style={{
-                    background: "rgba(255, 255, 255, 0.02)",
-                    padding: "1rem",
-                    borderRadius: "12px",
-                    border: "1px solid var(--border)",
-                    display: "grid",
-                    gap: "0.6rem",
-                  }}
-                >
-                  <strong style={{ fontSize: "0.9rem", color: "var(--warning)" }}>🔒 Privileged Account Lockdown</strong>
-                  <p style={{ fontSize: "0.78rem", color: "var(--muted)", margin: 0 }}>
-                    Invalidate active user logon sessions, lock local administrator accounts, and flush kerberos/NTHash tokens.
-                  </p>
-                  <div>
-                    <button
-                      className="action-button action-button--warning"
-                      style={{ fontSize: "0.76rem" }}
-                      type="button"
-                      onClick={() => triggerIRAction("Account Session Lockdown")}
-                    >
-                      Revoke & Lock Sessions
-                    </button>
-                  </div>
-                </div>
-
-                {/* Evidence Collection */}
-                <div
-                  style={{
-                    background: "rgba(255, 255, 255, 0.02)",
-                    padding: "1rem",
-                    borderRadius: "12px",
-                    border: "1px solid var(--border)",
-                    display: "grid",
-                    gap: "0.6rem",
-                  }}
-                >
-                  <strong style={{ fontSize: "0.9rem" }}>📁 Forensic Evidence Dump</strong>
-                  <p style={{ fontSize: "0.78rem", color: "var(--muted)", margin: 0 }}>
-                    Dump volatile memory context, network socket bindings, security event logs, and active process tree.
-                  </p>
-                  <div>
-                    <button
-                      className="action-button action-button--secondary"
-                      style={{ fontSize: "0.76rem" }}
-                      type="button"
-                      onClick={() => triggerIRAction("Collect Forensic Evidence")}
-                    >
-                      Collect Security Context
-                    </button>
-                  </div>
-                </div>
-
-                {/* Emergency Hardening Rollout */}
-                <div
-                  style={{
-                    background: "rgba(255, 255, 255, 0.02)",
-                    padding: "1rem",
-                    borderRadius: "12px",
-                    border: "1px solid var(--border)",
-                    display: "grid",
-                    gap: "0.6rem",
-                  }}
-                >
-                  <strong style={{ fontSize: "0.9rem" }}>🛡️ Strict Baseline Enforcement</strong>
-                  <p style={{ fontSize: "0.78rem", color: "var(--muted)", margin: 0 }}>
-                    Force emergency zero-trust hardening profile across all Defender, Firewall, and SSH controls.
-                  </p>
-                  <div>
-                    <button
-                      className="action-button action-button--primary"
-                      style={{ fontSize: "0.76rem" }}
-                      type="button"
-                      onClick={() => triggerIRAction("Enforce Strict Baseline")}
-                    >
-                      Enforce Emergency Baseline
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Interactive Remote Terminal Tab */}
-          {inspectorTab === "terminal" && (
-            <div style={{ display: "grid", gap: "0.8rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h4 style={{ fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
-                  💻 Remote Terminal (Agent Tunnel)
-                </h4>
-                <span className="tone tone--success" style={{ fontSize: "0.74rem" }}>
-                  ● Agent Tunnel Active ({inspectedEndpoint.hostname})
-                </span>
-              </div>
-              <div
-                style={{
-                  background: "#0d1117",
-                  border: "1px solid var(--border)",
-                  borderRadius: "10px",
-                  padding: "1rem",
-                  fontFamily: "monospace",
-                  fontSize: "0.82rem",
-                  color: "#e6edf3",
-                  minHeight: "220px",
-                  maxHeight: "360px",
-                  overflowY: "auto",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.4rem",
-                }}
-              >
-                {terminalHistory.map((item, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      color: item.type === "input" ? "#58a6ff" : item.type === "error" ? "#f85149" : "#3fb950",
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {item.text}
-                  </div>
-                ))}
-                {terminalLoading && <div style={{ color: "var(--muted)" }}>Executing command over agent tunnel...</div>}
-              </div>
-              <form onSubmit={handleTerminalSubmit} style={{ display: "flex", gap: "0.6rem" }}>
-                <input
-                  className="field__input"
-                  placeholder="Type command (e.g. ps, uname -a, systemctl status)..."
-                  style={{ flex: 1, fontFamily: "monospace", fontSize: "0.82rem" }}
-                  type="text"
-                  value={terminalInput}
-                  onChange={(e) => setTerminalInput(e.target.value)}
-                />
-                <button className="action-button action-button--primary" disabled={terminalLoading} type="submit">
-                  Send Command
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* Interactive Remote Desktop Tab */}
-          {inspectorTab === "remote_desktop" && (
-            <div style={{ display: "grid", gap: "0.8rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h4 style={{ fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
-                  🖥️ Remote Desktop Console
-                </h4>
-                <button
-                  className={`action-button ${rdpConnected ? "action-button--danger" : "action-button--primary"}`}
-                  style={{ fontSize: "0.76rem", padding: "0.35rem 0.75rem" }}
-                  type="button"
-                  onClick={() => {
-                    if (rdpConnected) {
-                      setRdpConnected(false);
-                      setRdpSessionToken(null);
-                    } else {
-                      handleConnectRDP();
-                    }
-                  }}
-                >
-                  {rdpConnected ? "Disconnect Session" : "Connect Remote Desktop Session"}
-                </button>
-              </div>
-
-              {rdpConnected ? (
-                <div
-                  style={{
-                    background: "#000",
-                    border: "2px solid var(--accent-strong)",
-                    borderRadius: "12px",
-                    minHeight: "340px",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "1rem",
-                    position: "relative",
-                  }}
-                >
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "10px",
-                      left: "12px",
-                      background: "rgba(0,0,0,0.7)",
-                      padding: "0.2rem 0.6rem",
-                      borderRadius: "6px",
-                      fontSize: "0.72rem",
-                      color: "#3fb950",
-                    }}
-                  >
-                    ● LIVE RDP/WebRTC Stream • Token: {rdpSessionToken} • 1920x1080 @ 60fps
-                  </div>
-                  <div style={{ fontSize: "3rem" }}>
-                    {inspectedEndpoint.platform === "windows" ? "🪟" : inspectedEndpoint.platform === "macos" ? "🍏" : "🐧"}
-                  </div>
-                  <p style={{ fontSize: "0.9rem", color: "var(--foreground)", margin: 0, textAlign: "center" }}>
-                    Interactive Remote Desktop Session Active on <strong>{inspectedEndpoint.hostname}</strong>
-                  </p>
-                  <div style={{ display: "flex", gap: "0.6rem" }}>
-                    <button className="action-button action-button--secondary" style={{ fontSize: "0.74rem" }} type="button">
-                      Send Ctrl+Alt+Del
-                    </button>
-                    <button className="action-button action-button--secondary" style={{ fontSize: "0.74rem" }} type="button">
-                      Toggle Fullscreen
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  style={{
-                    background: "rgba(255, 255, 255, 0.02)",
-                    border: "1px dashed var(--border)",
-                    borderRadius: "12px",
-                    padding: "2.5rem",
-                    textAlign: "center",
-                    display: "grid",
-                    gap: "0.8rem",
-                  }}
-                >
-                  <span style={{ fontSize: "2rem" }}>🖥️</span>
-                  <strong style={{ fontSize: "0.95rem" }}>Remote Desktop Session Idle</strong>
-                  <p style={{ fontSize: "0.8rem", color: "var(--muted)", maxWidth: "480px", margin: "0 auto" }}>
-                    Initiate an encrypted WebRTC / RDP display session over the SHA secure agent tunnel to remotely control {inspectedEndpoint.hostname}.
-                  </p>
-                  <div>
-                    <button className="action-button action-button--primary" type="button" onClick={handleConnectRDP}>
-                      Start Remote Desktop Connection
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Tab 3: Specs & Identity */}
-          {inspectorTab === "overview" && (
-            <div className="dashboard-grid dashboard-grid--three-up" style={{ gap: "0.8rem" }}>
-              <StatCard
-                label="Host Platform"
-                meta="OS Kernel"
-                value={inspectedEndpoint.platform_version || inspectedEndpoint.platform}
-              />
-              <StatCard
-                label="Agent Version"
-                meta="Control Plane Client"
-                value={`v${inspectedEndpoint.agent_version}`}
-              />
-              <StatCard
-                label="Connectivity"
-                meta="Heartbeat Signal"
-                value={(inspectedEndpoint.connectivity_status || "offline").toUpperCase()}
-              />
-            </div>
-          )}
-
-          {/* Tab 4: Audit Log */}
-          {inspectorTab === "audit" && (
-            <div style={{ display: "grid", gap: "0.5rem" }}>
-              <h4 style={{ fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
-                Audit Trail for {inspectedEndpoint.hostname}
-              </h4>
-              <div className="timeline-list">
-                <div className="timeline-list__item">
-                  <span className="timeline-list__dot timeline-list__dot--info" />
-                  <div>
-                    <strong>Compliance baseline scan completed</strong>
-                    <p>Observed posture score {inspectedScore}% • Operator: System Principal</p>
-                  </div>
-                </div>
-                <div className="timeline-list__item">
-                  <span className="timeline-list__dot timeline-list__dot--success" />
-                  <div>
-                    <strong>Control plane heartbeat verified</strong>
-                    <p>Agent version v{inspectedEndpoint.agent_version} • Status: {inspectedEndpoint.status}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </Panel>
+        </div>
       )}
 
       {/* Modal: Register Client Company */}

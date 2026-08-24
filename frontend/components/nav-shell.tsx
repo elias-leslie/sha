@@ -40,53 +40,52 @@ function NavShellContent({
   return (
     <div className="shell">
       {demoMode ? (
-        <div className="inline-feedback inline-feedback--danger" role="status">
-          Demo mode — fixture data only. Live mutations disabled.
+        <div className="demo-banner" role="status">
+          <strong>Demo mode</strong>
+          <span>Invented fleet data. No real tenants or hosts, and changes are disabled.</span>
         </div>
       ) : null}
+
       <header className="command-header">
-        <div className="command-header__topline">
-          <div className="brand-mark">
-            <span className="brand-mark__code">SHA</span>
-            <div>
-              <p className="brand-mark__eyebrow">Control Plane</p>
-              <p className="brand-mark__meta">Endpoint Posture & Compliance</p>
-            </div>
-          </div>
-          <div className="command-header__operator">
-            <AuthSessionStatus
-              demoMode={demoMode}
-              scope={scopeAware ? scope : { client_id: null, location_id: null }}
-            />
-          </div>
+        <div className="brand-mark">
+          <span className="brand-mark__code">SHA</span>
         </div>
 
-        <div className="command-header__main">
-          <div className="command-header__copy">
-            <h1>{title}</h1>
-            <p className="command-header__description">{description}</p>
-          </div>
-          {actions ? <div className="command-header__actions">{actions}</div> : null}
+        <div className="command-header__copy">
+          <h1 title={description}>{title}</h1>
+          <span aria-hidden="true" className="command-header__hint" title={description}>
+            ?
+          </span>
+        </div>
+
+        {actions ? <div className="command-header__actions">{actions}</div> : null}
+
+        <div className="command-header__operator">
+          <AuthSessionStatus
+            demoMode={demoMode}
+            scope={scopeAware ? scope : { client_id: null, location_id: null }}
+          />
         </div>
       </header>
 
-      {scopeAware ? <ScopeSelector /> : null}
-
-      <nav aria-label="Primary" className="primary-nav">
-        {NAV_ITEMS.map((item) => {
-          const isActive = currentPath === item.href;
-          return (
-            <a
-              key={item.href}
-              className="nav-link"
-              data-active={isActive ? "true" : "false"}
-              href={href(item.href)}
-            >
-              <span>{item.label}</span>
-            </a>
-          );
-        })}
-      </nav>
+      <div className="console-bar">
+        <nav aria-label="Primary" className="primary-nav">
+          {NAV_ITEMS.map((item) => {
+            const isActive = currentPath === item.href;
+            return (
+              <a
+                key={item.href}
+                className="nav-link"
+                data-active={isActive ? "true" : "false"}
+                href={href(item.href)}
+              >
+                <span>{item.label}</span>
+              </a>
+            );
+          })}
+        </nav>
+        {scopeAware ? <ScopeSelector /> : null}
+      </div>
 
       <main className="shell-main">{children}</main>
     </div>

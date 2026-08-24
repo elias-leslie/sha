@@ -204,7 +204,30 @@ Health check:
 curl http://127.0.0.1:8010/health
 ```
 
-Normal mode uses only the live API and shows loading/error/empty state when it is unavailable. Fixture data appears only when `NEXT_PUBLIC_SHA_DEMO_MODE=true`; demo mode is visibly labeled and mutations stay disabled.
+Normal mode uses only the live API and shows loading/error/empty state when it is unavailable.
+
+## Demo mode
+
+Demo mode lets you show the console to someone without exposing a real fleet.
+It needs no backend at all:
+
+```bash
+cd frontend
+NEXT_PUBLIC_SHA_DEMO_MODE=true pnpm dev --port 3011
+```
+
+In demo mode the console never contacts the API. Every read is answered from an
+invented fleet — four fictional tenants (Northwind Trading Co., Cascade
+Orthopedics, Vela Legal Group, Harbor Point School District), seven sites, and
+24 Windows/Linux/macOS endpoints with mixed posture scores, drift, and
+connectivity — defined in `frontend/lib/demo-data.ts`. Nothing in that file
+corresponds to a real tenant, site, hostname, or person.
+
+Every mutation is refused with a `DemoModeError` rather than reaching the
+backend, the operator identity is a read-only fixture principal with no live
+authority, and a banner at the top of every page states that the data is
+invented. Because the demo build has no credentials and makes no outbound
+requests, it is safe to screen-share, screenshot, or publish.
 
 ## Test, typecheck, and build
 

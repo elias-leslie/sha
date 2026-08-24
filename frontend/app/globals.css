@@ -7,6 +7,9 @@
   --border: rgba(56, 189, 248, 0.16);
   --border-strong: rgba(56, 189, 248, 0.35);
   --text: #f8fafc;
+  --foreground: #f8fafc;
+  --surface: #0f172a;
+  --surface-border: rgba(56, 189, 248, 0.2);
   --muted: #94a3b8;
   --accent: #38bdf8;
   --accent-strong: #7dd3fc;
@@ -15,7 +18,7 @@
   --danger: #ef4444;
   --info: #6366f1;
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-  --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-display: ui-monospace, "SFMono-Regular", "SF Mono", Consolas, monospace;
 }
 
@@ -55,7 +58,7 @@ body::before {
   opacity: 0.8;
 }
 
-a {
+a, a:link, a:visited {
   color: inherit;
   text-decoration: none;
 }
@@ -954,4 +957,453 @@ dt {
   .form-actions {
     grid-column: span 1;
   }
+}
+
+/* Sleek Streamlined Posture Command Header */
+.posture-summary-banner {
+  padding: 1.25rem 1.5rem;
+  display: grid;
+  gap: 1rem;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(15, 29, 54, 0.95));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+}
+
+.posture-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.posture-summary-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.command-pills {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.command-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--foreground);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.command-pill:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* Inline Expandable Device Detail Drawer */
+.inline-detail-row {
+  background: rgba(15, 23, 42, 0.98) !important;
+  animation: slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.inline-detail-container {
+  padding: 1.25rem 1.5rem;
+  background: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.07), transparent 75%), rgba(10, 15, 26, 0.96);
+  border-left: 4px solid var(--accent-strong);
+  box-shadow: inset 0 3px 12px rgba(0, 0, 0, 0.4);
+  display: grid;
+  gap: 1.2rem;
+}
+
+.inline-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.85rem;
+}
+
+.inline-detail-identity {
+  display: flex;
+  gap: 0.85rem;
+  align-items: center;
+}
+
+.inline-detail-icon {
+  font-size: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.inline-detail-title-group {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.inline-detail-title {
+  font-size: 1.15rem;
+  margin: 0;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.inline-detail-meta {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0.2rem 0 0 0;
+}
+
+.inline-detail-actions-group {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.inline-detail-tabs {
+  display: flex;
+  gap: 0.35rem;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 0.3rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+}
+
+/* Expanded Real Estate Workspace Modal */
+.expanded-workspace-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(5, 8, 15, 0.85);
+  backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.expanded-workspace-modal {
+  width: 96vw;
+  max-width: 1700px;
+  height: 92vh;
+  background: linear-gradient(165deg, rgba(15, 23, 42, 0.98), rgba(9, 13, 22, 0.99));
+  border: 1px solid var(--accent-strong);
+  border-radius: 20px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.expanded-workspace-header {
+  padding: 1rem 1.5rem;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.expanded-workspace-body {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+/* ==========================================================================
+   Compact console chrome
+   The console is a daily operator tool, not a landing page. The page title
+   sits on one line with the brand and the operator identity; explanatory copy
+   moves into tooltips so vertical space goes to the fleet, not to prose.
+   ========================================================================== */
+
+.shell {
+  padding: 0.75rem 0 2rem;
+}
+
+.demo-banner {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid rgba(255, 176, 87, 0.45);
+  border-radius: 10px;
+  background: rgba(255, 176, 87, 0.12);
+  color: #ffd7a8;
+  font-size: 0.78rem;
+}
+
+.demo-banner strong {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+}
+
+.command-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 12px;
+  backdrop-filter: none;
+}
+
+.command-header::after {
+  display: none;
+}
+
+.brand-mark {
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.command-header__copy {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+}
+
+.command-header h1 {
+  margin: 0;
+  font-size: clamp(0.98rem, 1.4vw, 1.2rem);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.command-header__actions {
+  flex: 0 0 auto;
+  gap: 0.4rem;
+}
+
+.command-header__operator {
+  flex: 0 0 auto;
+}
+
+.command-header__hint,
+.section-header__hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: 0.62rem;
+  line-height: 1;
+  cursor: help;
+  user-select: none;
+}
+
+.command-header__hint:hover,
+.section-header__hint:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Navigation and scope share one row. */
+.console-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0.55rem 0 0.8rem;
+}
+
+.primary-nav {
+  display: flex;
+  grid-template-columns: none;
+  gap: 0.25rem;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.nav-link {
+  padding: 0.3rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.scope-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 340px;
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+}
+
+.scope-selector .field {
+  gap: 0.15rem;
+}
+
+.scope-selector .field__label {
+  font-size: 0.6rem;
+}
+
+/* Panels and sections give their space to data. */
+.console-panel {
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+}
+
+.section-header {
+  gap: 0.2rem;
+  margin-bottom: 0.6rem;
+}
+
+.section-header h2 {
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+/* Section copy stays available but stops owning three lines of the panel.
+   The full sentence is on the title tooltip. */
+.section-header__description {
+  margin-top: 0.1rem;
+  max-width: 80ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.stat-card {
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+}
+
+.stat-card__value {
+  font-size: 1.45rem;
+  line-height: 1.15;
+}
+
+.stat-card__meta {
+  font-size: 0.68rem;
+}
+
+/* Dense fleet tables. */
+.shell-main table {
+  font-size: 0.8rem;
+}
+
+.shell-main thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(12, 18, 30, 0.96);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+
+.shell-main tbody tr:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+@media (max-width: 900px) {
+  .command-header {
+    flex-wrap: wrap;
+  }
+
+  .command-header h1 {
+    white-space: normal;
+  }
+
+  .primary-nav {
+    flex-wrap: wrap;
+  }
+}
+
+/* Fleet inventory rows stay on one line so more hosts fit above the fold.
+   Long values truncate and expose the full string through the title tooltip. */
+.shell-main tbody td {
+  white-space: nowrap;
+}
+
+/* Only the free-text columns truncate. Status badges, hostnames, scores and
+   actions keep their full width so nothing important is clipped. */
+.shell-main tbody td:nth-child(4),
+.shell-main tbody td:nth-child(5),
+.shell-main tbody td:nth-child(7),
+.shell-main tbody td:nth-child(8) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 15ch;
+}
+
+.shell-main thead th:nth-child(4),
+.shell-main thead th:nth-child(5),
+.shell-main thead th:nth-child(7),
+.shell-main thead th:nth-child(8) {
+  max-width: 15ch;
+}
+
+.shell-main tbody td strong {
+  white-space: nowrap;
+}
+
+.rmm-layout .tree-item {
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.rmm-layout .tree-item > span:first-of-type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }

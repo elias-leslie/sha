@@ -22,7 +22,7 @@ import {
   getFixtureControlRegistry,
   getFixtureApprovalGrants,
   getFixtureApprovalRequests,
-  getFixtureEndpoints,
+  getDemoEndpoints,
   isDemoMode,
   listApprovalGrants,
   listApprovalRequests,
@@ -78,7 +78,7 @@ export default function ApprovalsConsole({
 }: ApprovalsConsoleProps) {
   const [requests, setRequests] = useState(() => initialRequests ?? (demoMode ? getFixtureApprovalRequests() : []));
   const [grants, setGrants] = useState(() => initialGrants ?? (demoMode ? getFixtureApprovalGrants() : []));
-  const [endpoints, setEndpoints] = useState(() => initialEndpoints ?? (demoMode ? getFixtureEndpoints() : []));
+  const [endpoints, setEndpoints] = useState(() => initialEndpoints ?? (demoMode ? getDemoEndpoints() : []));
   const [controls, setControls] = useState(() =>
     initialControls ?? (demoMode ? getFixtureControlRegistry() : []),
   );
@@ -126,7 +126,7 @@ export default function ApprovalsConsole({
     if (demoMode) {
       setRequests(initialRequests ?? getFixtureApprovalRequests());
       setGrants(initialGrants ?? getFixtureApprovalGrants());
-      setEndpoints(initialEndpoints ?? getFixtureEndpoints());
+      setEndpoints(initialEndpoints ?? getDemoEndpoints());
       setControls(initialControls ?? getFixtureControlRegistry());
       setResourceState({ requests: true, grants: true, endpoints: true, controls: true, loading: false });
       setLoadError(null);

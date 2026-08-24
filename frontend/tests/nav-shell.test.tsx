@@ -25,7 +25,10 @@ describe("SHA dashboard shell", () => {
     )
 
     expect(screen.getByRole("heading", { name: "Test title" })).toBeInTheDocument()
-    expect(screen.getByText(/endpoint posture & compliance/i)).toBeInTheDocument()
+    // The page title carries the context now; the product descriptor moved to a
+    // hover hint so the header stays one line.
+    expect(screen.getByText("SHA")).toBeInTheDocument()
+    expect(screen.getAllByTitle("Test description").length).toBeGreaterThan(0)
     expect(screen.getByRole("link", { name: "Computers" })).toHaveAttribute("href", "/hierarchy")
     expect(screen.getByText("Child content")).toBeInTheDocument()
   })
@@ -103,7 +106,9 @@ describe("SHA dashboard shell", () => {
 
     try {
       render(<HierarchyPage />)
-      expect(screen.getByRole("status")).toHaveTextContent(/demo mode.*fixture data only.*mutations disabled/i)
+      expect(screen.getByRole("status")).toHaveTextContent(
+        /demo mode.*invented fleet data.*changes are disabled/i,
+      )
       expect(fetchMock).not.toHaveBeenCalled()
     } finally {
       if (previousDemoMode === undefined) {
