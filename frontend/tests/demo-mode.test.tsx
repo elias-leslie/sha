@@ -59,7 +59,7 @@ describe("SHA demo mode", () => {
     expect(endpoints.length).toBeGreaterThan(0)
 
     const text = JSON.stringify({ clients, endpoints }).toLowerCase()
-    for (const forbidden of ["summitflow.dev", "davion", "elias", "leslie"]) {
+    for (const forbidden of ["summitflow", "davion", "elias", "leslie", "tenant_home_primary", "quarantine"]) {
       expect(text).not.toContain(forbidden)
     }
   })

@@ -9,7 +9,7 @@ The project goal is practical hardening without casually breaking endpoints: obs
 [![Python](https://img.shields.io/badge/python-3.13-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000.svg?logo=next.js&logoColor=white)](https://nextjs.org/)
 
-![SHA security control plane dashboard smoke test](docs/images/security-control-plane-smoke.png)
+![SHA Infrastructure & Endpoint Compliance Console running in demo mode against an invented fleet](docs/images/sha-console-demo.png)
 
 ## Current status
 

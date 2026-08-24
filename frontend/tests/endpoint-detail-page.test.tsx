@@ -168,9 +168,9 @@ describe("SHA endpoint detail route", () => {
     const fetchMock = vi.fn()
     vi.stubGlobal("fetch", fetchMock)
 
-    const { unmount } = render(<EndpointDetailConsole demoMode endpointId="ep_demo_linux_01" />)
+    const { unmount } = render(<EndpointDetailConsole demoMode endpointId="ep_demo_nw_fin_ws_014" />)
 
-    expect(screen.getByRole("heading", { name: /endpoint demo-linux-01/i })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /endpoint nw-fin-ws-014/i })).toBeInTheDocument()
     expect(screen.getByText(/fixture-only endpoint preview/i)).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /send heartbeat/i })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /record posture snapshot/i })).not.toBeInTheDocument()

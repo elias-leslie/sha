@@ -1745,17 +1745,17 @@ export function getFixtureInstallerProfiles() {
 // the console is demonstrated. The legacy fixture hosts are appended so
 // approval and installer fixtures that reference them still resolve.
 export function getDemoClients() {
-  return clone([...DEMO_CLIENTS, ...FIXTURE_CLIENTS]);
+  return clone([...DEMO_CLIENTS]);
 }
 
 export function getDemoLocations(clientId: string) {
   return clone(
-    [...DEMO_LOCATIONS, ...FIXTURE_LOCATIONS].filter((location) => location.client_id === clientId),
+    DEMO_LOCATIONS.filter((location) => location.client_id === clientId),
   );
 }
 
 export function getDemoEndpoints() {
-  return clone([...DEMO_ENDPOINTS, ...Object.values(FIXTURE_ENDPOINT_DETAILS).map(toInventoryItem)]);
+  return clone([...DEMO_ENDPOINTS]);
 }
 
 export function getDemoEndpoint(endpointId: string) {
@@ -2241,10 +2241,8 @@ function demoEndpointsFor(path: string) {
 }
 
 function demoEndpointDetail(endpointId: string): EndpointDetail | undefined {
-  const existing = FIXTURE_ENDPOINT_DETAILS[endpointId];
-  if (existing) {
-    return clone(existing);
-  }
+  // Demo mode resolves only invented endpoints. Test fixtures describe the real
+  // home deployment, so they must not be reachable from a published demo.
   const inventory = DEMO_ENDPOINTS.find((endpoint) => endpoint.endpoint_id === endpointId);
   return inventory ? { ...clone(inventory), latest_results: [] } : undefined;
 }
