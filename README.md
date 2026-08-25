@@ -1,8 +1,12 @@
 # SHA — Security Hardening Automation
 
-SHA is an early-stage Windows/Linux/macOS security hardening automation platform. It combines a FastAPI control-plane API, a Next.js operator dashboard, a Go endpoint agent, compatibility bootstrap reporters, and shared contracts for enrollment, posture reporting, approvals, and bounded remediation workflows.
+SHA is an early-stage Windows/Linux/macOS security operations platform covering security posture and program management, compliance, incident response, and attack surface. It combines a FastAPI control-plane API, a Next.js operator dashboard, a Go endpoint agent, compatibility bootstrap reporters, and shared contracts for enrollment, posture reporting, approvals, and bounded remediation workflows.
 
-The project goal is practical hardening without casually breaking endpoints: observe posture, rank gaps, require human approval for disruptive actions, and keep all endpoint work constrained to typed hardening capabilities rather than arbitrary remote shell access.
+Most organizations have already paid for strong security capability and are running a fraction of it. Windows, Linux, macOS, Entra ID, Google Workspace, and the major cloud providers all ship controls that sit unconfigured, partly configured, or configured once and never verified again. The usual answer is to buy another product and layer it on top, which adds cost and an agent and leaves the platform in the same state.
+
+SHA measures what an organization already owns, activates it correctly through typed actions with rollback, proves it stays activated, and only then identifies what is genuinely missing. Every disruptive action requires human approval, and endpoint work is constrained to typed capabilities rather than arbitrary remote shell.
+
+The product direction, audience, framework spine, and phase plan are documented in [docs/plans/2026-08-25-sha-guided-security-program-strategy.md](docs/plans/2026-08-25-sha-guided-security-program-strategy.md). The section below describes only what runs today.
 
 [![CI](https://github.com/elias-leslie/sha/actions/workflows/ci.yml/badge.svg)](https://github.com/elias-leslie/sha/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -17,7 +21,7 @@ This repository contains a working control-plane/dashboard slice, not a producti
 
 Implemented:
 
-- backend API (9 routers, 19 OpenAPI paths) for enrollment, heartbeats, posture snapshots, the canonical control registry, installer profiles, approval requests/grants, leased response actions, source-pack catalog reads, and compliance evidence export
+- backend API (15 routers, 49 endpoints) for enrollment, heartbeats, posture snapshots, the canonical control registry, installer profiles, approval requests/grants, leased response actions, source-pack catalog reads, and compliance evidence export
 - frontend dashboard pages for fleet, endpoints, controls, installers, and approvals, with live/loading/error state, an explicitly enabled fixture-only demo mode, weighted endpoint posture scores, and endpoint response-action history
 - deterministic Linux, Windows, and macOS compatibility reporter generation for installer profiles, served as private, non-cacheable downloads with attachment, digest, no-sniff, and no-referrer headers; token-bearing bodies are not previewed in the dashboard
 - generated Linux, Windows, and macOS reporters atomically claim approval-backed response actions under short leases; all complete bounded incident-response context/evidence collection, while Linux and Windows each have reversible typed hardening controls

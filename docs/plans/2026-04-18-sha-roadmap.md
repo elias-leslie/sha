@@ -1,4 +1,10 @@
-# SHA roadmap
+# SHA roadmap (superseded)
+
+> **Superseded 2026-08-25.** Retained for history only. Do not execute from this file.
+>
+> - Product direction: [2026-08-25-sha-guided-security-program-strategy.md](2026-08-25-sha-guided-security-program-strategy.md)
+> - Execution authority: [2026-07-17-sha-ir-compliance-operations-roadmap.md](2026-07-17-sha-ir-compliance-operations-roadmap.md)
+
 
 > Working assumptions:
 > - Control plane starts with FastAPI, Next.js, and local SQLite so a fresh clone can run without private infrastructure.

@@ -1,13 +1,16 @@
 # SHA incident-response and compliance operations roadmap
 
 Status: Active; Phase 0 complete, Phase 1 in progress
-Date: 2026-07-17  
+Date: 2026-07-17 (amended 2026-08-25)  
 Execution authority: Invoked by the user as the active goal on 2026-07-17  
-Supersedes after approval: docs/plans/2026-04-18-sha-roadmap.md
+Supersedes after approval: docs/plans/2026-04-18-sha-roadmap.md  
+Product direction: [docs/plans/2026-08-25-sha-guided-security-program-strategy.md](2026-08-25-sha-guided-security-program-strategy.md)
+
+This file remains the canonical execution roadmap, phase order, and acceptance authority. The 2026-08-25 strategy document governs product intent, audience, and the guidance, native-capability, canary, and Advisor layers. Amendments made under its authority are marked `Amended 2026-08-25` inline.
 
 ## Current execution checkpoint — read before resuming
 
-This file is the canonical `/goal` source and the complete resume entry point. A new agent should read this section, then the Phase 1 deliverables and acceptance criteria, then [the Phase 1 verification record](../verification/2026-07-17-phase1-foundation.md). Detailed product research and source links already live later in this file; do not repeat that research unless a referenced product or signing tool has materially changed.
+This file is the canonical `/goal` source and the complete resume entry point. A new agent should read [the product strategy document](2026-08-25-sha-guided-security-program-strategy.md) first for audience, thesis, and the Phase 8 through 12 layer, then this section, then the Phase 1 deliverables and acceptance criteria, then [the Phase 1 verification record](../verification/2026-07-17-phase1-foundation.md). Detailed product research and source links already live later in this file; do not repeat that research unless a referenced product or signing tool has materially changed.
 
 Repository checkpoint:
 
@@ -120,7 +123,13 @@ SHA is a multi-client incident-response and compliance operations plane: enroll 
 - a controlled command console and later an interactive terminal;
 - incident cases, hunts, collections, evidence, and timelines;
 - compliance baselines, checks, exceptions, remediation, and proof;
-- fixed operational and compliance reports.
+- fixed operational and compliance reports;
+- *(Amended 2026-08-25)* detection, evaluation, and where safely supported activation of platform-native security capability on Windows, Linux, and macOS;
+- *(Amended 2026-08-25)* read-only evaluation of Entra ID, Microsoft 365, Google Workspace, AWS, and Azure security configuration, including license entitlement awareness;
+- *(Amended 2026-08-25)* the safeguard, native-capability, risk, and program-snapshot layer above the control contract;
+- *(Amended 2026-08-25)* canary deployment, inventory, alerting, rotation, and benign-trip suppression at device, identity, network, DNS, cloud, and document layers;
+- *(Amended 2026-08-25)* passive, agent-reported local-segment asset observation, and approval-gated active scanning;
+- *(Amended 2026-08-25)* an advisory, draft-only LLM assistant bound by the authority boundary in the strategy document.
 
 ### SHA will not own
 
@@ -129,13 +138,14 @@ SHA is a multi-client incident-response and compliance operations plane: enroll 
 - remote desktop, screen control, chat, or end-user support;
 - a general software catalog or broad patch-management marketplace;
 - MDM, mobile app stores, device wipe, or full device-lifecycle management;
-- network discovery, SNMP monitoring, or infrastructure monitoring;
+- SNMP polling, infrastructure performance monitoring, and network-device management. *(Amended 2026-08-25: passive local-segment asset observation and approval-gated active scanning moved into scope; CIS Control 1 completeness is unreachable without them.)*;
 - software-license accounting;
 - a visual workflow designer, report designer, or arbitrary plugin marketplace;
 - a general SIEM, long-term log lake, EDR, or high-rate telemetry pipeline;
 - continuous full process or network telemetry by default;
 - vulnerability-scanner breadth in the first release;
-- AI-generated or autonomous endpoint actions.
+- AI-generated or autonomous endpoint actions. *(Amended 2026-08-25: unchanged as a boundary. SHA Advisor is read-only and draft-only. No model output reaches an endpoint without human submission through the existing approval path.)*;
+- *(Amended 2026-08-25)* cloud tenant configuration change. SHA evaluates and recommends cloud posture; it does not modify cloud tenants in the phases defined here.
 
 Integrations with ticketing, SIEM, storage, identity, and vulnerability products may be added later through stable exports and APIs. They must not become prerequisites for a working SHA deployment.
 
@@ -1098,11 +1108,16 @@ Deliverables:
 - endpoint workspace inventory tabs;
 - cached-as-of and refresh-live behavior;
 - inventory and software fixed reports in CSV, JSON, and printable HTML;
-- inventory retention and quota settings.
+- inventory retention and quota settings;
+- *(Amended 2026-08-25)* passive local-segment asset observation reported by the agent from ARP and neighbor tables, mDNS and LLMNR responses, DHCP lease data where readable, and observed peer connections, producing unmanaged-asset records distinct from enrolled endpoints;
+- *(Amended 2026-08-25)* an unmanaged-asset workspace with first-seen, last-seen, observing endpoint, inferred type, and an explicit disposition of enroll, accept, or investigate.
 
 Acceptance:
 
 - software inventory and process snapshots are visible at endpoint level on Linux and Windows;
+- *(Amended 2026-08-25)* enterprise asset inventory satisfies CIS Control 1 completeness: every asset on an observed segment appears as either an enrolled endpoint or an unmanaged-asset record with a disposition, and unowned assets are reportable;
+- *(Amended 2026-08-25)* software inventory satisfies CIS Control 2: authorized and unauthorized software are distinguishable at client scope, not only enumerable;
+- *(Amended 2026-08-25)* passive observation adds no active probe traffic, and this is proven by packet capture on a test segment;
 - supported macOS inventory is visible with unsupported fields explicit;
 - global, client, and location views return the same counts as their underlying filtered device lists;
 - selecting another scope changes dashboards, lists, exports, and targets consistently;
@@ -1117,7 +1132,8 @@ Not in this phase:
 
 - continuous EDR-like telemetry;
 - arbitrary report design;
-- a remote file browser.
+- a remote file browser;
+- *(Amended 2026-08-25)* active scanning of any kind. Active scanning requires the scope-authorization object delivered in Phase 11.
 
 ### Phase 4 — Add controlled actions, bulk work, scheduling, and command console
 
@@ -1210,11 +1226,15 @@ Deliverables:
 - observe, approval-required, and safe auto-remediation behavior;
 - migration of current control packs and actions to canonical IDs and the unified flow model;
 - compliance dashboards at global, client, location, and endpoint scope;
-- compliance summary, detail, evidence, and exception reports.
+- compliance summary, detail, evidence, and exception reports;
+- *(Amended 2026-08-25)* the `NativeCapability` and `CapabilityState` contract defined in the strategy document, so a control result can cite the platform capability it evaluated, the edition or license it requires, and the configuration surface that sets it;
+- *(Amended 2026-08-25)* entitlement detection for platform edition, and where the API permits, tenant license SKU, so recommendations are filtered to what the organization already owns.
 
 Acceptance:
 
 - every reported control result names the exact baseline, control, evaluator, evidence, endpoint, and time;
+- *(Amended 2026-08-25)* a control result that evaluates a native capability names that capability, its entitlement status, and its configuration surface;
+- *(Amended 2026-08-25)* a capability the organization is entitled to and is not using is reportable as its own finding class;
 - effective policy is explainable from assignments and the one supported override layer;
 - stale, unknown, unsupported, not-applicable, failed, and excepted are never collapsed;
 - exception expiry automatically restores the active finding;
@@ -1260,6 +1280,200 @@ Acceptance:
 - control-plane restart, worker restart, agent disconnect, and partial storage outage have tested outcomes;
 - the declared scale target has measured queue latency, API latency, storage growth, and job throughput;
 - installation, first enrollment, incident workflow, compliance workflow, report export, upgrade, and recovery docs are accurate against the shipped runtime.
+
+### Phase 8 — Guided program spine *(Added 2026-08-25)*
+
+Purpose: give an operator who does not already know what to do a correct order of work, and give the organization a program record rather than a scan result.
+
+Prerequisite: Phase 6 control contract and evaluation states.
+
+Deliverables:
+
+- `Safeguard` model with framework identifier, implementation group, asset type, security function, authored guidance text, adversary technique references, and framework mappings; versioned and immutable after publication;
+- `SafeguardState` per scope with status, satisfying evidence, accountable owner, evaluation method, confidence, and `next_review_at`, reusing existing evaluation states;
+- `Attestation` for process safeguards, with evidence attachments, attester principal, date, expiry, and review cadence;
+- scoping interview producing the applicable safeguard set, implementation group target, first accountable owner, and default review cadences, usable before any agent is enrolled;
+- `GuidanceStep` computed next-action queue derived from framework order intersected with current state;
+- next-action entry view replacing the dashboard as the default landing surface, with dashboards retained;
+- implementation group scorecard at global, client, and location scope;
+- gated ladder behavior: IG2 safeguards are not presented as actionable until IG1 is materially complete;
+- NIST CSF 2.0 function view rendered over safeguard state, with no separate evaluation pipeline;
+- MSP client template carrying baseline assignment, cadence, approval policy, and report schedule, applied at client creation;
+- content contract enforcement: a safeguard without all five required guidance fields fails validation at pack build time.
+
+Acceptance:
+
+- an operator can complete the scoping interview and receive an applicable safeguard set with owners and review dates before enrolling a single endpoint;
+- every safeguard state resolves to its satisfying controls, capability states, or attestations, and to the evidence behind each;
+- evaluation method is always explicit as `automated`, `attested`, or `not_applicable`, and advancing a safeguard from attested to automated is visible;
+- the next-action queue is computed, never authored, and changes immediately when underlying state changes;
+- CSF function coverage and CIS implementation group coverage derive from the same records and cannot disagree;
+- creating a second client from a template reproduces baseline, cadence, approval policy, and report schedule without manual re-entry;
+- pack build fails on any safeguard missing what the condition is, why it matters, what an adversary does with it, what breaks if remediated, or how to reverse it;
+- a full scoping-to-first-safeguard cycle is exercised through the real UI.
+
+Not in this phase:
+
+- risk scoring, treatment decisions, or program snapshots;
+- native capability activation;
+- the Advisor.
+
+### Phase 9 — Native capability activation *(Added 2026-08-25)*
+
+Purpose: make SHA operate the security capability the organization already owns, which is the product's central claim.
+
+Prerequisite: Phase 8 safeguard spine and Phase 6 native capability contract.
+
+Deliverables:
+
+- platform detection collectors for the Windows, Linux, and macOS capability sets named in the strategy document;
+- documented safe configuration, configuration surface, rollback method, and known operational impact for every capability SHA evaluates;
+- typed activation actions with rollback artifacts for capabilities where change is safely supported, delivered through the existing job and approval model;
+- entitlement detection for platform edition and, where available, license SKU, filtering recommendations to what the organization owns;
+- an entitled-but-unused capability report at global, client, and location scope;
+- capability drift detection with review dates, so an enabled capability that is later disabled produces a finding;
+- explicit unsupported and not-applicable results per platform and edition, never simulated.
+
+Acceptance:
+
+- every capability result names the platform, edition, entitlement status, detection method, observed configuration, and collection time;
+- an activation action records before state, change, verification, and rollback outcome, and a failed activation never reports success because a command launched;
+- recommendations for capabilities the organization is not entitled to are suppressed from the action queue and reported separately;
+- the entitled-but-unused report is reconcilable against license data and capability state at every scope;
+- Windows, Linux, and macOS behavior is proven on disposable Proxmox VMs per the runtime verification requirements, including rollback;
+- disabling a previously passing capability produces a drift finding within the configured cadence.
+
+Not in this phase:
+
+- cloud tenant configuration change, which remains out of scope;
+- capabilities without cited detection, verification, and rollback behavior.
+
+### Phase 10 — Risk register and program reporting *(Added 2026-08-25)*
+
+Purpose: turn findings into decisions with owners, and produce the record an executive, auditor, or insurer will ask for.
+
+Prerequisite: Phase 8.
+
+Deliverables:
+
+- `Finding` normalization across failed control evaluation, inactive native capability, lapsed attestation, canary activation, and discovery result;
+- `AssetCriticality` with confidentiality, integrity, availability weighting, data classification, and accountable owner;
+- `Risk` grouping findings with likelihood, impact, computed score, owner, treatment decision, remediation SLA, and due date, linking acceptance to the existing `Exception` object;
+- `ProgramSnapshot` as an immutable periodic record of implementation group coverage, CSF function coverage, open risk by severity, expiring exceptions, and change since the prior snapshot;
+- executive and client reports rendered from snapshots rather than live queries;
+- cyber insurance questionnaire mapping from safeguards to common questionnaire items;
+- post-incident safeguard mapping that identifies which safeguards would have prevented or detected a closed incident and proposes findings and risks from the incident record;
+- MSP cross-client queue ordered by SLA exposure, and a single action that generates all client reports;
+- explain-the-number drill-through on every score, percentage, and ranking.
+
+Acceptance:
+
+- no score, percentage, or ranking is displayed without a path to the exact constituent facts;
+- a risk accepted through treatment creates an exception with owner, reason, approver, and expiry, and expiry automatically restores the active finding;
+- a report regenerated from a past snapshot reproduces the original output exactly;
+- SLA breach is computed from the risk due date and is visible at global, client, and location scope;
+- a closed incident produces proposed safeguard-linked findings for human review;
+- generating reports for many clients in one action produces per-client scoped output with no cross-client leakage, proven by test.
+
+Not in this phase:
+
+- automated risk acceptance;
+- external GRC system synchronization.
+
+### Phase 11 — Canary system and attack surface *(Added 2026-08-25)*
+
+Purpose: give organizations without a security operations function a detection capability with a signal-to-noise ratio they can actually sustain.
+
+Prerequisite: Phase 4 action catalog and Phase 10 findings.
+
+Deliverables:
+
+- canary types across device, identity and directory, network, DNS, cloud, and document layers as enumerated in the strategy document;
+- deployment through the existing typed action and job model, targeted by scope;
+- canary inventory with type, location, deployment date, owner, and expected-silence state;
+- activation ingestion producing a high-severity `Finding` that can propose an existing containment action for human approval;
+- alert routing with severity, escalation, and delivery outside the console;
+- rotation and retirement lifecycle;
+- benign-trip suppression with documented, reviewable suppression rules covering backup, endpoint protection, indexing, and DLP agents;
+- canary coverage map showing which scopes have which canary types and where coverage is absent;
+- scope-authorization object for active scanning, carrying approved address range, time window, approver, and expiry, reusing the existing approval machinery;
+- approval-gated active scanning bounded by that authorization.
+
+Acceptance:
+
+- a canary activation reaches the responsible operator outside the console within the configured interval;
+- suppression rules are explicit objects with an owner and a review date, never silent filtering, and a suppressed trip is still recorded;
+- canary inventory reconciles against deployed state, and a canary that has been deleted or altered on the endpoint is itself a finding;
+- an active scan cannot start without a valid unexpired scope authorization, and scanning outside the authorized range fails closed;
+- canary deployment, activation, suppression, rotation, and retirement are exercised end to end on Linux and Windows VMs;
+- cloud canary credential activation is proven against a real tenant without exposing any live secret in the repository or logs.
+
+Not in this phase:
+
+- canary content that embeds customer data;
+- automated containment without human approval.
+
+### Phase 12 — Cloud and identity posture *(Added 2026-08-25)*
+
+Purpose: extend the operate-what-you-own thesis to the cloud and identity platforms the organization already pays for.
+
+Prerequisite: Phase 9 capability contract and Phase 10 findings.
+
+Deliverables:
+
+- read-only connectors for Entra ID and Microsoft 365, Google Workspace, AWS, and Azure covering the capability sets named in the strategy document;
+- least-privilege connector credentials with documented required permissions and a stated reason for each;
+- DNS and mail posture checks covering resolver filtering, DNSSEC validation, SPF correctness, DMARC policy strength and reporting, MTA-STS, and TLS-RPT;
+- tenant license SKU detection feeding the entitled-but-unused report;
+- cloud findings normalized into the same `Finding` and `Risk` model as endpoint findings;
+- cloud capability drift detection on the standard cadence.
+
+Acceptance:
+
+- every connector documents the exact permissions it requires and functions with no permission beyond them;
+- connector credentials are stored under the existing secret handling rules and never appear in logs, exports, or the repository;
+- a cloud finding is indistinguishable in handling from an endpoint finding at the risk and reporting layer;
+- entitlement data from the tenant reconciles against the capability recommendations shown;
+- read-only enforcement is proven by test: no connector code path performs a write against a tenant.
+
+Not in this phase:
+
+- cloud configuration change;
+- cloud workload runtime protection;
+- container or Kubernetes posture.
+
+### Phase 13 — SHA Advisor *(Added 2026-08-25)*
+
+Purpose: lower the expertise required to operate the program, without weakening any security boundary.
+
+Prerequisite: Phases 8 and 10, and sufficient Track C guidance content to serve as the deterministic fallback corpus.
+
+Deliverables:
+
+- provider-neutral model interface with a supported self-hosted configuration;
+- retrieval limited to SHA's own data and authored guidance content, executed under the calling principal's scoped query predicates;
+- draft-only output: approval requests, exceptions, risk entries, attestations, remediation plans, and report narratives materialized as inert draft objects reviewed in a diff before human submission;
+- untrusted-content handling in which endpoint-derived data is delimited, never concatenated into instruction context, and can never select a tool;
+- audit events recording principal, scope, question, retrieved object identifiers, and produced drafts;
+- deterministic fallback: every Advisor function has a non-model answer drawn from authored guidance;
+- a global disable switch that leaves the product fully usable;
+- the six initial functions named in the strategy document.
+
+Acceptance:
+
+- the Advisor cannot read any object the calling principal cannot read, proven by cross-client and cross-scope tests;
+- no Advisor code path can obtain a device credential, claim a lease, call an agent-facing route, or start a job, proven by test;
+- an injection corpus embedded in hostnames, process names, file paths, command lines, and collected evidence produces no tool call, no scope change, and no submitted object;
+- every draft requires an explicit human submission action, and the audit record distinguishes drafted from submitted;
+- Advisor egress reaches only the configured provider, proven by network policy test;
+- with the Advisor disabled, every workflow completes and every guidance surface still answers;
+- the Advisor returns explicit `unknown` or `stale` rather than inferring coverage, verified against seeded incomplete state.
+
+Not in this phase:
+
+- Advisor-initiated action of any kind;
+- model training or fine-tuning on customer data;
+- Advisor access to any data source outside SHA.
 
 ## Cross-cutting implementation requirements
 
