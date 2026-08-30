@@ -43,3 +43,8 @@ control-packs/packs/*.tmp
 .mypy_cache/
 .pyright/
 htmlcov/
+
+# Machine-generated project index. It records the host's LAN address and
+# hostname, regenerates on a timer, and this repository is public - so tracking
+# it republished both on every commit. Ominull ignores it for the same reason.
+.index.yaml
