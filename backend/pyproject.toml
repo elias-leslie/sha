@@ -2,7 +2,7 @@
 name = "sha-backend"
 version = "0.1.0"
 description = "Security Hardening Automation control-plane backend"
-license = "Apache-2.0"
+license = "BUSL-1.1"
 requires-python = "==3.13.*"
 dependencies = [
   "fastapi==0.136.3",

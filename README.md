@@ -1,4 +1,4 @@
-# SHA — Security Hardening Automation
+# SHA™ — Security Hardening Automation
 
 SHA is an early-stage Windows/Linux/macOS security operations platform covering security posture and program management, compliance, incident response, and attack surface. It combines a FastAPI control-plane API, a Next.js operator dashboard, a Go endpoint agent, compatibility bootstrap reporters, and shared contracts for enrollment, posture reporting, approvals, and bounded remediation workflows.
 
@@ -9,7 +9,7 @@ SHA measures what an organization already owns, activates it correctly through t
 The product direction, audience, framework spine, and phase plan are documented in [docs/plans/2026-08-25-sha-guided-security-program-strategy.md](docs/plans/2026-08-25-sha-guided-security-program-strategy.md). The section below describes only what runs today.
 
 [![CI](https://github.com/elias-leslie/sha/actions/workflows/ci.yml/badge.svg)](https://github.com/elias-leslie/sha/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-BUSL--1.1-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000.svg?logo=next.js&logoColor=white)](https://nextjs.org/)
 
@@ -342,4 +342,11 @@ CIS Benchmark and Microsoft baseline content are not reproduced in this reposito
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+SHA™ is released under the [Business Source License 1.1](LICENSE) (`BUSL-1.1`). See also [NOTICE](NOTICE).
+
+- **Free for non-commercial use** — individuals, schools and universities, academic research, and non-profits, in production, forever.
+- **Free for everyone to evaluate, develop and test.** Non-production use is not restricted, so a business can try it before deciding.
+- **A commercial licence is required** for production use by or for a business, and for offering SHA to third parties as part of a product or service. Email <eliasleslie@gmail.com>.
+- **Every version becomes Apache 2.0** two years after it is published. That grant is written into the licence and cannot be withdrawn.
+
+Versions published before 30 August 2026 remain under the Apache License, Version 2.0.

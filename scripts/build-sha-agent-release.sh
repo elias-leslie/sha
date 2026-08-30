@@ -135,6 +135,11 @@ PY
     cp "$ROOT_DIR/scripts/install-sha-agent-windows.ps1" "$stage/install-windows.ps1"
     cp "$ROOT_DIR/scripts/verify-sha-agent-release.ps1" "$stage/verify-release.ps1"
   fi
+  # The licence travels with every artifact. BUSL's redistribution term asks for
+  # it, and a binary someone received with no terms attached is one they cannot
+  # tell whether they are allowed to deploy. It is enumerated into the signed
+  # manifest like every other staged file.
+  cp "$ROOT_DIR/LICENSE" "$stage/LICENSE"
   chmod 0755 "$stage/$binary"
   [[ "$goos" != linux ]] || chmod 0755 "$stage/install-linux.sh" "$stage/verify-release.sh" "$stage/sha-agent-package.py"
   python3 "$ROOT_DIR/scripts/sha-agent-package.py" create-release \

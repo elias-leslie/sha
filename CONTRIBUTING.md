@@ -17,6 +17,14 @@ Install, run, and validation commands are documented in [README.md](README.md).
 
 ## Licensing
 
-By submitting a contribution, you represent that you have the right to license it and agree that your contribution will be provided under the Apache License 2.0 for this repository.
+SHA™ is released under the [Business Source License 1.1](LICENSE) (`BUSL-1.1`): free for non-commercial production use and for everyone's evaluation, development and testing, with a commercial licence required for business production use. Each version converts to Apache 2.0 two years after it is published.
 
-No CLA is required at this time.
+By submitting a contribution, you agree that:
+
+1. You own the copyright in your contribution, or have the right to submit it.
+2. Your contribution is licensed to the project under the terms of the [LICENSE](LICENSE) file.
+3. You grant Elias Leslie a perpetual, irrevocable, worldwide, royalty-free right to relicense your contribution under any other licence terms, including a commercial licence.
+
+Point 3 exists so the project can keep the arrangement that funds it without having to track down every past contributor. It does not take anything from you: you keep the copyright in your own work and may use it however you like.
+
+If you would rather not grant that, open an issue describing the change instead of a pull request.
