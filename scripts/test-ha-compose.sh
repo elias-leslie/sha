@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 COMPOSE_FILE="$ROOT_DIR/deploy/ha/docker-compose.yml"
+TEST_COMPOSE_FILE="$ROOT_DIR/deploy/ha/docker-compose.test.yml"
+COMPOSE_ARGS=(-f "$COMPOSE_FILE")
 PROJECT=${PROJECT:-sha-ha-e2e-$(date -u +%Y%m%d%H%M%S)}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-sha-ha-e2e-password}
 OPERATOR_TOKEN=${SHA_API_TOKEN:-operator-token}
@@ -44,7 +47,7 @@ compose() {
   SHA_EXTERNAL_AUTH_TRUSTED_TOKEN="$EXTERNAL_AUTH_TOKEN" \
   SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE="$CREDENTIAL_HMAC_KEY_FILE" \
   SHA_PUBLIC_PORT="$PORT" \
-  docker compose -p "$PROJECT" -f "$COMPOSE_FILE" "$@"
+  docker compose -p "$PROJECT" "${COMPOSE_ARGS[@]}" "$@"
 }
 
 cleanup() {
@@ -174,6 +177,35 @@ if [[ "${RESTORE_VALIDATION_ONLY:-0}" == "1" ]]; then
   exit 0
 fi
 
+# Build a real signed release with a fresh test-only key; never copy keys into images.
+need go
+need openssl
+need zip
+export SHA_HA_AGENT_FIXTURE_ROOT="$WORK_DIR/agent-packages"
+mkdir -p "$SHA_HA_AGENT_FIXTURE_ROOT/keys" "$SHA_HA_AGENT_FIXTURE_ROOT/trust"
+FIXTURE_KEY="$SHA_HA_AGENT_FIXTURE_ROOT/keys/signing.pem"
+FIXTURE_TRUST="$SHA_HA_AGENT_FIXTURE_ROOT/trust/policy.json"
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$FIXTURE_KEY" >/dev/null 2>&1
+openssl pkey -in "$FIXTURE_KEY" -pubout -out "$SHA_HA_AGENT_FIXTURE_ROOT/trust/public.pem" >/dev/null 2>&1
+FIXTURE_FINGERPRINT=$(python3 "$ROOT_DIR/scripts/sha-agent-package.py" fingerprint \
+  --public-key "$SHA_HA_AGENT_FIXTURE_ROOT/trust/public.pem")
+python3 - "$FIXTURE_TRUST" "$FIXTURE_FINGERPRINT" <<'PYFIXTURE'
+import json
+import sys
+with open(sys.argv[1], "w", encoding="utf-8") as stream:
+    json.dump({
+        "schema_version": "sha-agent-trust-policy-v1",
+        "expected_signing_identity": "ha-fixture@example.invalid",
+        "revoked_fingerprints": [],
+        "trusted_keys": [{"fingerprint": sys.argv[2], "key_id": "ha-fixture-key", "public_key_file": "public.pem"}],
+    }, stream)
+PYFIXTURE
+SHA_RELEASE_SIGNING_KEY_FILE="$FIXTURE_KEY" SHA_RELEASE_SIGNING_IDENTITY=ha-fixture@example.invalid \
+  SHA_RELEASE_SIGNING_KEY_ID=ha-fixture-key SOURCE_DATE_EPOCH=1700000000 \
+  OUT_DIR="$SHA_HA_AGENT_FIXTURE_ROOT/releases" "$ROOT_DIR/scripts/build-sha-agent-release.sh"
+COMPOSE_ARGS+=(-f "$TEST_COMPOSE_FILE")
+RUNTIME_COMPOSE_FILES="$COMPOSE_FILE:$TEST_COMPOSE_FILE"
+
 compose up -d --wait --wait-timeout 120 postgres
 compose build migrate
 compose run --rm --no-deps migrate uv run python scripts/verify_postgres_migration_runtime.py
@@ -211,12 +243,17 @@ if [[ "$spoofed_proxy_status" != "401" ]]; then
 fi
 
 PROFILE_ID_FILE="$WORK_DIR/profile-id.txt"
-python3 - "$BASE_URL" "$OPERATOR_TOKEN" "$PROFILE_ID_FILE" <<'PY'
+python3 - "$BASE_URL" "$OPERATOR_TOKEN" "$PROFILE_ID_FILE" "$WORK_DIR" "$FIXTURE_TRUST" <<'PY'
+import hashlib
+import io
 import json
+from pathlib import Path
+import subprocess
 import sys
+import tarfile
 from urllib import request
 
-base_url, token, profile_id_file = sys.argv[1:]
+base_url, token, profile_id_file, work_dir, trust_policy = sys.argv[1:]
 
 
 def call_raw(method: str, path: str, payload: dict[str, object] | None = None) -> tuple[bytes, dict[str, str]]:
@@ -248,8 +285,27 @@ profile = call_json("POST", "/api/installer-profiles", {
 })
 open(profile_id_file, "w", encoding="utf-8").write(profile["id"])
 artifact, headers = call_raw("GET", f"/api/installer-profiles/{profile['id']}/artifact")
-assert artifact.startswith(b"#!/usr/bin/env bash\n")
-assert headers.get("x-sha-artifact-sha256")
+assert profile["runtime_kind"] == "go_agent"
+assert headers.get("content-type") == "application/gzip"
+assert headers.get("x-sha-artifact-sha256") == hashlib.sha256(artifact).hexdigest()
+assert headers.get("x-sha-signing-identity") == "ha-fixture@example.invalid"
+assert headers.get("x-sha-signing-key-id") == "ha-fixture-key"
+extract_dir = Path(work_dir) / "downloaded-release"
+extract_dir.mkdir()
+with tarfile.open(fileobj=io.BytesIO(artifact), mode="r:gz") as archive:
+    members = archive.getmembers()
+    assert all(member.isfile() or member.isdir() for member in members)
+    archive.extractall(extract_dir, filter="data")
+stages = list(extract_dir.iterdir())
+assert len(stages) == 1 and stages[0].is_dir()
+subprocess.run([str(stages[0] / "verify-release.sh"), "--trust-policy", trust_policy, "--json"], check=True)
+# Prove signature verification is substantive, not just an archive/header check.
+manifest = stages[0] / "release-manifest.json"
+manifest.write_bytes(manifest.read_bytes() + b" ")
+assert subprocess.run(
+    [str(stages[0] / "verify-release.sh"), "--trust-policy", trust_policy],
+    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+).returncode != 0
 assert headers.get("cache-control") == "private, no-store"
 evidence = call_json("GET", "/api/compliance/evidence")
 assert evidence["source_catalog"]["pack_count"] == 4
@@ -262,14 +318,16 @@ print(json.dumps({
 }, sort_keys=True))
 PY
 
-python3 - "$BASE_URL" "$OPERATOR_TOKEN" "$AGENT_TOKEN" <<'PY'
+python3 - "$BASE_URL" "$OPERATOR_TOKEN" <<'PY'
 import json
+import secrets
 import sys
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from urllib import error, request
 
-base_url, operator_token, agent_token = sys.argv[1:]
+base_url, operator_token = sys.argv[1:]
 
 
 def call_json(
@@ -293,16 +351,34 @@ def call_json(
         ) from exc
 
 
-endpoint = call_json("POST", "/api/endpoints/enroll", agent_token, {
+client = call_json("POST", "/api/clients", operator_token, {"key": "ha-lease-race", "name": "HA Lease Race"})
+location = call_json("POST", f"/api/clients/{client['client_id']}/locations", operator_token, {
+    "key": "ha-lease-site", "name": "HA Lease Site",
+})
+enrollment = call_json("POST", "/api/enrollment-tokens", operator_token, {
+    "client_id": client["client_id"], "location_id": location["location_id"],
+    "platform": "linux", "approval_policy": "approved", "expires_in_minutes": 15, "max_uses": 1,
+})
+credential_id = "dc_" + uuid.uuid4().hex
+credential_secret = secrets.token_urlsafe(32)
+endpoint = call_json("POST", "/api/agent/bootstrap", enrollment["token"], {
+    "installation_id": "ha-lease-" + uuid.uuid4().hex,
+    "credential_id": credential_id,
+    "credential_secret": credential_secret,
+    "protocol_version": "sha-agent-v1",
+    "architecture": "amd64",
     "agent_fingerprint": "ha-postgres-lease-race",
     "hostname": "ha-lease-race",
     "platform": "linux",
     "platform_version": "Ubuntu 24.04",
     "agent_version": "ha-e2e",
 })
-endpoint_id = endpoint["endpoint_id"]
+endpoint_id = endpoint["endpoint"]["endpoint_id"]
+agent_token = f"sha_device.{credential_id}.{credential_secret}"
 call_json("POST", f"/api/endpoints/{endpoint_id}/heartbeat", agent_token, {
     "agent_version": "ha-e2e",
+    "protocol_version": "sha-agent-v1",
+    "architecture": "amd64",
     "platform_version": "Ubuntu 24.04",
     "platform_profile": "ha-e2e",
     "connectivity_status": "online",
@@ -310,6 +386,17 @@ call_json("POST", f"/api/endpoints/{endpoint_id}/heartbeat", agent_token, {
         "heartbeat",
         "apply_control:linux.ssh.password-authentication-disabled",
     ],
+    "capability_manifest": {
+        "schema_version": "sha-agent-capabilities-v1",
+        "capabilities": [
+            {"id": "heartbeat", "kind": "core", "versions": ["1"]},
+            {"id": "apply_control:linux.ssh.password-authentication-disabled", "kind": "action", "versions": ["1"]},
+        ],
+        "runtime": {"privilege": "elevated", "service_context": "system_service"},
+        "features": {"evidence_upload": False, "terminal": False},
+        "resource_limits": {"max_concurrent_jobs": 1, "max_output_bytes": 65536, "max_upload_bytes": 0, "command_timeout_seconds": 30},
+        "health": {"state": "healthy", "reasons": []},
+    },
     "execution_hooks": {
         "captures_rollback_artifacts": True,
         "reports_execution_results": True,
@@ -392,7 +479,7 @@ print("postgres_claim_backend_replicas=2")
 '
 
 BACKUP_DIR="$WORK_DIR/backups"
-PROJECT="$PROJECT" SHA_COMPOSE_FILES="$COMPOSE_FILE" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" SHA_API_TOKEN="$OPERATOR_TOKEN" \
+PROJECT="$PROJECT" SHA_COMPOSE_FILES="$RUNTIME_COMPOSE_FILES" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" SHA_API_TOKEN="$OPERATOR_TOKEN" \
   SHA_READONLY_API_TOKEN="$READONLY_TOKEN" SHA_AGENT_API_TOKEN="$AGENT_TOKEN" \
   SHA_EXTERNAL_AUTH_TRUSTED_TOKEN="$EXTERNAL_AUTH_TOKEN" SHA_PUBLIC_PORT="$PORT" BACKUP_DIR="$BACKUP_DIR" \
   SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE="$CREDENTIAL_HMAC_KEY_FILE" \
@@ -422,12 +509,13 @@ req.add_header("Content-Type", "application/json")
 with request.urlopen(req, timeout=30):
     pass
 PY
-CONFIRM_RESTORE=sha-restore PROJECT="$PROJECT" SHA_COMPOSE_FILES="$COMPOSE_FILE" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+CONFIRM_RESTORE=sha-restore PROJECT="$PROJECT" SHA_COMPOSE_FILES="$RUNTIME_COMPOSE_FILES" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
   SHA_API_TOKEN="$OPERATOR_TOKEN" SHA_READONLY_API_TOKEN="$READONLY_TOKEN" SHA_AGENT_API_TOKEN="$AGENT_TOKEN" \
   SHA_EXTERNAL_AUTH_TRUSTED_TOKEN="$EXTERNAL_AUTH_TOKEN" SHA_PUBLIC_PORT="$PORT" \
   SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE="$CREDENTIAL_HMAC_KEY_FILE" \
   "$ROOT_DIR/scripts/restore-ha-postgres.sh" "$BACKUP_FILE"
 python3 - "$BASE_URL" "$OPERATOR_TOKEN" "$PROFILE_ID_FILE" <<'PY'
+import hashlib
 import json
 import sys
 from urllib import request
@@ -442,7 +530,12 @@ ids = {profile["id"] for profile in profiles}
 names = {profile["name"] for profile in profiles}
 assert profile_id in ids
 assert "HA Compose Post Backup Marker" not in names
-print(json.dumps({"restored_profile_id": profile_id, "profile_count": len(profiles)}, sort_keys=True))
+artifact_request = request.Request(base_url + f"/api/installer-profiles/{profile_id}/artifact")
+artifact_request.add_header("Authorization", f"Bearer {token}")
+with request.urlopen(artifact_request, timeout=30) as response:
+    assert response.headers["Content-Type"] == "application/gzip"
+    assert response.headers["X-SHA-Artifact-Sha256"] == hashlib.sha256(response.read()).hexdigest()
+print(json.dumps({"restored_profile_id": profile_id, "profile_count": len(profiles), "restored_signed_artifact": True}, sort_keys=True))
 PY
 
 printf 'HA_COMPOSE_E2E_OK port=%s project=%s\n' "$PORT" "$PROJECT"

@@ -1,0 +1,36 @@
+# Ephemeral signed-package fixtures for test-ha-compose.sh only.
+services:
+  agent-package-fixture:
+    build:
+      context: ../..
+      dockerfile: deploy/backend.Dockerfile
+    command:
+      - python
+      - -c
+      - "import shutil; shutil.copytree('/fixture', '/packages', dirs_exist_ok=True)"
+    volumes:
+      - ${SHA_HA_AGENT_FIXTURE_ROOT:?set SHA_HA_AGENT_FIXTURE_ROOT}:/fixture:ro
+      - agent-package-fixture:/packages
+    restart: "no"
+
+  backend-a: &signed-package-backend
+    environment:
+      SHA_AGENT_RELEASE_ROOT: /run/sha-agent-packages/releases
+      SHA_AGENT_RELEASE_TRUST_POLICY_FILE: /run/sha-agent-packages/trust/policy.json
+      SHA_AGENT_PROFILE_SIGNING_KEY_FILE: /run/sha-agent-packages/keys/signing.pem
+      SHA_AGENT_PROFILE_SIGNING_IDENTITY: ha-fixture@example.invalid
+      SHA_AGENT_PROFILE_SIGNING_KEY_ID: ha-fixture-key
+      SHA_AGENT_PACKAGE_SPOOL_ROOT: /run/sha-package-spool
+      SHA_AGENT_PROFILE_PACKAGE_TOOL: /app/scripts/create-sha-agent-profile-package.sh
+    volumes:
+      - agent-package-fixture:/run/sha-agent-packages:ro
+    tmpfs:
+      - /run/sha-package-spool:mode=0700
+    depends_on:
+      agent-package-fixture:
+        condition: service_completed_successfully
+
+  backend-b: *signed-package-backend
+
+volumes:
+  agent-package-fixture:
