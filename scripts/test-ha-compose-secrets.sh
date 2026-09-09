@@ -66,7 +66,8 @@ compose() {
   SHA_PUBLIC_PORT="$PORT" \
   docker compose -p "$PROJECT" \
     -f "$ROOT_DIR/deploy/ha/docker-compose.yml" \
-    -f "$ROOT_DIR/deploy/ha/docker-compose.secrets.yml" "$@"
+    -f "$ROOT_DIR/deploy/ha/docker-compose.secrets.yml" \
+    -f "$ROOT_DIR/deploy/ha/docker-compose.test.yml" "$@"
 }
 
 cleanup() {
@@ -81,9 +82,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# shellcheck source=scripts/test-ha-signed-fixture.sh
+source "$ROOT_DIR/scripts/test-ha-signed-fixture.sh"
+
 compose up -d --build --wait --wait-timeout 240
 compose ps --status running
-COMPOSE_FILES_SPEC="$ROOT_DIR/deploy/ha/docker-compose.yml:$ROOT_DIR/deploy/ha/docker-compose.secrets.yml"
+COMPOSE_FILES_SPEC="$ROOT_DIR/deploy/ha/docker-compose.yml:$ROOT_DIR/deploy/ha/docker-compose.secrets.yml:$ROOT_DIR/deploy/ha/docker-compose.test.yml"
 BACKUP_DIR="$WORK_DIR/backups"
 PROJECT="$PROJECT" SHA_COMPOSE_FILES="$COMPOSE_FILES_SPEC" \
   POSTGRES_PASSWORD=overridden-by-postgres-secret-file \
@@ -138,13 +142,18 @@ req.add_header("X-SHA-External-User", "secrets-e2e@example.test")
 with request.urlopen(req, timeout=30) as response:
     assert response.status == 200
 PY
-python3 - "$BASE_URL" "$SECRET_DIR/sha_api_token" "$SECRET_DIR/sha_agent_api_token" <<'PY'
+python3 - "$BASE_URL" "$SECRET_DIR/sha_api_token" "$SECRET_DIR/sha_agent_api_token" "$WORK_DIR" "$FIXTURE_TRUST" <<'PY'
 import json
 from pathlib import Path
 import sys
 from urllib import request
 
-base_url, token_file, agent_token_file = sys.argv[1:]
+import hashlib
+import io
+import subprocess
+import tarfile
+
+base_url, token_file, agent_token_file, work_dir, trust_policy = sys.argv[1:]
 token = Path(token_file).read_text(encoding="utf-8")
 agent_token = Path(agent_token_file).read_text(encoding="utf-8")
 req = request.Request(base_url + "/api/installer-profiles", data=json.dumps({
@@ -161,10 +170,32 @@ with request.urlopen(req, timeout=30) as response:
 req = request.Request(base_url + f"/api/installer-profiles/{profile['id']}/artifact", method="GET")
 req.add_header("Authorization", f"Bearer {token}")
 with request.urlopen(req, timeout=30) as response:
-    artifact = response.read().decode()
+    artifact = response.read()
+    headers = {key.lower(): value for key, value in response.headers.items()}
     assert response.headers["Cache-Control"] == "private, no-store"
-assert f'"api_token": "{agent_token}"' in artifact
-print(json.dumps({"profile_id": profile["id"], "agent_secret_embedded": True}, sort_keys=True))
+assert profile["runtime_kind"] == "go_agent"
+assert headers["content-type"] == "application/gzip"
+assert headers["x-sha-artifact-sha256"] == hashlib.sha256(artifact).hexdigest()
+assert headers["x-sha-signing-identity"] == "ha-fixture@example.invalid"
+assert headers["x-sha-signing-key-id"] == "ha-fixture-key"
+extract_dir = Path(work_dir) / "downloaded-release"
+extract_dir.mkdir()
+with tarfile.open(fileobj=io.BytesIO(artifact), mode="r:gz") as archive:
+    assert all(member.isfile() or member.isdir() for member in archive.getmembers())
+    archive.extractall(extract_dir, filter="data")
+stages = list(extract_dir.iterdir())
+assert len(stages) == 1 and stages[0].is_dir()
+subprocess.run([str(stages[0] / "verify-release.sh"), "--trust-policy", trust_policy, "--json"], check=True)
+for path in extract_dir.rglob("*"):
+    if path.is_file():
+        assert agent_token.encode() not in path.read_bytes(), path.name
+manifest = stages[0] / "release-manifest.json"
+manifest.write_bytes(manifest.read_bytes() + b" ")
+assert subprocess.run(
+    [str(stages[0] / "verify-release.sh"), "--trust-policy", trust_policy],
+    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+).returncode != 0
+print(json.dumps({"profile_id": profile["id"], "signed_artifact_verified": True, "agent_secret_embedded": False}, sort_keys=True))
 PY
 python3 - "$BASE_URL" "$SECRET_DIR/sha_api_token" <<'PY'
 import json
