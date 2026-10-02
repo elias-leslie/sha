@@ -1,353 +1,56 @@
-# SHA™ — Security Hardening Automation
+# Security Hardening Automation
 
-SHA is an early-stage Windows/Linux/macOS security operations platform covering security posture and program management, compliance, incident response, and attack surface. It combines a FastAPI control-plane API, a Next.js operator dashboard, a Go endpoint agent, compatibility bootstrap reporters, and shared contracts for enrollment, posture reporting, approvals, and bounded remediation workflows.
+Security Hardening Automation (SHA) is an early-stage security operations platform for organizations managing Windows, Linux, and macOS endpoints. It brings posture evidence, a control registry, human approvals, and bounded response actions into one operator workspace.
 
-Most organizations have already paid for strong security capability and are running a fraction of it. Windows, Linux, macOS, Entra ID, Google Workspace, and the major cloud providers all ship controls that sit unconfigured, partly configured, or configured once and never verified again. The usual answer is to buy another product and layer it on top, which adds cost and an agent and leaves the platform in the same state.
+## What it does
 
-SHA measures what an organization already owns, activates it correctly through typed actions with rollback, proves it stays activated, and only then identifies what is genuinely missing. Every disruptive action requires human approval, and endpoint work is constrained to typed capabilities rather than arbitrary remote shell.
+- Displays fleet/endpoints, posture, controls, installer profiles, approvals, and action history.
+- Delivers typed response actions through short leases with authenticated result reporting.
+- Supports OIDC browser sessions, scoped roles, enrollment tokens, and per-device credentials.
+- Produces signed Go-agent development bundles and transitional compatibility reporters.
+- Exports compliance evidence and deterministic contract schemas/source-pack catalogs.
 
-The product direction, audience, framework spine, and phase plan are documented in [docs/plans/2026-08-25-sha-guided-security-program-strategy.md](docs/plans/2026-08-25-sha-guided-security-program-strategy.md). The section below describes only what runs today.
+## Current scope
 
-[![CI](https://github.com/elias-leslie/sha/actions/workflows/ci.yml/badge.svg)](https://github.com/elias-leslie/sha/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-BUSL--1.1-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.13-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-16-000000.svg?logo=next.js&logoColor=white)](https://nextjs.org/)
+The control plane and dashboard are working development slices. Native Go-agent capabilities differ by platform: Windows supports a narrow firewall mutation/rollback path; Linux and macOS have narrower observe/compatibility boundaries. Compatibility scripts and native agent packages are separate paths, as detailed in the [agent guide](agent/README.md).
 
-![SHA Infrastructure & Endpoint Compliance Console running in demo mode against an invented fleet](docs/images/sha-console-demo.png)
+Short-lived enrollment and signed release manifests exist. Native DEB/RPM/MSI distribution, ecosystem signing, macOS package/runtime acceptance, and broader production readiness remain gaps. Disruptive work requires typed approval; the endpoint API does not accept arbitrary remote-shell commands. SHAna and wider guided-program automation remain product direction.
 
-## Current status
+## Getting started
 
-This repository contains a working control-plane/dashboard slice, not a production-ready endpoint-management product.
-
-Implemented:
-
-- backend API (15 routers, 49 endpoints) for enrollment, heartbeats, posture snapshots, the canonical control registry, installer profiles, approval requests/grants, leased response actions, source-pack catalog reads, and compliance evidence export
-- frontend dashboard pages for fleet, endpoints, controls, installers, and approvals, with live/loading/error state, an explicitly enabled fixture-only demo mode, weighted endpoint posture scores, and endpoint response-action history
-- deterministic Linux, Windows, and macOS compatibility reporter generation for installer profiles, served as private, non-cacheable downloads with attachment, digest, no-sniff, and no-referrer headers; token-bearing bodies are not previewed in the dashboard
-- generated Linux, Windows, and macOS reporters atomically claim approval-backed response actions under short leases; all complete bounded incident-response context/evidence collection, while Linux and Windows each have reversible typed hardening controls
-- cross-compiled Go endpoint agent release path with Linux systemd, macOS launchd, and Windows scheduled-task packaging for enroll, heartbeat, posture upload, leased response-action claim/result, explicit unsupported-action results, and Windows Firewall all-profile apply/rollback; only the Windows Go agent advertises mutation and rollback-artifact support
-- fail-closed protected authentication with provider-neutral OIDC browser sessions, global/client/location role bindings, separate legacy operator/read-only/agent credentials, CSRF/origin enforcement, and an explicit local-only `development_open` mode
-- a human-in-the-loop approval workflow with two typed request kinds (`hardening_change`, `elevated_troubleshooting`), bounded grant TTLs (15–240 min), manual emergency grants, append-only audit events, and concurrency-safe state transitions
-- an approval-backed response-action queue with request idempotency, atomic claim, opaque hashed lease credentials, expiry/reclaim, and lease-bound idempotent result reporting
-- Alembic-managed SQLite/PostgreSQL schemas, including a one-shot migration/check split for the HA deployment
-- 24 generated JSON Schemas under `schemas/generated/`, exported deterministically from the Pydantic contracts
-- 4 curated starter control packs (17 controls) spanning public-source NIST SP 800-53 Rev. 5, DISA Windows Server 2022 STIG, CISA/NSA hardening guidance, and SHA's implemented endpoint-response controls, built by a strict, repo-local, deterministic catalog builder
-- HA-ready self-hosting compose stack with PostgreSQL, two backend replicas, nginx API load balancing, and the dashboard
-
-Not yet production-ready:
-
-- OIDC configuration is not yet wired into the starter HA Compose manifests; deployments must mount its client/session secrets and configure their provider explicitly. Legacy API tokens remain available for compatibility, while direct external-proxy roles are disabled whenever scoped OIDC is enabled.
-- no short-lived enrollment tokens, unique per-device credentials, signed packages, or signed bootstrap manifests; generated compatibility reporters use the shared agent token in protected mode and are not production installers
-- Linux and Windows privileged runtime have fresh Proxmox evidence in `docs/verification/2026-07-17-phase0-runtime.md`; macOS is build/contract verified only
-- no fully managed production HA offering; a starter PostgreSQL/nginx compose path is checked in for HA-ready self-hosting
-- no live AI/operator integration is required or bundled
-
-Do not expose the backend or dashboard to an untrusted network without protected authentication, HTTPS, managed secrets, and deployment hardening appropriate for your environment. The compatibility reporter path is transitional, not the signed package/enrollment design described in the roadmap.
-
-## What the compatibility reporters actually check
-
-The generated artifacts install a transitional reporter (a systemd timer on Linux, a scheduled task on Windows, or a launchd daemon on macOS, all on a 15-minute cadence) that runs concrete posture checks and reports back through `enroll → heartbeat → posture snapshot → action claim → lease-bound result`:
-
-- **Linux** — firewall service active (ufw / firewalld / nftables), SSH `PasswordAuthentication`, root password lock, automatic-update units, audit/log-retention signal, bounded hardware summary, process inventory, package inventory, enabled startup services, active login sessions, and listening-port inventory.
-- **Windows** — all firewall profiles enabled, Microsoft Defender real-time protection, BitLocker system-drive protection, Secure Boot, process inventory, TCP listener inventory, installed software names, automatic-start services, recent Security log readability, service status, and current service identity.
-- **macOS** — Application Firewall, FileVault, Gatekeeper, automatic-update check preference, unified-log store signal, bounded hardware summary, process inventory, application inventory, launchd startup items, active login sessions, listening TCP sockets, service status, and console-user identity context.
-
-The reporters avoid arbitrary endpoint control by construction: Windows can apply/rollback firewall all-profiles enablement, Defender real-time protection, and host-based endpoint network isolation; Linux can apply/rollback SSH `PasswordAuthentication no` and host-based endpoint network isolation; and macOS currently stays observe-only for hardening mutations. Typed approvals and rollback artifacts gate the reversible Linux/Windows actions. Posture results roll up into a per-endpoint weighted score and a control "drift matrix" on the dashboard.
-
-These downloads are deterministic compatibility scripts, not signed production packages. In protected mode they contain the shared agent token, so the API marks them `private, no-store`, the dashboard never renders their body, and operators should save, hash-check, inspect, then execute the local file. Never pipe a network response directly into a privileged shell.
-
-## Safety model
-
-- **Typed, bounded approvals** — every approval path rejects mixed hardening + troubleshooting, forbids actions outside the typed enums, and bounds elevated troubleshooting to six named scopes. There is no shell or arbitrary-command endpoint anywhere in the API.
-- **Principal-separated access** — operator, read-only, and agent credentials have exclusive route classes. Audit actors come from the authenticated principal; caller-supplied actor fields are ignored.
-- **Lease-bound delivery** — agents atomically claim at most one action, receive an opaque lease token once, and must submit results before that lease expires. Stale or mismatched completions cannot overwrite the active attempt.
-- **Deterministic, provenance-pinned controls** — the catalog builder validates each pack against a pinned spec, rejects unexpected, missing, or symlinked files, enforces unique/sorted IDs, and writes atomically. Every control carries provenance and NIST CSF / SP 800-53 / STIG / CISA compliance mappings.
-- **Installer policy modes** — profiles select `observe`, `safe_auto`, or `approval_required`, on a `stable` or `preview` channel.
-
-## How it compares
-
-Most hardening tools sit at one of two extremes. **Auditors** (Lynis, OpenSCAP
-scans) only report — you fix everything by hand. **Appliers** (ansible-lockdown,
-OpenSCAP remediation, Wazuh active response) push changes, or run arbitrary
-remote shell, with nothing between *detected* and *changed*.
-
-SHA's design splits the difference: posture is observed and gaps are ranked, but
-every disruptive action is a **typed hardening capability behind a mandatory
-human-approval gate** — never arbitrary remote shell. The control plane,
-dashboard, approval flow, leased action delivery, compatibility reporters, and a
-narrow cross-platform Go agent exist today; production identity, enrollment,
-package trust, and broader endpoint capabilities remain roadmap work (see
-[Current status](#current-status)).
-
-| | SHA | Lynis | OpenSCAP · ansible-lockdown | Wazuh |
-|---|:---:|:---:|:---:|:---:|
-| Reports posture vs. public benchmarks | ✅ | ✅ | ✅ | ✅ |
-| Changes endpoints, not just audits | ✅ by design | audit only | ✅ | active response |
-| Disruptive actions gated on human approval | ✅ | n/a | ❌ applies directly | ❌ |
-| Endpoint work limited to typed capabilities (no arbitrary shell) | ✅ | n/a | playbooks/scripts | ❌ arbitrary commands |
-| Operator dashboard + approval queue | ✅ | ❌ | ❌ | ✅ |
-
-The differentiator isn't the control content — NIST, DISA, and CISA/NSA guidance
-is public and everyone ships it. It's the **execution model**: bounded, typed,
-and approval-gated by default.
-
-> ⭐ If a gated, typed approach to hardening is what you've wanted, a star helps others find it.
-
-## Requirements
-
-- Python 3.13
-- [uv](https://docs.astral.sh/uv/) for backend dependency management
-- Node.js 24 or newer
-- [pnpm](https://pnpm.io/) 10.28.0 via Corepack
-
-Optional Ubuntu 24.04 prerequisite bootstrap:
+Use Python 3.13, uv, Node.js 24, and pnpm 10.28.0. In separate terminals:
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y ca-certificates git
-```
-
-Install `uv` and Node.js 24 from the vendor documentation linked above, then enable the pinned package manager:
-
-```bash
-sudo corepack enable pnpm
-sudo corepack prepare pnpm@10.28.0 --activate
-```
-
-## Install from a fresh clone
-
-```bash
-git clone https://github.com/elias-leslie/sha.git
-cd sha
-
 cd backend
 uv sync
-
-cd ../frontend
-pnpm install
-```
-
-## Configuration
-
-Use `.env.example` as a local environment template:
-
-```bash
-cp .env.example .env
-# Optional: load it into the current shell before starting commands.
-set -a; . ./.env; set +a
-```
-
-Backend settings use the `SHA_` prefix:
-
-- `SHA_DATABASE_URL` — defaults to `sqlite:///data/sha.sqlite3` when run from `backend/`
-- `SHA_DATABASE_URL_FILE` — optional file-mounted secret alternative to `SHA_DATABASE_URL`
-- `SHA_AUTH_MODE` — `development_open` for local development or `protected` for shared deployments; protected mode returns 503 if no authentication mechanism is configured
-- `SHA_DATABASE_MIGRATION_MODE` — `upgrade` for local/one-shot migration or `check` for API replicas that must already be at Alembic head
-- `SHA_PORT` — documented local backend port, default `8010`
-- `SHA_API_TOKEN` — operator credential for non-agent API routes; accepts `Authorization: Bearer <token>` or `X-SHA-API-Token`
-- `SHA_API_TOKEN_FILE` — optional file-mounted secret alternative to `SHA_API_TOKEN`
-- `SHA_READONLY_API_TOKEN` — read-only credential for safe GET/HEAD/OPTIONS API routes; blocked from agent routes, mutations, and installer artifact downloads
-- `SHA_READONLY_API_TOKEN_FILE` — optional file-mounted secret alternative to `SHA_READONLY_API_TOKEN`
-- `SHA_AGENT_API_TOKEN` — least-privilege credential embedded in generated compatibility reporters; required for artifact generation whenever operator API-token or external-proxy authentication is configured. It can only enroll, heartbeat, post posture, claim an endpoint action, and report its lease-bound result. Unauthenticated local mode can leave it unset and generate tokenless artifacts.
-- `SHA_AGENT_API_TOKEN_FILE` — optional file-mounted secret alternative to `SHA_AGENT_API_TOKEN`
-- `SHA_EXTERNAL_AUTH_TRUSTED_TOKEN` — optional shared secret for a trusted identity proxy; direct requests must include `X-SHA-External-Auth`, `X-SHA-External-Role: operator|readonly`, and a non-empty `X-SHA-External-User`. Only use this when the backend is reachable solely through that proxy.
-- `SHA_EXTERNAL_AUTH_TRUSTED_TOKEN_FILE` — optional file-mounted secret alternative to `SHA_EXTERNAL_AUTH_TRUSTED_TOKEN`
-- `SHA_PUBLIC_BASE_URL` — root HTTPS browser origin for OIDC callbacks and CSRF origin checks; paths, query strings, fragments, and user information are rejected
-- `SHA_OIDC_ISSUER` — exact HTTPS issuer expected in discovery and ID-token claims
-- `SHA_OIDC_METADATA_URL` — HTTPS OpenID Provider metadata URL
-- `SHA_OIDC_CLIENT_ID` — provider client identifier
-- `SHA_OIDC_CLIENT_SECRET` / `SHA_OIDC_CLIENT_SECRET_FILE` — provider client secret; prefer the canonical absolute file form outside local development. Secret files must have no group/other permission bits and may not traverse symlinks unless the resolved path is on an immutable read-only container mount.
-- `SHA_OIDC_CA_BUNDLE_FILE` — optional secure absolute PEM bundle for a private provider CA; it must be size-bounded, parseable, non-symlinked, safely owned, and not group/world writable
-- `SHA_BROWSER_SESSION_KEY_FILE` — required with OIDC; canonical absolute file containing at least 32 durable random bytes used for transaction encryption and keyed session/state hashes, with the same strict secret ownership, permissions, and path checks
-- `SHA_SESSION_IDLE_MINUTES` — browser-session idle timeout, default `30`
-- `SHA_SESSION_ABSOLUTE_HOURS` — browser-session absolute lifetime, default `12`
-- `SHA_OIDC_LOGIN_TTL_MINUTES` — one-shot OIDC transaction lifetime, default `10`
-- `SHA_CREDENTIAL_HMAC_KEY_FILE` — canonical absolute path to the durable 32-4096 byte key used to hash enrollment tokens and per-device credentials. The backend refuses non-regular files, writable symlink paths, group/other permission bits, or untrusted owners. Every replica and restored database must use the same key.
-- `SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE` — host-side file mounted as the credential-HMAC key by the HA Compose stack. Required for every HA launch, including TLS and file-secret overlays; database backup does not include this file.
-
-Frontend settings:
-
-- `API_URL` — backend origin used by the Next.js same-origin API proxy, default `http://127.0.0.1:8010`
-- `NEXT_PUBLIC_SHA_DEMO_MODE` — build-time fixture-only mode; defaults off, visibly labels fixture data, and disables mutations
-
-The stock frontend forwards caller authorization, strips every caller-supplied `X-SHA-External-*` header, does not follow credentialed redirects, and has no ambient operator token. Trusted-proxy headers therefore require a separate protected direct API ingress or a future session adapter; they cannot be smuggled through the stock browser proxy.
-
-After migrating an empty authorization database, bind the first Admin by exact immutable issuer and subject from `backend/`:
-
-```bash
-uv run python scripts/bootstrap_admin.py \
-  --issuer 'https://idp.example.test/tenant' \
-  --subject 'provider-subject'
-```
-
-The command refuses to create a second active global Admin. Unknown OIDC identities otherwise enter `pending` with zero authority until an Admin activates and binds them.
-
-Optional operator/agentic automation concepts such as SHAna are documented as product direction only. The checked-in app runs without private agent infrastructure or external AI credentials.
-
-## Run locally
-
-Terminal 1:
-
-```bash
-cd backend
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8010
 ```
 
-Terminal 2:
-
 ```bash
 cd frontend
+pnpm install --frozen-lockfile
 API_URL=http://127.0.0.1:8010 pnpm dev --port 3010
 ```
 
-Then open <http://127.0.0.1:3010>.
+Open <http://127.0.0.1:3010>. Configure authentication before shared deployment. An explicitly enabled fixture-only demo is available without a backend; see the [project guide](docs/project-guide.md#demo-mode).
 
-Health check:
+## Runtime, data, and integrations
 
-```bash
-curl http://127.0.0.1:8010/health
-```
+FastAPI/SQLAlchemy and Next.js use Alembic-managed SQLite or PostgreSQL. The self-hosted HA Compose path uses PostgreSQL, backend replicas, and nginx; it does not constitute a managed production HA offering. Protected deployments need configured identity, HTTPS, secret files, and durable credential-HMAC key preservation.
 
-Normal mode uses only the live API and shows loading/error/empty state when it is unavailable.
+Go agents enroll and send heartbeat/posture/action results. Signed archive releases use an external operator-controlled trust policy; package-contained examples cannot establish trust. The app runs without Agent Hub or external AI credentials. [Configuration and backup details](docs/project-guide.md) cover browser identity, key retention, uploads of posture evidence, and Compose overlays.
 
-## Demo mode
-
-Demo mode lets you show the console to someone without exposing a real fleet.
-It needs no backend at all:
+## Development and verification
 
 ```bash
-cd frontend
-NEXT_PUBLIC_SHA_DEMO_MODE=true pnpm dev --port 3011
+st check --quick
 ```
 
-In demo mode the console never contacts the API. Every read is answered from an
-invented fleet — four fictional tenants (Northwind Trading Co., Cascade
-Orthopedics, Vela Legal Group, Harbor Point School District), seven sites, and
-24 Windows/Linux/macOS endpoints with mixed posture scores, drift, and
-connectivity — defined in `frontend/lib/demo-data.ts`. Nothing in that file
-corresponds to a real tenant, site, hostname, or person.
+The [project guide](docs/project-guide.md#test-typecheck-and-build) lists backend/frontend gates, schema/catalog generation, and isolated platform/HA checks. [Agent verification](agent/README.md) documents release-signature and package tests. Build/contract verification does not establish macOS runtime or production-distribution acceptance.
 
-Every mutation is refused with a `DemoModeError` rather than reaching the
-backend, the operator identity is a read-only fixture principal with no live
-authority, and a banner at the top of every page states that the data is
-invented. Because the demo build has no credentials and makes no outbound
-requests, it is safe to screen-share, screenshot, or publish.
+## Documentation
 
-## Test, typecheck, and build
-
-Backend:
-
-```bash
-cd backend
-uv run pytest
-uv run python scripts/build_source_catalog.py
-uv run python scripts/export_contract_schemas.py
-```
-
-Frontend:
-
-```bash
-cd frontend
-pnpm test
-pnpm exec tsc --noEmit
-pnpm build
-```
-
-Linux installer/systemd endpoint E2E fallback when Proxmox is unavailable:
-
-```bash
-scripts/test-linux-installer-docker.sh
-```
-
-Windows installer/firewall rollback E2E fallback when Proxmox is unavailable:
-
-```bash
-scripts/test-windows-installer-qemu.sh
-```
-
-macOS installer and Go-agent observe-only E2E on a disposable macOS host or GitHub-hosted macOS runner:
-
-```bash
-scripts/test-macos-installer-local.sh
-```
-
-HA compose deployment E2E:
-
-```bash
-scripts/test-ha-compose.sh
-```
-
-HA PostgreSQL backup/restore:
-
-Export the same `POSTGRES_PASSWORD`, `SHA_API_TOKEN`, `SHA_READONLY_API_TOKEN`, `SHA_AGENT_API_TOKEN`, and `SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE` values used by the running stack before invoking these commands. Backup and restore have no fallback credentials. Preserve the credential-HMAC key separately from the database dump: changing it makes existing enrollment tokens and device credentials unusable. `SHA_COMPOSE_FILES` is required and must list, in launch order, the exact compose files for the deployment as a colon-separated string. This prevents restore from silently dropping a TLS or file-secret overlay.
-
-```bash
-export SHA_COMPOSE_FILES="$PWD/deploy/ha/docker-compose.yml"
-export SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE="/absolute/path/to/sha-credential-hmac-key"
-PROJECT=ha scripts/backup-ha-postgres.sh
-# Restore verifies backups/<dump>.sha256 before contacting Docker; set SHA_FILE only for a non-default sidecar path.
-CONFIRM_RESTORE=sha-restore PROJECT=ha scripts/restore-ha-postgres.sh backups/sha-postgres-YYYYmmddHHMMSS.dump
-```
-
-For TLS, use `SHA_COMPOSE_FILES="$PWD/deploy/ha/docker-compose.yml:$PWD/deploy/ha/docker-compose.tls.yml"` and preserve `SHA_TLS_CERT_DIR`, `SHA_TLS_PORT`, and `SHA_CREDENTIAL_HMAC_KEY_SECRET_FILE`. For file-secret deployments, select `docker-compose.secrets.yml` instead and preserve every `*_SECRET_FILE` path plus the same base-file interpolation values used at launch. Backups default to the ignored, Docker-excluded `backups/` directory with mode 0700; dump and digest files use mode 0600.
-
-HA TLS E2E:
-
-```bash
-scripts/test-ha-compose-tls.sh
-```
-
-HA file-secret E2E:
-
-```bash
-scripts/test-ha-compose-secrets.sh
-```
-
-## Runtime smoke test
-
-With the backend running:
-
-```bash
-curl http://127.0.0.1:8010/health
-curl http://127.0.0.1:8010/api/endpoints
-curl http://127.0.0.1:8010/api/source-packs
-```
-
-With both backend and frontend running:
-
-```bash
-curl -I http://127.0.0.1:3010/
-curl http://127.0.0.1:3010/health
-```
-
-## Architecture
-
-- `backend/` — FastAPI control-plane API, Alembic-managed SQLite/PostgreSQL persistence, compatibility artifact renderer, source-pack catalog builder, and contract schema exporter
-- `frontend/` — Next.js operator dashboard with live API state and explicit fixture-only demo mode
-- `agent/` — Go endpoint agent plus its typed execution contract
-- `schemas/generated/` — JSON Schema exports for API request/response contracts
-- `control-packs/` — curated starter control-pack inputs and generated catalog manifest
-- `docs/architecture/` — architecture and approval-boundary notes
-- `scripts/` — optional systemd/Caddy/cloudflared deployment helpers using placeholder hosts by default
-
-## Control-pack provenance
-
-Checked-in starter controls use a fresh `control.public.*` ID scheme and cite public-source materials:
-
-- NIST SP 800-53 Rev. 5 / OSCAL catalog
-- DISA Microsoft Windows Server 2022 STIG V2R5
-- CISA/NSA Enhanced Visibility and Hardening Guidance for Communications Infrastructure
-
-CIS Benchmark and Microsoft baseline content are not reproduced in this repository. Future integrations should use citation-only references unless licensing permits checked-in content.
-
-## License
-
-SHA™ is released under the [Business Source License 1.1](LICENSE) (`BUSL-1.1`). See also [NOTICE](NOTICE).
-
-- **Free in production** for individuals on their own machines, for schools and universities teaching and doing academic research, and for non-profits under USD 1M annual revenue.
-- **Free for everyone to evaluate, develop and test.** Non-production use is not restricted, so a business can try it before deciding.
-- **A commercial licence is required** for businesses, government and public-sector bodies, larger non-profits, and for anyone using SHA to deliver a paid service — consulting, managed security, incident response, fractional or virtual CISO work — including at a client who would otherwise qualify above. Email <eliasleslie@gmail.com>.
-- **Ask if the price is the obstacle.** Free and reduced-fee licences are granted on request, case by case.
-- **Every version becomes Apache 2.0** two years after it is published. That grant is written into the licence and cannot be withdrawn.
-
-Versions published before 30 August 2026 remain under the Apache License, Version 2.0.
+- [Project guide](docs/project-guide.md): setup, configuration, compatibility reporters, operations, tests, and licensing.
+- [Current runtime contract](docs/architecture/current-runtime-contract.md) and [agent guide](agent/README.md).
+- [Guided security program strategy](docs/plans/2026-08-25-sha-guided-security-program-strategy.md) and [HA deployment](deploy/ha/README.md).
+- [License](LICENSE) and [notice](NOTICE): current releases use BUSL-1.1; consult the license for permitted uses and change terms.
