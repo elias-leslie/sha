@@ -1329,8 +1329,18 @@ export async function getAuthSession(options: { refresh?: boolean } = {}) {
   return authSessionRequest;
 }
 
+function hasBackslashOrControlChar(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code === 0x5c || code <= 0x1f) {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function requestApi(path: string, init: RequestInit = {}) {
-  if (!/^\/api(?:\/|\?|$)/.test(path) || path.startsWith("//") || /[\\\u0000-\u001f]/.test(path)) {
+  if (!/^\/api(?:\/|\?|$)/.test(path) || path.startsWith("//") || hasBackslashOrControlChar(path)) {
     throw new Error("API requests must use a same-origin /api path");
   }
   const method = (init.method ?? "GET").toUpperCase();
@@ -1673,7 +1683,7 @@ export async function getInstallerArtifact(profileId: string) {
     referrerPolicy: "no-referrer",
   });
   const disposition = response.headers.get("content-disposition") ?? "";
-  const filenameMatch = disposition.match(/filename="?([^\"]+)"?/i);
+  const filenameMatch = disposition.match(/filename="?([^"]+)"?/i);
   return {
     filename: filenameMatch?.[1] ?? `sha-installer-${profileId}.txt`,
     mediaType: response.headers.get("content-type") ?? "text/plain",

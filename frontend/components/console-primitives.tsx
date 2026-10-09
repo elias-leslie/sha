@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { type Tone } from "../lib/api";
+import type { Tone } from "../lib/api";
 
 export function toneClass(tone: Tone) {
   return `tone tone--${tone}`;

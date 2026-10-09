@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest"
 import ClientsPage from "../app/clients/page"
 import {
   QUARANTINE_CLIENT_ID,
-  QUARANTINE_LOCATION_ID,
   type Client,
   type Location,
 } from "../lib/api"

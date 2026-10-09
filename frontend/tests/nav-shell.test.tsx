@@ -1,6 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react"
 
-import FleetPage from "../app/fleet/page"
 import HierarchyPage from "../app/hierarchy/page"
 import HomePage from "../app/page"
 import EndpointDetailPage from "../app/endpoints/[endpointId]/page"

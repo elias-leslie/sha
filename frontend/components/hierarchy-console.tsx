@@ -2,9 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  type Client,
   type EndpointInventoryItem,
-  type Location,
   createClient,
   createLocation,
   endpointScore,
