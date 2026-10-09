@@ -406,7 +406,7 @@ func writeIdentity(
 			EndpointID:        endpointID,
 			InstallationID:    installationID,
 			CredentialMode:    "device",
-			EnrollmentTokenID: "et_0123456789abcdef0123456789abcdef",
+			EnrollmentTokenID: "et_00000000000000000000000000000000",
 			Status:            endpointStatus,
 			ProtocolVersion:   agentProtocolVersion,
 			Architecture:      runtime.GOARCH,
@@ -491,5 +491,5 @@ func testCanonicalSecret() string {
 }
 
 func testEnrollmentToken() string {
-	return "sha_enroll.et_0123456789abcdef0123456789abcdef." + testCanonicalSecret()
+	return "sha_enroll.et_00000000000000000000000000000000." + testCanonicalSecret()
 }
