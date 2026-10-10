@@ -297,7 +297,9 @@ def post(path: str, payload: dict[str, object], *, expect_error: bool = False) -
         return {"status": exc.code, "body": json.loads(exc.read().decode())}
 
 expires_at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=45)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-grant = post("/api/approval-grants", {
+# macOS controls are observe-only in the canonical control registry, so the
+# backend refuses to grant apply_control before any response action is queued.
+result = post("/api/approval-grants", {
     "endpoint_ids": [endpoint_id],
     "allowed_actions": ["apply_control"],
     "control_ids": ["macos.firewall.application-firewall-enabled"],
@@ -306,16 +308,8 @@ grant = post("/api/approval-grants", {
     "approved_by": "secops-e2e",
     "reason": "macOS E2E observe-only rejection validation",
     "expires_at": expires_at,
-})["body"]
-result = post("/api/response-actions", {
-    "endpoint_id": endpoint_id,
-    "approval_grant_id": grant["approval_grant_id"],
-    "action": "apply_control",
-    "control_id": "macos.firewall.application-firewall-enabled",
-    "requested_by": "macos-e2e",
-    "reason": "Verify macOS observe-only mutation rejection",
 }, expect_error=True)
-if result["status"] != 422 or result["body"].get("detail") != "endpoint has not declared action capability":
+if result["status"] != 422 or result["body"].get("detail") != "control_id does not support apply_control":
     raise SystemExit(f"unexpected apply_control rejection: {result}")
 print("apply_control_rejected=" + json.dumps(result, sort_keys=True))
 PY
