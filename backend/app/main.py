@@ -87,7 +87,7 @@ def create_app(
 
     app.state.store = store
     app.state.api_token = api_token if api_token is not None else settings.resolved_api_token()
-    app.state.agent_api_token = agent_api_token if agent_api_token is not None else settings.resolved_agent_api_token()
+    app.state.agent_bearer = agent_api_token if agent_api_token is not None else settings.resolved_agent_api_token()
     app.state.readonly_api_token = (
         readonly_api_token if readonly_api_token is not None else settings.resolved_readonly_api_token()
     )
@@ -203,7 +203,7 @@ def create_app(
     app.state.oidc_login_ttl_minutes = settings.oidc_login_ttl_minutes
     authentication_configured = bool(
         app.state.api_token
-        or app.state.agent_api_token
+        or app.state.agent_bearer
         or app.state.readonly_api_token
         or app.state.external_auth_trusted_token
         or app.state.credential_hmac_key

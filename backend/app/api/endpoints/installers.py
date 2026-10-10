@@ -157,19 +157,22 @@ def get_installer_artifact(
             detail="legacy reporter artifact generation is disabled or expired",
         )
 
-    agent_api_token = getattr(request.app.state, "agent_api_token", None)
+    # Bearer credential embedded in the rendered reporter config. The artifact digest
+    # below is a download-integrity checksum of the whole file (verified with
+    # sha256sum), not a hash used to store or verify this credential.
+    agent_bearer = getattr(request.app.state, "agent_bearer", None)
     operator_auth_configured = bool(
         getattr(request.app.state, "api_token", None)
         or getattr(request.app.state, "external_auth_trusted_token", None)
         or getattr(request.app.state, "oidc_client", None)
     )
-    if operator_auth_configured and not agent_api_token:
+    if operator_auth_configured and not agent_bearer:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="agent API token is required to generate installer artifacts when operator authentication is configured",
         )
 
-    filename, media_type, content = render_installer_artifact(profile, api_token=agent_api_token)
+    filename, media_type, content = render_installer_artifact(profile, agent_bearer=agent_bearer)
     sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
     return Response(
         content=content,

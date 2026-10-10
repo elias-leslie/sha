@@ -44,24 +44,24 @@ _MACOS_REPORTER_CAPABILITIES = _READ_ONLY_REPORTER_CAPABILITIES
 _MACOS_EXECUTION_HOOKS = _READ_ONLY_EXECUTION_HOOKS
 
 
-def render_installer_artifact(profile: InstallerProfile, *, api_token: str | None = None) -> tuple[str, str, str]:
+def render_installer_artifact(profile: InstallerProfile, *, agent_bearer: str | None = None) -> tuple[str, str, str]:
     if profile.platform == "linux":
         return (
             _artifact_filename(profile, extension="sh"),
             "text/x-shellscript; charset=utf-8",
-            _render_linux_bootstrap(profile, api_token=api_token),
+            _render_linux_bootstrap(profile, agent_bearer=agent_bearer),
         )
     if profile.platform == "windows":
         return (
             _artifact_filename(profile, extension="ps1"),
             "text/x-powershell; charset=utf-8",
-            _render_windows_bootstrap(profile, api_token=api_token),
+            _render_windows_bootstrap(profile, agent_bearer=agent_bearer),
         )
     if profile.platform == "macos":
         return (
             _artifact_filename(profile, extension="sh"),
             "text/x-shellscript; charset=utf-8",
-            _render_macos_bootstrap(profile, api_token=api_token),
+            _render_macos_bootstrap(profile, agent_bearer=agent_bearer),
         )
     raise ValueError(f"unsupported installer profile platform: {profile.platform}")
 
@@ -78,7 +78,7 @@ def _profile_config(
     *,
     agent_version: str,
     platform_profile: str,
-    api_token: str | None,
+    agent_bearer: str | None,
     capabilities: list[str],
     execution_hooks: dict[str, bool],
 ) -> str:
@@ -93,7 +93,7 @@ def _profile_config(
         "site_id": profile.site_id,
         "agent_version": agent_version,
         "platform_profile": platform_profile,
-        "api_token": api_token,
+        "api_token": agent_bearer,
         "capabilities": capabilities,
         "execution_hooks": execution_hooks,
     }
@@ -931,12 +931,12 @@ def _linux_reporter_script() -> str:
 
 
 
-def _render_linux_bootstrap(profile: InstallerProfile, *, api_token: str | None = None) -> str:
+def _render_linux_bootstrap(profile: InstallerProfile, *, agent_bearer: str | None = None) -> str:
     config_json = _profile_config(
         profile,
         agent_version=_LINUX_AGENT_VERSION,
         platform_profile=_LINUX_PLATFORM_PROFILE,
-        api_token=api_token,
+        agent_bearer=agent_bearer,
         capabilities=_LINUX_REPORTER_CAPABILITIES,
         execution_hooks=_LINUX_EXECUTION_HOOKS,
     )
@@ -1595,12 +1595,12 @@ def _macos_reporter_script() -> str:
     ).strip() + "\n"
 
 
-def _render_macos_bootstrap(profile: InstallerProfile, *, api_token: str | None = None) -> str:
+def _render_macos_bootstrap(profile: InstallerProfile, *, agent_bearer: str | None = None) -> str:
     config_json = _profile_config(
         profile,
         agent_version=_MACOS_AGENT_VERSION,
         platform_profile=_MACOS_PLATFORM_PROFILE,
-        api_token=api_token,
+        agent_bearer=agent_bearer,
         capabilities=_MACOS_REPORTER_CAPABILITIES,
         execution_hooks=_MACOS_EXECUTION_HOOKS,
     )
@@ -2194,12 +2194,12 @@ def _windows_reporter_script() -> str:
 
 
 
-def _render_windows_bootstrap(profile: InstallerProfile, *, api_token: str | None = None) -> str:
+def _render_windows_bootstrap(profile: InstallerProfile, *, agent_bearer: str | None = None) -> str:
     config_json = _profile_config(
         profile,
         agent_version=_WINDOWS_AGENT_VERSION,
         platform_profile=_WINDOWS_PLATFORM_PROFILE,
-        api_token=api_token,
+        agent_bearer=agent_bearer,
         capabilities=_WINDOWS_REPORTER_CAPABILITIES,
         execution_hooks=_WINDOWS_EXECUTION_HOOKS,
     )

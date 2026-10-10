@@ -336,7 +336,7 @@ async def api_token_middleware(
         return await call_next(request)
 
     operator_token = getattr(request.app.state, "api_token", None)
-    agent_token = getattr(request.app.state, "agent_api_token", None)
+    agent_token = getattr(request.app.state, "agent_bearer", None)
     readonly_token = getattr(request.app.state, "readonly_api_token", None)
     external_auth_token = getattr(request.app.state, "external_auth_trusted_token", None)
     auth_mode = getattr(request.app.state, "auth_mode", "protected")
