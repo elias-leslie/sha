@@ -3,8 +3,14 @@ set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 WORK_DIR=${WORK_DIR:-$(mktemp -d)}
-OPERATOR_TOKEN=${SHA_API_TOKEN:-operator-token}
-AGENT_TOKEN=${SHA_AGENT_API_TOKEN:-agent-token}
+# This E2E validates the legacy launchd reporter. The backend only issues legacy
+# reporter installers in development_open mode: once operator authentication is
+# configured, new profiles are go_agent profiles whose artifacts require the
+# signed agent package service, and no signed macOS agent package is published.
+# The backend therefore runs unauthenticated on loopback. These placeholders are
+# sent as bearer headers and ignored by the development_open backend.
+OPERATOR_TOKEN=development-open-operator
+AGENT_TOKEN=development-open-agent
 STAMP=$(date -u +%Y%m%d%H%M%S)
 SITE_ID=${SITE_ID:-macos-installer-e2e-${STAMP}}
 SHA_ROOT="/Library/Application Support/SHA"
@@ -77,10 +83,12 @@ BASE_URL="http://127.0.0.1:${PORT}"
 
 (
   cd "$ROOT_DIR/backend"
-  SHA_DATABASE_URL="sqlite:///${WORK_DIR}/sha.sqlite3" \
-  SHA_API_TOKEN="$OPERATOR_TOKEN" \
-  SHA_AGENT_API_TOKEN="$AGENT_TOKEN" \
-  exec .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port "$PORT"
+  # A clean environment keeps inherited SHA_* credentials, OIDC, or signed
+  # package settings from switching the backend out of development_open mode.
+  exec env -i PATH="$PATH" HOME="${HOME:-/tmp}" LANG="${LANG:-C.UTF-8}" \
+    SHA_AUTH_MODE=development_open \
+    SHA_DATABASE_URL="sqlite:///${WORK_DIR}/sha.sqlite3" \
+    .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port "$PORT"
 ) >"$WORK_DIR/backend.log" 2>&1 &
 BACKEND_PID=$!
 
@@ -119,6 +127,8 @@ profile = json.loads(call("POST", "/api/installer-profiles", {
     "tenant_id": "tenant-macos-e2e",
     "site_id": site_id,
 }))
+if profile.get("runtime_kind") != "legacy_reporter":
+    raise SystemExit(f"expected a legacy_reporter profile, got {profile.get('runtime_kind')!r}")
 Path(installer_path).write_bytes(call("GET", f"/api/installer-profiles/{profile['id']}/artifact"))
 print(profile["id"])
 PY
@@ -317,9 +327,15 @@ if [[ "$RUN_GO_AGENT_E2E" == "1" ]]; then
     cd "$ROOT_DIR/agent"
     go build -o "$GO_AGENT_PATH" ./cmd/sha-agent
   )
-  cat > "$WORK_DIR/go-agent-config.json" <<JSON
+  # The Go agent only reads config from a 0700 directory as a 0600 file, and
+  # accepts plain HTTP only for an explicit loopback development opt-in.
+  GO_AGENT_CONFIG_DIR="$WORK_DIR/go-agent"
+  GO_AGENT_CONFIG="$GO_AGENT_CONFIG_DIR/config.json"
+  mkdir -m 0700 "$GO_AGENT_CONFIG_DIR"
+  (umask 077 && cat > "$GO_AGENT_CONFIG" <<JSON
 {
   "control_plane_url": "$BASE_URL",
+  "allow_insecure_loopback": true,
   "api_token": "$AGENT_TOKEN",
   "profile_id": "macos-go-agent-e2e",
   "agent_version": "sha-go-agent-e2e",
@@ -327,7 +343,8 @@ if [[ "$RUN_GO_AGENT_E2E" == "1" ]]; then
   "site_id": "$GO_SITE_ID"
 }
 JSON
-  "$GO_AGENT_PATH" --config "$WORK_DIR/go-agent-config.json"
+  )
+  "$GO_AGENT_PATH" --config "$GO_AGENT_CONFIG"
   GO_ENDPOINT_ID=$(python3 - "$BASE_URL" "$OPERATOR_TOKEN" "$GO_SITE_ID" <<'PY'
 import json
 import sys
