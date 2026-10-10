@@ -701,6 +701,27 @@ def get_endpoint_detail(
         )
 
 
+# Exact diagnostic commands the terminal may run, mapped to server-defined argv.
+# User input only selects an entry; it is never passed to the subprocess.
+_DIAGNOSTIC_TERMINAL_COMMANDS: dict[str, tuple[str, ...]] = {
+    "ps": ("ps",),
+    "ps aux": ("ps", "aux"),
+    "ps -ef": ("ps", "-ef"),
+    "uname": ("uname",),
+    "uname -a": ("uname", "-a"),
+    "hostname": ("hostname",),
+    "whoami": ("whoami",),
+    "ip a": ("ip", "a"),
+    "ip addr": ("ip", "addr"),
+    "ip route": ("ip", "route"),
+    "uptime": ("uptime",),
+    "date": ("date",),
+    "cat /etc/os-release": ("cat", "/etc/os-release"),
+    "systemctl status": ("systemctl", "status"),
+    "dir": ("dir",),
+}
+
+
 @router.post("/{endpoint_id}/terminal/execute")
 def execute_remote_terminal_command(
     endpoint_id: str,
@@ -724,13 +745,16 @@ def execute_remote_terminal_command(
         from app.utils import safe_subprocess
         now_str = to_utc_z(utc_now())
 
-        # Safe diagnostic commands list
-        allowed_prefixes = ("ps", "uname", "hostname", "whoami", "ip", "uptime", "date", "cat /etc/os-release", "systemctl status", "dir", "echo")
-        if command.startswith(allowed_prefixes):
-            cmd_args = command.split()
-            stdout, stderr, exit_code = safe_subprocess(cmd_args, timeout=5.0)
+        diagnostic_argv = _DIAGNOSTIC_TERMINAL_COMMANDS.get(" ".join(command.split()))
+        if diagnostic_argv is not None:
+            stdout, stderr, exit_code = safe_subprocess(list(diagnostic_argv), timeout=5.0)
             if not stdout and exit_code == 0:
                 stdout = f"Command [{command}] executed successfully with code 0."
+        elif command == "echo" or command.startswith("echo "):
+            # Echo is answered in-process so user text never reaches a subprocess argv.
+            stdout = command[len("echo") :].strip() + "\n"
+            stderr = ""
+            exit_code = 0
         else:
             stdout = f"Command [{command}] sent over SHA agent tunnel to {endpoint.hostname}.\n[Agent Output]: Execution completed successfully."
             stderr = ""
