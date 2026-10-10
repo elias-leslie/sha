@@ -322,8 +322,10 @@ if [[ "$RUN_GO_AGENT_E2E" == "1" ]]; then
     go build -o "$GO_AGENT_PATH" ./cmd/sha-agent
   )
   # The Go agent only reads config from a 0700 directory as a 0600 file, and
-  # accepts plain HTTP only for an explicit loopback development opt-in.
-  GO_AGENT_CONFIG_DIR="$WORK_DIR/go-agent"
+  # accepts plain HTTP only for an explicit loopback development opt-in. It also
+  # rejects config paths with symlink components, and macOS mktemp paths live
+  # under the /var -> /private/var symlink, so use the physical path.
+  GO_AGENT_CONFIG_DIR="$(cd "$WORK_DIR" && pwd -P)/go-agent"
   GO_AGENT_CONFIG="$GO_AGENT_CONFIG_DIR/config.json"
   mkdir -m 0700 "$GO_AGENT_CONFIG_DIR"
   (umask 077 && cat > "$GO_AGENT_CONFIG" <<JSON
