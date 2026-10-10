@@ -9,6 +9,9 @@ on:
       - "backend/**"
       - "scripts/test-macos-installer-local.sh"
 
+permissions:
+  contents: read
+
 jobs:
   macos-installer-e2e:
     runs-on: macos-15
