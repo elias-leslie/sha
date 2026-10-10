@@ -3,8 +3,14 @@ set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 WORK_DIR=${WORK_DIR:-$(mktemp -d)}
-OPERATOR_TOKEN=${SHA_API_TOKEN:-operator-token}
-AGENT_TOKEN=${SHA_AGENT_API_TOKEN:-agent-token}
+# This E2E validates the legacy systemd reporter. The backend only issues legacy
+# reporter installers in development_open mode: once operator authentication is
+# configured, new profiles are go_agent profiles whose artifacts require the
+# signed agent package service. The backend therefore runs unauthenticated for
+# the duration of the test. These placeholders are sent as bearer headers and
+# ignored by the development_open backend.
+OPERATOR_TOKEN=development-open-operator
+AGENT_TOKEN=development-open-agent
 STAMP=$(date -u +%Y%m%d%H%M%S)
 SITE_ID="docker-linux-e2e-${STAMP}"
 IMAGE=${IMAGE:-sha-linux-systemd-e2e:local}
@@ -45,16 +51,21 @@ with socket.socket() as sock:
     print(sock.getsockname()[1])
 PY
 )
-BASE_URL="http://127.0.0.1:${PORT}"
+# The development_open backend is unauthenticated, so bind it only to the Docker
+# bridge gateway (what host.docker.internal resolves to) instead of all interfaces.
+BIND_HOST=${BIND_HOST:-$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')}
+BASE_URL="http://${BIND_HOST}:${PORT}"
 CONTROL_URL="http://host.docker.internal:${PORT}"
 mkdir -p "$WORK_DIR"
 
 (
   cd "$ROOT_DIR/backend"
-  SHA_DATABASE_URL="sqlite:///${WORK_DIR}/sha.sqlite3" \
-  SHA_API_TOKEN="$OPERATOR_TOKEN" \
-  SHA_AGENT_API_TOKEN="$AGENT_TOKEN" \
-  exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port "$PORT"
+  # A clean environment keeps inherited SHA_* credentials, OIDC, or signed
+  # package settings from switching the backend out of development_open mode.
+  exec env -i PATH="$PATH" HOME="${HOME:-/tmp}" LANG="${LANG:-C.UTF-8}" \
+    SHA_AUTH_MODE=development_open \
+    SHA_DATABASE_URL="sqlite:///${WORK_DIR}/sha.sqlite3" \
+    .venv/bin/uvicorn app.main:app --host "$BIND_HOST" --port "$PORT"
 ) >"$WORK_DIR/backend.log" 2>&1 &
 BACKEND_PID=$!
 
@@ -110,6 +121,8 @@ profile = json.loads(call("POST", "/api/installer-profiles", {
     "tenant_id": "tenant-docker-e2e",
     "site_id": site_id,
 }))
+if profile.get("runtime_kind") != "legacy_reporter":
+    raise SystemExit(f"expected a legacy_reporter profile, got {profile.get('runtime_kind')!r}")
 Path(installer_path).write_bytes(call("GET", f"/api/installer-profiles/{profile['id']}/artifact"))
 print(profile["id"])
 PY
