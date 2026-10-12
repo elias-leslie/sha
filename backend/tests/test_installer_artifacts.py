@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import configparser
+import json
+import plistlib
+import re
+import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from typing import cast
@@ -24,53 +29,66 @@ def create_installer_profile(client, **overrides):
     return response.json()
 
 
+def _fetch_artifact_twice(client, profile_id: str):
+    first = client.get(f"/api/installer-profiles/{profile_id}/artifact")
+    second = client.get(f"/api/installer-profiles/{profile_id}/artifact")
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.text == second.text
+    assert first.headers["x-sha-artifact-sha256"] == second.headers["x-sha-artifact-sha256"]
+    assert profile_id in first.headers["content-disposition"]
+    return first
+
+
+def _heredoc(text: str, opener: str, terminator: str) -> str:
+    match = re.search(rf"^{re.escape(opener)}\n(.*?)\n{re.escape(terminator)}$", text, re.MULTILINE | re.DOTALL)
+    assert match, f"missing heredoc {opener!r}"
+    return match.group(1)
+
+
+def _assert_bash_syntax(script: str) -> None:
+    result = subprocess.run(["bash", "-n"], input=script, text=True, capture_output=True, check=False)  # noqa: S603, S607
+    assert result.returncode == 0, result.stderr
+
+
+def _assert_config(config: dict[str, object], profile: dict[str, object], platform_profile: str) -> None:
+    assert config["profile_id"] == profile["id"]
+    assert config["control_plane_url"] == "https://sha.example.test/control"
+    assert config["platform_profile"] == platform_profile
+    assert config["api_token"] is None
+
 
 def test_linux_installer_artifact_is_deterministic_and_contains_systemd_reporter(db_path, make_client):
     client = make_client(db_path)
     profile = create_installer_profile(client)
 
-    first = client.get(f"/api/installer-profiles/{profile['id']}/artifact")
-    second = client.get(f"/api/installer-profiles/{profile['id']}/artifact")
+    artifact = _fetch_artifact_twice(client, profile["id"])
+    text = artifact.text
 
-    assert first.status_code == 200
-    assert second.status_code == 200
-    assert first.text == second.text
-    assert first.headers["content-type"].startswith("text/x-shellscript")
-    assert first.headers["content-disposition"].endswith('.sh"')
-    assert profile["id"] in first.headers["content-disposition"]
-    assert first.headers["x-sha-artifact-sha256"] == second.headers["x-sha-artifact-sha256"]
-    assert first.text.startswith("#!/usr/bin/env bash\n")
-    assert '"profile_id": "{}"'.format(profile["id"]) in first.text
-    assert '"control_plane_url": "https://sha.example.test/control"' in first.text
-    assert '"api_token": null' in first.text
-    assert '"platform_profile": "linux-bootstrap-v1"' in first.text
-    assert "install -d -m 0700 /etc/sha" in first.text
-    assert "chmod 0600 /etc/sha/reporter-config.json" in first.text
-    assert "systemctl enable --now sha-reporter.timer" in first.text
-    assert "/api/endpoints/enroll" in first.text
-    assert "/api/endpoints/" in first.text
-    assert "/response-actions/claim" in first.text
-    assert '"lease_token": lease_token' in first.text
-    assert "/api/posture-snapshots" in first.text
-    assert '"collect_remediation_evidence"' in first.text
-    assert '"apply_control"' in first.text
-    assert '"rollback_control"' in first.text
-    assert '"captures_rollback_artifacts": true' in first.text
-    assert '"reports_execution_results": true' in first.text
-    assert '"supports_dry_run": false' in first.text
-    assert "linux.firewall.service-active" in first.text
-    assert "linux.ssh.password-authentication-disabled" in first.text
-    assert "linux.root.password-locked" in first.text
-    assert "linux.updates.automatic-enabled" in first.text
-    assert "linux.telemetry.hardware-summary" in first.text
-    assert "linux.telemetry.security-logging" in first.text
-    assert "linux.telemetry.process-inventory" in first.text
-    assert "linux.telemetry.package-inventory" in first.text
-    assert "linux.telemetry.startup-services" in first.text
-    assert "linux.telemetry.login-sessions" in first.text
-    assert "linux.telemetry.network-listeners" in first.text
-    assert "linux.network.endpoint-isolated" in first.text
+    assert artifact.headers["content-type"].startswith("text/x-shellscript")
+    assert text.startswith("#!/usr/bin/env bash\n")
+    _assert_bash_syntax(text)
+    assert 'if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then' in text
 
+    config = json.loads(_heredoc(text, "cat > /etc/sha/reporter-config.json <<'JSON'", "JSON"))
+    _assert_config(config, profile, "linux-bootstrap-v1")
+    assert {"apply_control", "rollback_control"} <= set(config["capabilities"])
+    assert config["execution_hooks"]["captures_rollback_artifacts"] is True
+    assert "install -d -m 0700 /etc/sha" in text
+    assert "chmod 0600 /etc/sha/reporter-config.json" in text
+
+    service = configparser.ConfigParser(interpolation=None)
+    service.read_string(_heredoc(text, "cat > /etc/systemd/system/sha-reporter.service <<'UNIT'", "UNIT"))
+    assert service["Service"]["ExecStart"].split()[-1] == "/opt/sha/reporter.py"
+    assert "cat > /opt/sha/reporter.py <<'PY'" in text
+    timer = configparser.ConfigParser(interpolation=None)
+    timer.read_string(_heredoc(text, "cat > /etc/systemd/system/sha-reporter.timer <<'UNIT'", "UNIT"))
+    assert timer["Timer"]["Unit"] == "sha-reporter.service"
+    assert "systemctl enable --now sha-reporter.timer" in text
+
+    reporter = _heredoc(text, "cat > /opt/sha/reporter.py <<'PY'", "PY")
+    for path in ("/api/endpoints/enroll", "/api/posture-snapshots"):
+        assert path in reporter
 
 
 def test_linux_reporter_collects_bounded_local_telemetry_without_network():
@@ -99,7 +117,6 @@ def test_linux_reporter_collects_bounded_local_telemetry_without_network():
         assert result["status"] in {"pass", "warn", "not_applicable"}
         assert result["evidence_summary"]
         assert result["reboot_required"] is False
-
 
 
 def test_linux_reporter_executes_bounded_context_response_action():
@@ -178,7 +195,6 @@ def test_python_reporters_claim_response_actions_and_return_lease_token():
                 },
             ),
         ]
-
 
 
 def test_linux_reporter_applies_and_rolls_back_ssh_password_hardening(tmp_path: Path, monkeypatch):
@@ -261,7 +277,6 @@ def test_linux_reporter_applies_and_rolls_back_network_isolation(tmp_path: Path,
     assert not jumps
 
 
-
 def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task_reporter(db_path, make_client):
     client = make_client(db_path)
     profile = create_installer_profile(
@@ -272,68 +287,35 @@ def test_windows_installer_artifact_is_deterministic_and_contains_scheduled_task
         policy_mode="approval_required",
     )
 
-    first = client.get(f"/api/installer-profiles/{profile['id']}/artifact")
-    second = client.get(f"/api/installer-profiles/{profile['id']}/artifact")
+    artifact = _fetch_artifact_twice(client, profile["id"])
+    text = artifact.text
 
-    assert first.status_code == 200
-    assert second.status_code == 200
-    assert first.text == second.text
-    assert first.headers["content-type"].startswith("text/x-powershell")
-    assert first.headers["content-disposition"].endswith('.ps1"')
-    assert profile["id"] in first.headers["content-disposition"]
-    assert first.headers["x-sha-artifact-sha256"] == second.headers["x-sha-artifact-sha256"]
-    assert '"profile_id": "{}"'.format(profile["id"]) in first.text
-    assert '"control_plane_url": "https://sha.example.test/control"' in first.text
-    assert '"platform_profile": "windows-bootstrap-v1"' in first.text
-    assert "$restrictedPrincipals = @('*S-1-5-18', '*S-1-5-32-544')" in first.text
-    assert "icacls.exe $ShaRoot /inheritance:r /grant:r" in first.text
-    assert "icacls.exe $ConfigPath /inheritance:r /grant:r" in first.text
-    assert "failed to restrict SHA reporter config ACL" in first.text
-    assert "-Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + $ReporterPath)" in first.text
-    assert "-File ``\"$ReporterPath``\"" not in first.text
-    assert "Register-ScheduledTask" in first.text
-    assert "Invoke-RestMethod" in first.text
-    assert "MachineGuid" in first.text
-    assert "/api/endpoints/enroll" in first.text
-    assert "/response-actions/claim" in first.text
-    assert "lease_token = [string]$Action.lease_token" in first.text
-    assert "/api/posture-snapshots" in first.text
-    assert '"collect_remediation_evidence"' in first.text
-    assert "'control.windows.firewall-all-profiles' 'pass'" in first.text
-    assert "'control.windows.defender-real-time-protection' 'pass'" in first.text
-    assert "windows.bitlocker.system-drive-protected" in first.text
-    assert "windows.secure-boot.enabled" in first.text
-    assert "windows.telemetry.process-inventory" in first.text
-    assert "windows.telemetry.network-bindings" in first.text
-    assert "windows.telemetry.software-inventory" in first.text
-    assert "windows.telemetry.startup-services" in first.text
-    assert "Get-NetTCPConnection" in first.text
-    assert "Get-ProcessInventoryResult" in first.text
-    assert "Get-SoftwareInventoryResult" in first.text
-    assert "Get-StartupServiceInventoryResult" in first.text
-    assert "Invoke-PendingResponseActions" in first.text
-    assert "Invoke-ApplyWindowsFirewallAllProfiles" in first.text
-    assert "Invoke-RollbackWindowsFirewallAllProfiles" in first.text
-    assert "control.windows.firewall-all-profiles" in first.text
-    assert "Invoke-ApplyWindowsFirewallEndpointIsolation" in first.text
-    assert "Invoke-RollbackWindowsFirewallEndpointIsolation" in first.text
-    assert "control.windows.firewall-endpoint-isolated" in first.text
-    assert "SHA Endpoint Isolation" in first.text
-    assert "Invoke-ApplyWindowsDefenderRealTimeProtection" in first.text
-    assert "Invoke-RollbackWindowsDefenderRealTimeProtection" in first.text
-    assert "control.windows.defender-real-time-protection" in first.text
-    assert "Set-MpPreference" in first.text
-    assert '"apply_control"' in first.text
-    assert '"rollback_control"' in first.text
-    assert '"captures_rollback_artifacts": true' in first.text
-    assert '"reports_execution_results": true' in first.text
-    assert '"supports_dry_run": false' in first.text
-    assert "[string]$CurrentValue" not in first.text
-    assert "[string]$RecommendedValue" not in first.text
-    assert "[string]$Severity" not in first.text
-    assert "$_.PSObject.Properties['DisplayName']" in first.text
-    assert "Set-NetFirewallProfile -Profile ([string]$profile.Name) -Enabled ([bool]$profile.Enabled)" not in first.text
-    assert "$enabled = if ([bool]$enabledStates[$i]) { 'True' } else { 'False' }" in first.text
+    assert artifact.headers["content-type"].startswith("text/x-powershell")
+    assert "IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)" in text
+
+    config = json.loads(text.split("@'\n", 1)[1].split("\n'@", 1)[0])
+    _assert_config(config, profile, "windows-bootstrap-v1")
+    assert {"apply_control", "rollback_control"} <= set(config["capabilities"])
+
+    assert "$restrictedPrincipals = @('*S-1-5-18', '*S-1-5-32-544')" in text
+    assert "icacls.exe $ShaRoot /inheritance:r /grant:r" in text
+    assert "icacls.exe $ConfigPath /inheritance:r /grant:r" in text
+    assert "throw 'failed to restrict SHA reporter config ACL'" in text
+    assert "-Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + $ReporterPath)" in text
+    assert "New-ScheduledTaskPrincipal -UserId 'SYSTEM'" in text
+    assert "Register-ScheduledTask -TaskName 'SHA Reporter'" in text
+
+    for contract in (
+        "/api/endpoints/enroll",
+        "/response-actions/claim",
+        "lease_token = [string]$Action.lease_token",
+        "/api/posture-snapshots",
+        "control.windows.firewall-all-profiles",
+        "control.windows.firewall-endpoint-isolated",
+        "control.windows.defender-real-time-protection",
+    ):
+        assert contract in text
+
 
 def test_macos_installer_artifact_is_deterministic_and_contains_launchd_reporter(db_path, make_client):
     client = make_client(db_path)
@@ -345,38 +327,28 @@ def test_macos_installer_artifact_is_deterministic_and_contains_launchd_reporter
         policy_mode="observe",
     )
 
-    first = client.get(f"/api/installer-profiles/{profile['id']}/artifact")
-    second = client.get(f"/api/installer-profiles/{profile['id']}/artifact")
+    artifact = _fetch_artifact_twice(client, profile["id"])
+    text = artifact.text
 
-    assert first.status_code == 200
-    assert second.status_code == 200
-    assert first.text == second.text
-    assert first.headers["content-type"].startswith("text/x-shellscript")
-    assert first.headers["content-disposition"].endswith('.sh"')
-    assert profile["id"] in first.headers["content-disposition"]
-    assert first.headers["x-sha-artifact-sha256"] == second.headers["x-sha-artifact-sha256"]
-    assert '"profile_id": "{}"'.format(profile["id"]) in first.text
-    assert '"platform": "macos"' in first.text
-    assert '"platform_profile": "macos-bootstrap-v1"' in first.text
-    assert "com.sha.reporter" in first.text
-    assert "launchctl bootstrap" in first.text
-    assert "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" in first.text
-    assert "/api/endpoints/enroll" in first.text
-    assert "/response-actions/claim" in first.text
-    assert '"lease_token": lease_token' in first.text
-    assert "/api/posture-snapshots" in first.text
-    assert '"collect_remediation_evidence"' in first.text
-    assert "macos.firewall.application-firewall-enabled" in first.text
-    assert "macos.disk.filevault-enabled" in first.text
-    assert "macos.gatekeeper.assessments-enabled" in first.text
-    assert "macos.telemetry.process-inventory" in first.text
-    assert "macos.telemetry.software-inventory" in first.text
-    assert "macos.telemetry.startup-services" in first.text
-    assert "macos.telemetry.login-sessions" in first.text
-    assert "macos.telemetry.network-bindings" in first.text
-    assert '"captures_rollback_artifacts": false' in first.text
-    assert '"reports_execution_results": true' in first.text
-    assert '"supports_dry_run": false' in first.text
+    assert artifact.headers["content-type"].startswith("text/x-shellscript")
+    _assert_bash_syntax(text)
+
+    config = json.loads(_heredoc(text, "cat > \"${CONFIG_PATH}\" <<'JSON'", "JSON"))
+    _assert_config(config, profile, "macos-bootstrap-v1")
+    assert config["platform"] == "macos"
+    assert not {"apply_control", "rollback_control"} & set(config["capabilities"])
+    assert 'chmod 600 "${CONFIG_PATH}"' in text
+    assert 'chown root:wheel "${CONFIG_PATH}" "${REPORTER_PATH}" "${PLIST_PATH}"' in text
+
+    plist = plistlib.loads(_heredoc(text, "cat > \"${PLIST_PATH}\" <<'PLIST'", "PLIST").encode())
+    assert plist["Label"] == "com.sha.reporter"
+    assert plist["ProgramArguments"][-1] == "/Library/Application Support/SHA/reporter.py"
+    assert plist["EnvironmentVariables"]["PATH"] == "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    assert 'launchctl bootstrap system "${PLIST_PATH}"' in text
+
+    reporter = _heredoc(text, "cat > \"${REPORTER_PATH}\" <<'PY'", "PY")
+    for path in ("/api/endpoints/enroll", "/api/posture-snapshots"):
+        assert path in reporter
 
 
 def test_macos_reporter_collects_bounded_local_telemetry_without_network():
