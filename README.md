@@ -2,6 +2,10 @@
 
 Security Hardening Automation (SHA) is an early-stage security operations platform for organizations managing Windows, Linux, and macOS endpoints. It brings posture evidence, a control registry, human approvals, and bounded response actions into one operator workspace.
 
+![SHA console in demo mode, showing an invented fleet](docs/images/sha-console-demo.png)
+
+The screenshot uses the built-in demo mode, which serves only invented tenants and hosts.
+
 ## What it does
 
 - Displays fleet/endpoints, posture, controls, installer profiles, approvals, and action history.
@@ -12,9 +16,15 @@ Security Hardening Automation (SHA) is an early-stage security operations platfo
 
 ## Current scope
 
-The control plane and dashboard are working development slices. Native Go-agent capabilities differ by platform: Windows supports a narrow firewall mutation/rollback path; Linux and macOS have narrower observe/compatibility boundaries. Compatibility scripts and native agent packages are separate paths, as detailed in the [agent guide](agent/README.md).
+The control plane and dashboard are working development slices. Native Go-agent capabilities differ by platform:
 
-Short-lived enrollment and signed release manifests exist. Native DEB/RPM/MSI distribution, ecosystem signing, macOS package/runtime acceptance, and broader production readiness remain gaps. Disruptive work requires typed approval; the endpoint API does not accept arbitrary remote-shell commands. SHAna and wider guided-program automation remain product direction.
+- Windows: posture reporting plus one reversible hardening action (Windows Firewall all profiles, with rollback).
+- Linux: posture reporting. The Go agent does not apply hardening changes; the transitional compatibility reporter can apply and roll back SSH password-login and host network-isolation controls after approval.
+- macOS: observe-only. The agent and reporter report posture, including Application Firewall, FileVault, and Gatekeeper, and refuse any change. An installer and agent end-to-end test runs on a GitHub-hosted macOS runner; there is no signed macOS package yet.
+
+Compatibility scripts and native agent packages are separate paths, as detailed in the [agent guide](agent/README.md).
+
+Short-lived enrollment and signed release manifests exist. Native DEB/RPM/MSI distribution, ecosystem signing, a signed macOS package, and broader production readiness remain gaps. Disruptive work requires typed approval, and every endpoint action is a typed, leased response action. The API has no shell, remote-desktop, or arbitrary-command endpoint; a route test checks for this. SHAna and wider guided-program automation remain product direction.
 
 ## Getting started
 
@@ -43,10 +53,11 @@ Go agents enroll and send heartbeat/posture/action results. Signed archive relea
 ## Development and verification
 
 ```bash
-st check --quick
+(cd backend && uv run pytest)
+(cd frontend && pnpm test && pnpm exec tsc --noEmit)
 ```
 
-The [project guide](docs/project-guide.md#test-typecheck-and-build) lists backend/frontend gates, schema/catalog generation, and isolated platform/HA checks. [Agent verification](agent/README.md) documents release-signature and package tests. Build/contract verification does not establish macOS runtime or production-distribution acceptance.
+The author runs these through `st check`, a workspace tool that is not part of this repository; the commands above are the plain equivalents. The [project guide](docs/project-guide.md#test-typecheck-and-build) lists backend/frontend gates, schema/catalog generation, and isolated platform/HA checks. [Agent verification](agent/README.md) documents release-signature and package tests. Build/contract verification does not establish macOS runtime or production-distribution acceptance.
 
 ## Documentation
 

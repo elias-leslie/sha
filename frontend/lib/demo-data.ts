@@ -179,8 +179,8 @@ function seed(
 }
 
 const CAPABILITIES_BY_PLATFORM: Record<Platform, string[]> = {
-  windows: ["posture.report", "control.inspect", "control.apply", "context.collect", "terminal.session"],
-  linux: ["posture.report", "control.inspect", "control.apply", "context.collect", "terminal.session"],
+  windows: ["posture.report", "control.inspect", "control.apply", "context.collect"],
+  linux: ["posture.report", "control.inspect", "control.apply", "context.collect"],
   macos: ["posture.report", "control.inspect", "context.collect"],
 };
 

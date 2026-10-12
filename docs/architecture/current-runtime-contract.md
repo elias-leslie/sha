@@ -99,6 +99,6 @@ The Go agent and generated Linux, Windows, and macOS reporters speak the current
 - unified jobs, schedules, incidents, evidence objects, reports, command console, or terminal;
 - production-ready installer profiles.
 
-Linux and Windows privileged Phase 0 behavior has fresh Proxmox runtime evidence recorded in `docs/verification/2026-07-17-phase0-runtime.md`. Integrated Phase 1 hierarchy, transport, package, and VM evidence is tracked separately in `docs/verification/2026-07-17-phase1-foundation.md` and is not complete. macOS remains build- and contract-verified only in the current scope.
+Linux and Windows privileged Phase 0 behavior has fresh Proxmox runtime evidence recorded in `docs/verification/2026-07-17-phase0-runtime.md`. Integrated Phase 1 hierarchy, transport, package, and VM evidence is tracked separately in `docs/verification/2026-07-17-phase1-foundation.md` and is not complete. macOS is observe-only: its launchd reporter install and Go-agent enroll, heartbeat, and posture path run in an end-to-end test on a GitHub-hosted macOS runner, and mutations are refused. There is no signed macOS package.
 
 The UI and documentation must not imply these are already available.

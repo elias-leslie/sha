@@ -203,30 +203,3 @@ def has_duplicates(values: list[str], *, key: Callable[[str], Any] | None = None
             return True
         seen.add(normalized)
     return False
-
-
-def safe_subprocess(cmd: list[str], *, timeout: float = 5.0) -> tuple[str, str, int]:
-    """Run a fixed argv without a shell.
-
-    Callers must pass server-defined argv lists, never user-supplied tokens. Failures
-    are logged server-side and reported with a generic message so exception details
-    are not exposed to API clients.
-    """
-    import logging
-    import subprocess
-
-    try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        return proc.stdout or "", proc.stderr or "", proc.returncode
-    except subprocess.TimeoutExpired:
-        logging.getLogger(__name__).warning("diagnostic command timed out: %s", cmd[0] if cmd else "")
-        return "", "Execution error: command timed out", 1
-    except Exception:
-        logging.getLogger(__name__).exception("diagnostic command failed: %s", cmd[0] if cmd else "")
-        return "", "Execution error: command could not be run", 1
-

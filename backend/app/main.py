@@ -15,7 +15,6 @@ from app.api.endpoints.control_registry import router as control_registry_router
 from app.api.endpoints.device_identity import router as device_identity_router
 from app.api.endpoints.evidence import router as evidence_router
 from app.api.endpoints.endpoints import router as endpoints_router
-from app.api.endpoints.network_discovery import router as network_discovery_router
 from app.api.endpoints.fleet_metadata import router as fleet_metadata_router
 from app.api.endpoints.health import router as health_router
 from app.api.endpoints.hierarchy import router as hierarchy_router
@@ -217,7 +216,6 @@ def create_app(
     app.include_router(device_identity_router)
     app.include_router(hierarchy_router)
     app.include_router(endpoints_router)
-    app.include_router(network_discovery_router)
     app.include_router(fleet_metadata_router)
     app.include_router(posture_router)
     app.include_router(installers_router)

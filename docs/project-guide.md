@@ -12,14 +12,14 @@ Most organizations have already paid for strong security capability and are runn
 
 SHA measures what an organization already owns, activates it correctly through typed actions with rollback, proves it stays activated, and only then identifies what is genuinely missing. Every disruptive action requires human approval, and endpoint work is constrained to typed capabilities rather than arbitrary remote shell.
 
-The product direction, audience, framework spine, and phase plan are documented in [docs/plans/2026-08-25-sha-guided-security-program-strategy.md](../docs/plans/2026-08-25-sha-guided-security-program-strategy.md). The section below describes only what runs today.
+The product direction, audience, framework spine, and phase plan are documented in [docs/plans/2026-08-25-sha-guided-security-program-strategy.md](plans/2026-08-25-sha-guided-security-program-strategy.md). The section below describes only what runs today.
 
 [![CI](https://github.com/elias-leslie/sha/actions/workflows/ci.yml/badge.svg)](https://github.com/elias-leslie/sha/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-BUSL--1.1-blue.svg)](../LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000.svg?logo=next.js&logoColor=white)](https://nextjs.org/)
 
-![SHA Infrastructure & Endpoint Compliance Console running in demo mode against an invented fleet](../docs/images/sha-console-demo.png)
+![SHA Infrastructure & Endpoint Compliance Console running in demo mode against an invented fleet](images/sha-console-demo.png)
 
 ## Current status
 
@@ -31,7 +31,7 @@ Implemented:
 - frontend dashboard pages for fleet, endpoints, controls, installers, and approvals, with live/loading/error state, an explicitly enabled fixture-only demo mode, weighted endpoint posture scores, and endpoint response-action history
 - deterministic Linux, Windows, and macOS compatibility reporter generation for installer profiles, served as private, non-cacheable downloads with attachment, digest, no-sniff, and no-referrer headers; token-bearing bodies are not previewed in the dashboard
 - generated Linux, Windows, and macOS reporters atomically claim approval-backed response actions under short leases; all complete bounded incident-response context/evidence collection, while Linux and Windows each have reversible typed hardening controls
-- cross-compiled Go endpoint agent with Linux systemd and Windows SCM service packaging; macOS remains an observe-only build/contract path for enroll, heartbeat, posture upload, leased response-action claim/result, explicit unsupported-action results, and Windows Firewall all-profile apply/rollback; only the Windows Go agent advertises mutation and rollback-artifact support
+- cross-compiled Go endpoint agent with Linux systemd and Windows SCM service packaging. On every platform it handles enroll, heartbeat, posture upload, and leased response-action claim/result. Only the Windows Go agent applies a hardening change (Windows Firewall all-profile apply/rollback with a rollback artifact). macOS is observe-only: it reports Application Firewall, FileVault, and Gatekeeper posture and returns an explicit unsupported result for any mutation
 - fail-closed protected authentication with provider-neutral OIDC browser sessions, global/client/location role bindings, separate legacy operator/read-only/agent credentials, CSRF/origin enforcement, and an explicit local-only `development_open` mode
 - a human-in-the-loop approval workflow with two typed request kinds (`hardening_change`, `elevated_troubleshooting`), bounded grant TTLs (15–240 min), manual emergency grants, append-only audit events, and concurrency-safe state transitions
 - an approval-backed response-action queue with request idempotency, atomic claim, opaque hashed lease credentials, expiry/reclaim, and lease-bound idempotent result reporting
@@ -44,7 +44,7 @@ Not yet production-ready:
 
 - OIDC configuration is not yet wired into the starter HA Compose manifests; deployments must mount its client/session secrets and configure their provider explicitly. Legacy API tokens remain available for compatibility, while direct external-proxy roles are disabled whenever scoped OIDC is enabled.
 - short-lived enrollment tokens, unique per-device credentials, signed release bundles, and signed bootstrap manifests exist for the Go-agent path. Native DEB/RPM/MSI distribution and ecosystem signing remain gaps; generated compatibility reporters remain transitional scripts rather than production installers
-- Linux and Windows privileged runtime have fresh Proxmox evidence in `docs/verification/2026-07-17-phase0-runtime.md`; macOS is build/contract verified only
+- Linux and Windows privileged runtime have fresh Proxmox evidence in `docs/verification/2026-07-17-phase0-runtime.md`. macOS observe-only behavior (launchd reporter install and Go-agent enroll/heartbeat/posture) is exercised by `scripts/test-macos-installer-local.sh` on a GitHub-hosted macOS runner; there is no signed macOS package yet
 - no fully managed production HA offering; a starter PostgreSQL/nginx compose path is checked in for HA-ready self-hosting
 - no live AI/operator integration is required or bundled
 
